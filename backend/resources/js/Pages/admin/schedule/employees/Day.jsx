@@ -112,7 +112,6 @@ export function EmployeeTabs({ view, date, selectedWorkerId, selectedWorker, wor
                        className="inline-flex items-center gap-2 px-3 h-9 rounded-om-sm bg-om-accent hover:brightness-95 text-white font-mono text-xs font-bold tracking-wider uppercase">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
                         {__('Add activity')}
-                        {__('Add activity')}
                     </Link>
                 )}
             </div>
@@ -327,7 +326,6 @@ export default function EmployeeDay() {
                         <Link href={`/admin/schedule/employees/add?worker_id=${selectedWorkerId}&date=${date}`}
                            className="h-11 rounded-om border border-dashed border-om-line text-om-accent font-mono text-[11.5px] font-bold tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-om-accent-bg">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
-                            {__('Add activity')}
                             {__('Add activity')}
                         </Link>
                     )}

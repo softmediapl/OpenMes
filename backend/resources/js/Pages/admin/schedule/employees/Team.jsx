@@ -54,7 +54,6 @@ export default function EmployeeTeam() {
                     {workers.length === 0 ? (
                         <div className="p-8 text-center text-sm text-om-faint border border-dashed border-om-line2 rounded-om">
                             {__('No workers configured.')}
-                            {__('No workers configured.')}
                         </div>
                     ) : workers.map((w) => {
                         const acts = teamActivities[w.id] ?? [];

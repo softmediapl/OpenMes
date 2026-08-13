@@ -164,7 +164,6 @@ export default function EmployeeCreate() {
                         <a href={`/admin/schedule/employees?view=day&date=${date}&worker_id=${worker?.id}`}
                            className="flex-1 h-12 rounded-om border border-om-line2 text-om-muted font-mono text-xs font-bold tracking-wider uppercase flex items-center justify-center">
                             {__('Cancel')}
-                            {__('Cancel')}
                         </a>
                         <button type="submit"
                                 className="flex-[2] h-12 rounded-om bg-om-accent hover:brightness-95 text-white font-mono text-xs font-bold tracking-wider uppercase">
