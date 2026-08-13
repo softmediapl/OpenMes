@@ -49,9 +49,14 @@ fi
 # file (no DB/artisan needed yet) before anything reads them — including the
 # route cache, so a stale route map can't keep serving the previous release's
 # middleware (e.g. the old role:Admin /admin group instead of tab.access).
-rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
-      bootstrap/cache/config.php bootstrap/cache/routes-v7.php bootstrap/cache/route.php
-php artisan package:discover --ansi 2>/dev/null || true
+if [ "$IS_PRIMARY" = "1" ]; then
+    mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views \
+          storage/logs bootstrap/cache
+    chown -R www-data:www-data storage bootstrap/cache 2>/dev/null || true
+    rm -f bootstrap/cache/packages.php bootstrap/cache/services.php \
+          bootstrap/cache/config.php bootstrap/cache/routes-v7.php bootstrap/cache/route.php
+    php artisan package:discover --ansi 2>/dev/null || true
+fi
 
 if [ "$IS_PRIMARY" = "1" ]; then
     # ── Migrations ───────────────────────────────────────────────────────────
@@ -118,9 +123,13 @@ else
 fi
 
 # ── Cache ────────────────────────────────────────────────────────────────────
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+if [ "$IS_PRIMARY" = "1" ]; then
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+else
+    echo "[OpenMES] Sidecar container ($*) — using caches prepared by the primary."
+fi
 
 echo "[OpenMES] Ready at http://localhost:8080"
 
