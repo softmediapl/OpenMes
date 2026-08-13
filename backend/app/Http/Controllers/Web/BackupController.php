@@ -7,13 +7,17 @@ use App\Http\Requests\ResetSystemRequest;
 use App\Http\Requests\UploadBackupRequest;
 use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\SystemResetService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 class BackupController extends Controller
 {
+    public function __construct(
+        private readonly SystemResetService $systemResetService
+    ) {}
+
     private function getBackupsDir(): string
     {
         $dir = storage_path('app/backups');
@@ -387,13 +391,13 @@ class BackupController extends Controller
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            // 2. Purge and reconnect to database to clear any cached plans or connections in Octane/Roadrunner worker
+            // 2. Release the worker's connection before the external CLI process
+            // rebuilds the schema.
             DB::purge();
-            DB::reconnect();
 
-            // 3. Wipe and re-migrate & seed
-            Artisan::call('migrate:fresh', ['--force' => true]);
-            Artisan::call('db:seed', ['--force' => true]);
+            // 3. Rebuild and seed in isolated processes. In-process Artisan
+            // calls leave long-lived Octane workers with stale schema state.
+            $this->systemResetService->resetDatabase();
 
             // 4. Reconnect again after migrations to ensure fresh schema states
             DB::purge();
