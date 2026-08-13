@@ -1,0 +1,176 @@
+name: ${STACK_NAME:-openmes}
+
+x-laravel-env: &laravel-env
+  APP_NAME: ${APP_NAME:-OpenMES}
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_KEY: "${APP_KEY:?APP_KEY is required}"
+  APP_URL: "${APP_URL:?APP_URL is required}"
+  SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-}
+  LOG_CHANNEL: ${LOG_CHANNEL:-stack}
+  LOG_STACK: ${LOG_STACK:-single}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  DB_CONNECTION: pgsql
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_DATABASE: "${POSTGRES_DB:?POSTGRES_DB is required}"
+  DB_USERNAME: "${POSTGRES_USER:?POSTGRES_USER is required}"
+  DB_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+  SESSION_DRIVER: database
+  QUEUE_CONNECTION: database
+  CACHE_STORE: database
+  FILESYSTEM_DISK: local
+  BROADCAST_CONNECTION: reverb
+  REVERB_APP_ID: ${REVERB_APP_ID:-openmes}
+  REVERB_APP_KEY: ${REVERB_APP_KEY:-openmeskey}
+  REVERB_APP_SECRET: "${REVERB_APP_SECRET:?REVERB_APP_SECRET is required}"
+  REVERB_HOST: reverb
+  REVERB_PORT: 8080
+  REVERB_SCHEME: http
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=10
+      - -c
+      - max_wal_senders=10
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - openmes
+
+  backend:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    environment:
+      <<: *laravel-env
+      ADMIN_USERNAME: "${ADMIN_USERNAME:?ADMIN_USERNAME is required}"
+      ADMIN_EMAIL: "${ADMIN_EMAIL:?ADMIN_EMAIL is required}"
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}"
+    volumes:
+      - backend_storage:/var/www/html/storage
+      - backend_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+    networks:
+      - openmes
+
+  reverb:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    environment:
+      <<: *laravel-env
+      REVERB_SERVER_HOST: 0.0.0.0
+      REVERB_SERVER_PORT: 8080
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - openmes
+
+  queue-worker:
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    command: ["php", "artisan", "queue:work", "--sleep=1", "--tries=5", "--timeout=120"]
+    environment:
+      <<: *laravel-env
+    volumes:
+      - backend_storage:/var/www/html/storage
+      - backend_cache:/var/www/html/bootstrap/cache
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - openmes
+
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      reverb:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      openmes:
+      npm:
+        aliases:
+          - openmes-web
+
+  postgres-backup:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
+      PGPASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+    command:
+      - sh
+      - -ec
+      - |
+        while true; do
+          file="/backups/openmes-$(date -u +%Y%m%dT%H%M%SZ).dump"
+          pg_dump --host=postgres --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}" --format=custom --file="$${file}"
+          find /backups -type f -name 'openmes-*.dump' -mtime +"$${BACKUP_RETENTION_DAYS}" -delete
+          sleep "$${BACKUP_INTERVAL_SECONDS}"
+        done
+    volumes:
+      - postgres_backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - openmes
+
+volumes:
+  postgres_data:
+  postgres_backups:
+  backend_storage:
+  backend_cache:
+  caddy_data:
+  caddy_config:
+
+networks:
+  openmes:
+    driver: bridge
+  npm:
+    name: ${NPM_NETWORK:?NPM_NETWORK is required}
+    external: true

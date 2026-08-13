@@ -1,0 +1,27 @@
+(openmes) {
+	encode zstd gzip
+
+	handle /app/* {
+		reverse_proxy reverb:8080 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Ssl on
+			header_up X-Forwarded-Port 443
+		}
+	}
+
+	handle {
+		reverse_proxy backend:8000 {
+			header_up Host {http.request.host}
+			header_up X-Forwarded-Host {http.request.host}
+			header_up X-Forwarded-Proto https
+			header_up X-Forwarded-Ssl on
+			header_up X-Forwarded-Port 443
+		}
+	}
+}
+
+:80 {
+	import openmes
+}
