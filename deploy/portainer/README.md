@@ -1,6 +1,6 @@
 # OpenMES deployment on Portainer
 
-This directory contains the production-oriented Portainer stack for the SoftMedia MES deployment.
+This directory contains a production-oriented Portainer stack for OpenMES.
 
 ## Deployment model
 
@@ -13,10 +13,11 @@ This directory contains the production-oriented Portainer stack for the SoftMedi
 
 Create a new stack from Git:
 
-- Repository URL: `https://softmediapl@dev.azure.com/softmediapl/MES/_git/MES`
+- Repository URL: the HTTPS clone URL of your OpenMES repository or fork.
+- Repository reference: the branch or tag approved for your environment.
 - Compose path: `deploy/portainer/docker-compose.yml`
 - Environment variables: copy keys from `portainer.env.example` and replace every `CHANGE_ME...` value.
-- `NPM_NETWORK` must be the existing Docker network used by the Nginx Proxy Manager container. On `ded1`, NPM is attached to `devops_net`, so use `NPM_NETWORK=devops_net`.
+- `NPM_NETWORK` must be the existing Docker network used by the Nginx Proxy Manager container.
 
 Do not paste secrets into this repository. Keep production values only in Portainer environment variables or a Portainer secret mechanism.
 
@@ -48,7 +49,7 @@ Nginx Proxy Manager should request and renew the TLS certificate automatically.
 
 Create a Proxy Host:
 
-- Domain Names: `mes.softmedia.com.pl`
+- Domain Names: your OpenMES domain
 - Scheme: `http`
 - Forward Hostname / IP: `openmes-web`
 - Forward Port: `80`
@@ -74,6 +75,7 @@ curl -fsS https://your-domain/api/health
 
 Expected response contains `"status":"ok"`.
 
+Application services use Compose `pull_policy: build`. Portainer therefore rebuilds the locally tagged application and Caddy images from the current Git checkout on every stack redeployment instead of trying to pull the private local tags from a public registry.
 ## Backups
 
 The `postgres-backup` service writes daily PostgreSQL custom-format dumps to the `postgres_backups` volume and removes files older than `BACKUP_RETENTION_DAYS`.
