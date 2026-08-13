@@ -5,7 +5,7 @@ This directory contains the production-oriented Portainer stack for the SoftMedi
 ## Deployment model
 
 - Portainer deploys `deploy/portainer/docker-compose.yml` from the Git repository.
-- The application image is built from repository source, because the upstream GHCR image may not be publicly pullable.
+- The application and Caddy images are built from repository source, because the upstream GHCR image may not be publicly pullable and Git-backed Portainer stacks cannot reliably use relative bind mounts from Portainer's data volume.
 - Nginx Proxy Manager terminates HTTPS. The internal Caddy service routes HTTP traffic to Laravel Octane and WebSocket traffic at `/app/*` to Laravel Reverb.
 - PostgreSQL data, Laravel storage, cache, Caddy state and database backups are stored in named Docker volumes.
 
