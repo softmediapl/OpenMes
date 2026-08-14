@@ -46,20 +46,18 @@ class ImageSanitizerTest extends TestCase
         $this->assertSame('image/webp', $this->sanitizer->sanitize($this->makeImage('webp'))['mime']);
     }
 
-    public function test_destroys_php_payload_appended_to_valid_image(): void
+    public function test_destroys_payload_appended_to_valid_image(): void
     {
-        // Polyglot: a real PNG with a PHP webshell appended — still a valid
-        // image for most parsers, lethal if ever executed by a misconfigured
-        // server. The re-encode must strip the payload.
+        // A real PNG with trailing bytes is still accepted by most parsers.
+        // Keep the marker neutral so endpoint protection does not quarantine
+        // the fixture before the sanitizer can inspect it.
         $path = $this->makeImage('png');
-        // Assembled from fragments so the fixture isn't a literal web shell that
-        // trips antivirus / SAST signatures (Backdoor:PHP/*). Bytes are identical.
-        file_put_contents($path, '<'.'?'.'php sys'.'tem($_GET["cmd"]); ?'.'>', FILE_APPEND);
+        $payload = 'OPENMES-TRAILING-PAYLOAD-'.bin2hex(random_bytes(16));
+        file_put_contents($path, $payload, FILE_APPEND);
 
         $result = $this->sanitizer->sanitize($path);
 
-        $this->assertStringNotContainsString('<?php', $result['bytes']);
-        $this->assertStringNotContainsString('system(', $result['bytes']);
+        $this->assertStringNotContainsString($payload, $result['bytes']);
     }
 
     public function test_rejects_php_file_with_image_extension(): void
