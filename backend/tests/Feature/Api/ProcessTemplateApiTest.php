@@ -5,6 +5,7 @@ namespace Tests\Feature\Api;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
+use App\Models\TransportUnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -114,6 +115,30 @@ class ProcessTemplateApiTest extends TestCase
         $valid->assertCreated()
             ->assertJsonPath('data.execution_mode', 'fixed_hold')
             ->assertJsonPath('data.min_duration_minutes', 30);
+    }
+
+    public function test_admin_can_require_a_transport_unit_type_on_a_step(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $type = TransportUnitType::factory()->create();
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Rack cooling',
+            'transport_unit_type_id' => $type->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.transport_unit_type_id', $type->id);
+    }
+
+    public function test_api_rejects_inactive_transport_unit_type(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $type = TransportUnitType::factory()->create(['is_active' => false]);
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Invalid rack rule',
+            'transport_unit_type_id' => $type->id,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('transport_unit_type_id');
     }
 
     public function test_step_numbers_auto_increment(): void

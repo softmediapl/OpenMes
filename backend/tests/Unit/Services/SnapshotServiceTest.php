@@ -76,6 +76,7 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('workstation_id', $step);
         // ISA-95 additions (#52).
         $this->assertArrayHasKey('workstation_type_id', $step);
+        $this->assertArrayHasKey('transport_unit_type_id', $step);
         $this->assertArrayHasKey('setup_time_minutes', $step);
         $this->assertArrayHasKey('run_time_per_unit_minutes', $step);
         $this->assertArrayHasKey('execution_mode', $step);
@@ -108,6 +109,17 @@ class SnapshotServiceTest extends TestCase
 
         $this->assertSame('fixed_hold', $step['execution_mode']);
         $this->assertSame(45, $step['min_duration_minutes']);
+    }
+
+    public function test_snapshot_step_carries_required_transport_unit_type(): void
+    {
+        $type = \App\Models\TransportUnitType::factory()->create();
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update(['transport_unit_type_id' => $type->id]);
+
+        $step = $this->service->createSnapshot($template->fresh())['steps'][0];
+
+        $this->assertSame($type->id, $step['transport_unit_type_id']);
     }
 
     public function test_snapshot_workstation_type_falls_back_to_process_segment(): void

@@ -30,6 +30,7 @@ class TemplateStep extends Model
         'quantity_reporting_required',
         'workstation_id',
         'workstation_type_id',
+        'transport_unit_type_id',
         'setup_time_minutes',
         'run_time_per_unit_minutes',
         'is_optional',
@@ -85,6 +86,11 @@ class TemplateStep extends Model
     public function workstationType(): BelongsTo
     {
         return $this->belongsTo(WorkstationType::class);
+    }
+
+    public function transportUnitType(): BelongsTo
+    {
+        return $this->belongsTo(TransportUnitType::class);
     }
 
     /**

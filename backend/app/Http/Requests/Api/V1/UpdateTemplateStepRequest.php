@@ -34,6 +34,7 @@ class UpdateTemplateStepRequest extends FormRequest
             'required_operators' => ['sometimes', 'nullable', 'integer', 'min:1'],
             'workstation_id' => ['sometimes', 'nullable', 'integer', 'exists:workstations,id'],
             'workstation_type_id' => ['sometimes', 'nullable', 'integer', Rule::exists('workstation_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
+            'transport_unit_type_id' => ['sometimes', 'nullable', 'integer', Rule::exists('transport_unit_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
         ];
     }
 

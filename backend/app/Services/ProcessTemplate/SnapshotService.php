@@ -46,6 +46,7 @@ class SnapshotService
                     'required_operators' => $step->effectiveRequiredOperators(),
                     'workstation_id' => $step->workstation_id,
                     'workstation_type_id' => $step->effectiveWorkstationType(),
+                    'transport_unit_type_id' => $step->transport_unit_type_id,
                 ];
             })->toArray(),
             'bom' => $template->bomItems->map(function ($item) {

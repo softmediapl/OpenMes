@@ -39,6 +39,7 @@ class BatchStep extends Model
         'quantity_reporting_required',
         'workstation_id',
         'workstation_type_id',
+        'transport_unit_type_id',
         'estimated_duration_minutes',
         'execution_mode',
         'min_duration_minutes',
@@ -137,6 +138,11 @@ class BatchStep extends Model
     public function workstationType(): BelongsTo
     {
         return $this->belongsTo(WorkstationType::class);
+    }
+
+    public function transportUnitType(): BelongsTo
+    {
+        return $this->belongsTo(TransportUnitType::class);
     }
 
     /** The supervisor who assigned the specific workstation (pool dispatch, #52). */

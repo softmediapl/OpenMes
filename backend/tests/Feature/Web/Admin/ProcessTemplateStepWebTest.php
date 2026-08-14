@@ -5,6 +5,7 @@ namespace Tests\Feature\Web\Admin;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
+use App\Models\TransportUnitType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -110,6 +111,36 @@ class ProcessTemplateStepWebTest extends TestCase
             'setup_time_minutes' => 12,
             'run_time_per_unit_minutes' => 1.5,
         ]);
+    }
+
+    public function test_admin_can_require_an_active_transport_unit_type(): void
+    {
+        [$pt, $tpl] = $this->template();
+        $type = TransportUnitType::factory()->create();
+
+        $this->actingAs($this->admin)
+            ->post($this->base($pt, $tpl).'/steps', [
+                'name' => 'Cooling rack hold',
+                'transport_unit_type_id' => $type->id,
+            ])->assertRedirect();
+
+        $this->assertDatabaseHas('template_steps', [
+            'process_template_id' => $tpl->id,
+            'name' => 'Cooling rack hold',
+            'transport_unit_type_id' => $type->id,
+        ]);
+    }
+
+    public function test_admin_cannot_require_an_inactive_transport_unit_type(): void
+    {
+        [$pt, $tpl] = $this->template();
+        $type = TransportUnitType::factory()->create(['is_active' => false]);
+
+        $this->actingAs($this->admin)
+            ->post($this->base($pt, $tpl).'/steps', [
+                'name' => 'Invalid transport rule',
+                'transport_unit_type_id' => $type->id,
+            ])->assertSessionHasErrors('transport_unit_type_id');
     }
 
     public function test_admin_can_update_step(): void

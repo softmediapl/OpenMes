@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\Line;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
+use App\Models\TransportUnitType;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -82,6 +83,10 @@ class WorkOrderServiceTest extends TestCase
     public function test_create_batch_initializes_steps_from_snapshot(): void
     {
         $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
+        $transportUnitType = TransportUnitType::factory()->create();
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['steps'][0]['transport_unit_type_id'] = $transportUnitType->id;
+        $workOrder->update(['process_snapshot' => $snapshot]);
         $this->assertCount(3, $workOrder->process_snapshot['steps']); // From factory
 
         $batch = $this->service->createBatch($workOrder, 50);
@@ -102,6 +107,7 @@ class WorkOrderServiceTest extends TestCase
             $this->assertEquals($snapshotStep['instruction'], $step->instruction);
             $this->assertSame($snapshotStep['execution_mode'], $step->execution_mode->value);
             $this->assertEquals($snapshotStep['min_duration_minutes'], $step->min_duration_minutes);
+            $this->assertEquals($snapshotStep['transport_unit_type_id'] ?? null, $step->transport_unit_type_id);
             // First step is promoted to READY ("ready to start"); the rest stay
             // PENDING until their predecessor completes.
             $this->assertEquals($index === 0 ? 'READY' : 'PENDING', $step->status);

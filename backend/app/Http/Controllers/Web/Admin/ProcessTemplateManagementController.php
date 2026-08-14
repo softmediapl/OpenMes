@@ -84,6 +84,7 @@ class ProcessTemplateManagementController extends Controller
             'steps' => fn ($q) => $q->orderBy('step_number', 'asc'),
             'steps.workstation.line',
             'steps.processSegment',
+            'steps.transportUnitType',
             'photos.uploadedBy',
             'stepMedia',
             'checklistItems',
@@ -116,6 +117,7 @@ class ProcessTemplateManagementController extends Controller
                     'run_time_per_unit_minutes' => $s->run_time_per_unit_minutes,
                     'workstation_id' => $s->workstation_id,
                     'workstation_type_id' => $s->workstation_type_id,
+                    'transport_unit_type_id' => $s->transport_unit_type_id,
                     'process_segment_id' => $s->process_segment_id,
                     'is_optional' => (bool) $s->is_optional,
                     'variant_group' => $s->variant_group,
@@ -128,6 +130,11 @@ class ProcessTemplateManagementController extends Controller
                     'process_segment' => $s->processSegment ? [
                         'id' => $s->processSegment->id,
                         'code' => $s->processSegment->code,
+                    ] : null,
+                    'transport_unit_type' => $s->transportUnitType ? [
+                        'id' => $s->transportUnitType->id,
+                        'code' => $s->transportUnitType->code,
+                        'name' => $s->transportUnitType->name,
                     ] : null,
                 ]),
                 'photos' => $processTemplate->photos->map(fn ($p) => [
@@ -164,6 +171,10 @@ class ProcessTemplateManagementController extends Controller
             ]),
             // ISA-95 Equipment Classes (#52) for the step's workstation-type picker.
             'workstationTypes' => \App\Models\WorkstationType::query()->active()->orderBy('name')->get(['id', 'name']),
+            'transportUnitTypes' => \App\Models\TransportUnitType::query()
+                ->active()
+                ->orderBy('name')
+                ->get(['id', 'code', 'name', 'default_capacity_quantity', 'unit_of_measure']),
             'processSegments' => $processSegments->map(fn ($s) => [
                 'id' => $s->id,
                 'code' => $s->code,
