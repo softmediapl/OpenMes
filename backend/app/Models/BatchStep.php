@@ -6,6 +6,7 @@ use App\Enums\OperationExecutionMode;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use App\Support\SystemSetting;
 use App\Traits\Auditable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +42,9 @@ class BatchStep extends Model
         'estimated_duration_minutes',
         'execution_mode',
         'min_duration_minutes',
+        'hold_override_reason',
+        'hold_overridden_by_id',
+        'hold_overridden_at',
         'setup_time_minutes',
         'run_time_per_unit_minutes',
         'input_quantity',
@@ -77,6 +81,7 @@ class BatchStep extends Model
             'estimated_duration_minutes' => 'integer',
             'execution_mode' => OperationExecutionMode::class,
             'min_duration_minutes' => 'integer',
+            'hold_overridden_at' => 'datetime',
             'setup_time_minutes' => 'integer',
             'run_time_per_unit_minutes' => 'decimal:2',
             'input_quantity' => 'decimal:4',
@@ -144,6 +149,12 @@ class BatchStep extends Model
     public function completedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'completed_by_id');
+    }
+
+    /** The supervisor or administrator who released a fixed hold early. */
+    public function holdOverriddenBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'hold_overridden_by_id');
     }
 
     public function quantityReportedBy(): BelongsTo
@@ -356,6 +367,33 @@ class BatchStep extends Model
     public function canComplete(): bool
     {
         return $this->status === self::STATUS_IN_PROGRESS;
+    }
+
+    /** Earliest instant at which a fixed-hold operation may be released. */
+    public function holdReleaseAt(): ?CarbonInterface
+    {
+        if (
+            $this->execution_mode !== OperationExecutionMode::FixedHold
+            || ! $this->started_at
+            || ! $this->min_duration_minutes
+        ) {
+            return null;
+        }
+
+        return $this->started_at->copy()->addMinutes($this->min_duration_minutes);
+    }
+
+    /** Whole seconds still required by the operation's fixed hold. */
+    public function holdRemainingSeconds(?CarbonInterface $at = null): int
+    {
+        $releaseAt = $this->holdReleaseAt();
+        if (! $releaseAt) {
+            return 0;
+        }
+
+        $at ??= now();
+
+        return max(0, $releaseAt->getTimestamp() - $at->getTimestamp());
     }
 
     /**

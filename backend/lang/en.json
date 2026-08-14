@@ -5328,5 +5328,13 @@
     "The operation cannot be released before this time has elapsed.": "The operation cannot be released before this time has elapsed.",
     "required": "required",
     "min minimum": "min minimum",
-    "A fixed-hold operation requires a minimum duration of at least one minute.": "A fixed-hold operation requires a minimum duration of at least one minute."
+    "A fixed-hold operation requires a minimum duration of at least one minute.": "A fixed-hold operation requires a minimum duration of at least one minute.",
+    "This operation is on hold until :time.": "This operation is on hold until :time.",
+    "A reason of at least 10 characters is required to release a fixed-hold operation early.": "A reason of at least 10 characters is required to release a fixed-hold operation early.",
+    "This operation is still within its minimum hold time.": "This operation is still within its minimum hold time.",
+    "Minimum hold": "Minimum hold",
+    "Earliest release: :time": "Earliest release: :time",
+    "Ready for release": "Ready for release",
+    "Early-release reason": "Early-release reason",
+    "Required supervisor justification (minimum 10 characters)": "Required supervisor justification (minimum 10 characters)"
 }

@@ -138,6 +138,60 @@ class BatchStepTest extends TestCase
         $this->assertNotNull($firstStep->duration_minutes);
     }
 
+    public function test_api_prevents_operator_from_releasing_a_fixed_hold_early(): void
+    {
+        $operator = $this->authenticatedUser('Operator');
+        [$workOrder, $batch] = $this->createWorkOrderWithBatch();
+        $operator->lines()->attach($workOrder->line_id);
+
+        $step = $batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => now()->subMinutes(5),
+            'started_by_id' => $operator->id,
+        ]);
+
+        $operatorToken = $operator->createToken('fixed-hold-operator')->plainTextToken;
+        $blockedResponse = $this->withHeader('Authorization', "Bearer {$operatorToken}")
+            ->postJson("/api/v1/batch-steps/{$step->id}/complete")
+            ->assertUnprocessable()
+            ->assertJsonStructure(['errors' => ['step']]);
+        $this->assertStringContainsString('on hold until', $blockedResponse->json('errors.step.0'));
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $step->fresh()->status);
+    }
+
+    public function test_api_audits_supervisor_early_release_of_a_fixed_hold(): void
+    {
+        $supervisor = $this->authenticatedUser('Supervisor');
+        [$workOrder, $batch] = $this->createWorkOrderWithBatch();
+        $supervisor->lines()->attach($workOrder->line_id);
+
+        $step = $batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => now()->subMinutes(5),
+            'started_by_id' => $supervisor->id,
+        ]);
+
+        $supervisorToken = $supervisor->createToken('fixed-hold-supervisor')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$supervisorToken}")
+            ->postJson("/api/v1/batch-steps/{$step->id}/complete", [
+                'hold_override_reason' => 'Quality approved an exceptional early release.',
+            ])
+            ->assertOk();
+
+        $step->refresh();
+        $this->assertSame(BatchStep::STATUS_DONE, $step->status);
+        $this->assertSame($supervisor->id, $step->hold_overridden_by_id);
+        $this->assertSame('Quality approved an exceptional early release.', $step->hold_override_reason);
+        $this->assertNotNull($step->hold_overridden_at);
+    }
+
     public function test_quantity_reporting_step_requires_and_persists_a_balanced_api_payload(): void
     {
         $user = $this->authenticatedUser('Operator');

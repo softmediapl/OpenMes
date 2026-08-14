@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Badge, Button, Checkbox, Dropdown, ProgressBar, StatusPill } from '@openmes/ui';
 import { DataTable } from '@openmes/ui/table';
@@ -13,6 +13,7 @@ import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationQuantityBalance } from '../../lib/operationQuantity';
+import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 
 // Geist White restyle: light-only v1 — former `dark:` variants removed.
 
@@ -652,7 +653,7 @@ function ProductionControls({ batch }) {
 // Single Batch card
 // ---------------------------------------------------------------------------
 
-function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false }) {
+function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
     const [expanded, setExpanded] = useState(defaultOpen);
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
 
@@ -729,6 +730,7 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
                         stepMedia={stepMedia}
                         stepChecklists={stepChecklists}
                         scrapReasons={scrapReasons}
+                        canOverrideOperationHold={canOverrideOperationHold}
                     />
 
                     {/* Production controls */}
@@ -743,11 +745,25 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [] }) {
+function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null); // { step, materials } | null
     const [completeModal, setCompleteModal] = useState(null);
+    const [clock, setClock] = useState(Date.now());
+    const hasRunningFixedHold = steps?.some((step) => (
+        step.status === 'IN_PROGRESS'
+        && step.execution_mode === 'fixed_hold'
+        && holdRemainingSeconds(step.hold_release_at, clock) > 0
+    ));
+
+    useEffect(() => {
+        if (!hasRunningFixedHold) return undefined;
+
+        const timer = window.setInterval(() => setClock(Date.now()), 1000);
+
+        return () => window.clearInterval(timer);
+    }, [hasRunningFixedHold]);
 
     if (!steps || steps.length === 0) return null;
 
@@ -843,6 +859,11 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                     const completions = step.checklist_completions || [];
                     const completedItemIds = new Set(completions.map((c) => c.checklist_item_id));
                     const canCheck = step.status === 'IN_PROGRESS' || step.status === 'READY' || step.status === 'PENDING';
+                    const isFixedHold = step.execution_mode === 'fixed_hold';
+                    const remainingHoldSeconds = isFixedHold
+                        ? holdRemainingSeconds(step.hold_release_at, clock)
+                        : 0;
+                    const holdIsActive = remainingHoldSeconds > 0;
                     return (
                         <div key={step.id} className="bg-om-panel border border-om-line2 rounded-om-sm">
                         <div className="flex items-center gap-3 p-3">
@@ -910,11 +931,12 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                             {step.status === 'IN_PROGRESS' && (
                                 <Button
                                     variant="primary"
-                                    disabled={isInflight || isDocBlocked || needsConfirm}
+                                    disabled={isInflight || isDocBlocked || needsConfirm || (holdIsActive && !canOverrideOperationHold)}
                                     onClick={() => (
                                         step.quantity_reporting_required
                                             || step.setup_time_minutes != null
                                             || step.run_time_per_unit_minutes != null
+                                            || isFixedHold
                                             ? setCompleteModal({ step })
                                             : handleStepAction(step, 'complete')
                                     )}
@@ -923,6 +945,8 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                                             ? __('Validate the mandatory document(s) before completing this step.')
                                             : needsConfirm
                                               ? __('Confirm you have read the instructions before completing this step.')
+                                              : holdIsActive && !canOverrideOperationHold
+                                                ? __('This operation is still within its minimum hold time.')
                                               : undefined
                                     }
                                     className="px-6 py-3.5 text-[15px] whitespace-nowrap"
@@ -939,6 +963,22 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                                 label="Label"
                             />
                         </div>
+
+                        {isFixedHold && step.started_at && (
+                            <div className={`border-t border-om-line2 px-3 py-2.5 ${holdIsActive ? 'bg-om-downtime-bg' : 'bg-om-done-bg'}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                        <span className="block text-xs font-semibold text-om-ink">{__('Minimum hold')}</span>
+                                        <span className="text-[11px] text-om-muted">
+                                            {__('Earliest release: :time', { time: formatDateTime(step.hold_release_at) })}
+                                        </span>
+                                    </div>
+                                    <span className={`font-mono text-[16px] font-semibold ${holdIsActive ? 'text-om-downtime' : 'text-om-running'}`}>
+                                        {holdIsActive ? formatHoldCountdown(remainingHoldSeconds) : __('Ready for release')}
+                                    </span>
+                                </div>
+                            </div>
+                        )}
 
                         {(step.quantity_reporting_required || step.quantity_reported_at) && (
                             <OperationQuantitySummary step={step} />
@@ -1006,6 +1046,7 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                 <CompleteOperationModal
                     step={completeModal.step}
                     scrapReasons={scrapReasons}
+                    canOverrideOperationHold={canOverrideOperationHold}
                     onClose={() => setCompleteModal(null)}
                 />
             )}
@@ -1045,13 +1086,17 @@ function OperationQuantitySummary({ step }) {
  * steps must account for their full WIP input; timed steps additionally capture
  * operator-confirmed actuals introduced by #52.
  */
-function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
+function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationHold = false, onClose }) {
     const startedAt = step.started_at ? new Date(step.started_at).getTime() : null;
     const initialElapsed = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 60000)) : 0;
     const initialSetup = step.setup_time_minutes != null ? Number(step.setup_time_minutes) : 0;
     const inputQuantity = Number(step.input_quantity ?? 0);
     const reportsQuantity = !!step.quantity_reporting_required;
-    const reportsTime = step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
+    const isFixedHold = step.execution_mode === 'fixed_hold';
+    const reportsTime = isFixedHold || step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
+    const [clock, setClock] = useState(Date.now());
+    const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
+    const earlyRelease = remainingHoldSeconds > 0;
     const form = useForm({
         actual_elapsed_minutes: reportsTime ? String(initialElapsed) : '',
         actual_setup_minutes: reportsTime && step.setup_time_minutes != null ? String(initialSetup) : '',
@@ -1061,7 +1106,16 @@ function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
         scrap_quantity: reportsQuantity ? '0' : '',
         scrap_reason_id: '',
         quantity_notes: '',
+        hold_override_reason: '',
     });
+
+    useEffect(() => {
+        if (!earlyRelease) return undefined;
+
+        const timer = window.setInterval(() => setClock(Date.now()), 1000);
+
+        return () => window.clearInterval(timer);
+    }, [earlyRelease]);
 
     // Backend rules are integer|min:0; mirror them so bad values never submit
     // (the number inputs' min= does not block this custom-button submission).
@@ -1087,7 +1141,11 @@ function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
         !quantityBalance.balanced
         || (scrapQuantity > 0 && !form.data.scrap_reason_id)
     );
-    const invalid = !elapsedValid || !setupValid || !runValid || overflow || quantityInvalid;
+    const holdOverrideInvalid = earlyRelease && (
+        !canOverrideOperationHold
+        || form.data.hold_override_reason.trim().length < 10
+    );
+    const invalid = !elapsedValid || !setupValid || !runValid || overflow || quantityInvalid || holdOverrideInvalid;
 
     const submit = () => {
         if (invalid) return;
@@ -1100,6 +1158,9 @@ function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
             scrap_quantity: reportsQuantity ? Number(data.scrap_quantity) : null,
             scrap_reason_id: reportsQuantity && scrapQuantity > 0 ? Number(data.scrap_reason_id) : null,
             quantity_notes: reportsQuantity && data.quantity_notes.trim() !== '' ? data.quantity_notes.trim() : null,
+            hold_override_reason: earlyRelease && canOverrideOperationHold
+                ? data.hold_override_reason.trim()
+                : null,
         })).post(`/operator/batch-step/${step.id}/complete`, {
             preserveScroll: true,
             onSuccess: () => onClose(),
@@ -1166,6 +1227,36 @@ function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
                                 placeholder={__('Optional traceability note…')}
                             />
                         </div>
+                    </section>
+                )}
+
+                {isFixedHold && (
+                    <section className={`space-y-3 rounded-om-sm border p-3 ${earlyRelease ? 'border-om-downtime/30 bg-om-downtime-bg' : 'border-om-running/30 bg-om-done-bg'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                            <div>
+                                <span className={labelCls}>{__('Minimum hold')}</span>
+                                <span className="text-xs text-om-muted">
+                                    {__('Earliest release: :time', { time: formatDateTime(step.hold_release_at) })}
+                                </span>
+                            </div>
+                            <span className={`font-mono text-lg font-semibold ${earlyRelease ? 'text-om-downtime' : 'text-om-running'}`}>
+                                {earlyRelease ? formatHoldCountdown(remainingHoldSeconds) : __('Ready for release')}
+                            </span>
+                        </div>
+                        {earlyRelease && canOverrideOperationHold && (
+                            <div>
+                                <label className={labelCls}>{__('Early-release reason')}</label>
+                                <textarea
+                                    rows={3}
+                                    maxLength={1000}
+                                    value={form.data.hold_override_reason}
+                                    onChange={(event) => form.setData('hold_override_reason', event.target.value)}
+                                    className={`${inputCls} resize-none`}
+                                    placeholder={__('Required supervisor justification (minimum 10 characters)')}
+                                />
+                                {form.errors.hold_override_reason && <p className={errorCls}>{form.errors.hold_override_reason}</p>}
+                            </div>
+                        )}
                     </section>
                 )}
 
@@ -1925,7 +2016,7 @@ function EngineeringDocsSection({ docs = [], onView }) {
 // ---------------------------------------------------------------------------
 
 export default function WorkOrderDetail() {
-    const { auth, workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false } = usePage().props;
+    const { auth, workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false, canOverrideOperationHold = false } = usePage().props;
 
     const [engViewer, setEngViewer] = useState(null); // { url, title } for the sandboxed viewer
 
@@ -2107,6 +2198,7 @@ export default function WorkOrderDetail() {
                                             stepChecklists={stepChecklists}
                                             scrapReasons={scrapReasons}
                                             workstationLocked={workstationLocked}
+                                            canOverrideOperationHold={canOverrideOperationHold}
                                         />
                                     ))}
                                 </div>

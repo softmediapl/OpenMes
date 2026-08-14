@@ -104,6 +104,8 @@ class BatchService
                 throw new \Exception('Step cannot be completed. Current status: '.$step->status);
             }
 
+            $holdOverridePayload = $this->fixedHoldOverridePayload($step, $user, $data);
+
             // Document control: a mandatory, validatable document attached to this
             // step must be validated before the step can be completed.
             $pendingDocs = $step->blockingDocuments()->pluck('name');
@@ -166,7 +168,7 @@ class BatchService
                 'actual_elapsed_minutes' => $actualElapsed,
                 'actual_setup_minutes' => $actualSetup,
                 'actual_run_minutes' => $actualRun,
-            ], $quantityPayload));
+            ], $quantityPayload, $holdOverridePayload));
 
             if ((float) $step->scrap_quantity > 0) {
                 ScrapEntry::create([
@@ -213,6 +215,39 @@ class BatchService
 
             return $step->fresh();
         });
+    }
+
+    /**
+     * Enforce a fixed hold using the server clock. Early release is exceptional:
+     * only a supervisor or administrator may perform it and the reason is stored
+     * on the immutable operation record for audit and later reporting.
+     *
+     * @return array<string, mixed>
+     */
+    private function fixedHoldOverridePayload(BatchStep $step, User $user, array $data): array
+    {
+        $remainingSeconds = $step->holdRemainingSeconds();
+        if ($remainingSeconds === 0) {
+            return [];
+        }
+
+        if (! $user->hasAnyRole(['Supervisor', 'Admin'])) {
+            throw new \Exception(__(
+                'This operation is on hold until :time.',
+                ['time' => $step->holdReleaseAt()?->toIso8601String()],
+            ));
+        }
+
+        $reason = trim((string) ($data['hold_override_reason'] ?? ''));
+        if (mb_strlen($reason) < 10) {
+            throw new \Exception(__('A reason of at least 10 characters is required to release a fixed-hold operation early.'));
+        }
+
+        return [
+            'hold_override_reason' => $reason,
+            'hold_overridden_by_id' => $user->id,
+            'hold_overridden_at' => now(),
+        ];
     }
 
     /**

@@ -5328,5 +5328,13 @@
     "The operation cannot be released before this time has elapsed.": "Operacji nie można zwolnić przed upływem tego czasu.",
     "required": "wymagane",
     "min minimum": "min minimum",
-    "A fixed-hold operation requires a minimum duration of at least one minute.": "Operacja ze stałym oczekiwaniem wymaga minimalnego czasu co najmniej jednej minuty."
+    "A fixed-hold operation requires a minimum duration of at least one minute.": "Operacja ze stałym oczekiwaniem wymaga minimalnego czasu co najmniej jednej minuty.",
+    "This operation is on hold until :time.": "Ta operacja pozostaje w oczekiwaniu do :time.",
+    "A reason of at least 10 characters is required to release a fixed-hold operation early.": "Wcześniejsze zwolnienie operacji ze stałym oczekiwaniem wymaga powodu o długości co najmniej 10 znaków.",
+    "This operation is still within its minimum hold time.": "Minimalny czas oczekiwania tej operacji jeszcze nie upłynął.",
+    "Minimum hold": "Minimalny czas oczekiwania",
+    "Earliest release: :time": "Najwcześniejsze zwolnienie: :time",
+    "Ready for release": "Gotowe do zwolnienia",
+    "Early-release reason": "Powód wcześniejszego zwolnienia",
+    "Required supervisor justification (minimum 10 characters)": "Wymagane uzasadnienie supervisora (minimum 10 znaków)"
 }

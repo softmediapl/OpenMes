@@ -8,7 +8,9 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\BatchService;
 use App\Services\WorkOrder\WorkOrderService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class BatchServiceTest extends TestCase
@@ -202,6 +204,102 @@ class BatchServiceTest extends TestCase
             'actual_setup_minutes' => 5,
             'actual_run_minutes' => null,
         ]);
+    }
+
+    public function test_operator_cannot_complete_fixed_hold_before_release_time(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-14 10:00:00', 'UTC');
+        $this->travelTo($now);
+
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => $now->subMinutes(10),
+        ]);
+
+        try {
+            $this->service->completeStep($step->fresh(), $this->user);
+            $this->fail('The fixed hold was released before its minimum duration elapsed.');
+        } catch (\Exception $exception) {
+            $this->assertStringContainsString('on hold until', $exception->getMessage());
+        }
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $step->fresh()->status);
+        $this->assertSame(1200, $step->fresh()->holdRemainingSeconds());
+    }
+
+    public function test_supervisor_early_release_requires_a_meaningful_reason(): void
+    {
+        Role::findOrCreate('Supervisor', 'web');
+        $this->user->assignRole('Supervisor');
+        $this->travelTo(CarbonImmutable::parse('2026-08-14 10:00:00', 'UTC'));
+
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => now()->subMinutes(10),
+        ]);
+
+        try {
+            $this->service->completeStep($step->fresh(), $this->user, ['hold_override_reason' => 'short']);
+            $this->fail('An early release without a meaningful reason was accepted.');
+        } catch (\Exception $exception) {
+            $this->assertStringContainsString('at least 10 characters', $exception->getMessage());
+        }
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $step->fresh()->status);
+    }
+
+    public function test_supervisor_early_release_is_recorded_on_the_operation(): void
+    {
+        Role::findOrCreate('Supervisor', 'web');
+        $this->user->assignRole('Supervisor');
+        $now = CarbonImmutable::parse('2026-08-14 10:00:00', 'UTC');
+        $this->travelTo($now);
+
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => $now->subMinutes(10),
+        ]);
+
+        $this->service->completeStep($step->fresh(), $this->user, [
+            'hold_override_reason' => 'Laboratory approval for an urgent release.',
+        ]);
+
+        $fresh = $step->fresh();
+        $this->assertSame(BatchStep::STATUS_DONE, $fresh->status);
+        $this->assertSame('Laboratory approval for an urgent release.', $fresh->hold_override_reason);
+        $this->assertSame($this->user->id, $fresh->hold_overridden_by_id);
+        $this->assertTrue($fresh->hold_overridden_at->equalTo($now));
+    }
+
+    public function test_fixed_hold_completes_normally_after_release_time(): void
+    {
+        $now = CarbonImmutable::parse('2026-08-14 10:00:00', 'UTC');
+        $this->travelTo($now);
+
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+            'started_at' => $now->subMinutes(31),
+        ]);
+
+        $this->service->completeStep($step->fresh(), $this->user);
+
+        $fresh = $step->fresh();
+        $this->assertSame(BatchStep::STATUS_DONE, $fresh->status);
+        $this->assertNull($fresh->hold_override_reason);
+        $this->assertNull($fresh->hold_overridden_by_id);
+        $this->assertNull($fresh->hold_overridden_at);
     }
 
     public function test_complete_pending_step_throws(): void

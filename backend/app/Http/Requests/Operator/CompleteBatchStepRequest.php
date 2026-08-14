@@ -34,6 +34,7 @@ class CompleteBatchStepRequest extends FormRequest
                 Rule::exists('scrap_reasons', 'id')->where('is_active', true)->whereNull('deleted_at'),
             ],
             'quantity_notes' => ['nullable', 'string', 'max:2000'],
+            'hold_override_reason' => ['nullable', 'string', 'min:10', 'max:1000'],
         ];
     }
 }

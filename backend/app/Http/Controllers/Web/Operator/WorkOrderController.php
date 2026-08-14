@@ -273,6 +273,11 @@ class WorkOrderController extends Controller
 
         $scrapReasons = ScrapReason::active()->ordered()->get();
 
+        $workOrder->batches->flatMap->steps->each(function ($step) {
+            $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
+            $step->setAttribute('hold_remaining_seconds', $step->holdRemainingSeconds());
+        });
+
         if ($workstationLocked) {
             $visibleBatches = $workOrder->batches
                 ->filter(function ($batch) use ($lockedWorkstation) {
@@ -402,6 +407,8 @@ class WorkOrderController extends Controller
         // documents` on the client (Operator has it; see the seeder).
         $engineeringDocuments = $workOrder->frozenEngineeringDocuments();
 
-        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked'));
+        $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
+
+        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
     }
 }
