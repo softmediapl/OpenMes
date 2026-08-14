@@ -5,7 +5,7 @@ import { useState, useRef } from 'react';
 import { __, formatDate, formatTime } from '../../../../lib/i18n';
 import { TwinChip } from './OrderCard';
 import {
-    hourlyLanes, onMonthlyDay, statusOf, parseDate, todayKey, loadColor, chainChipMeta, MONO,
+    hourlyLanes, onMonthlyDay, statusOf, parseDate, todayKey, loadColor, chainChipMeta, fmtDurationMinutes, MONO,
 } from './helpers';
 
 const HLANE = 46;
@@ -17,6 +17,8 @@ function fmtMin(m) {
     const p = (n) => (n < 10 ? '0' + n : '' + n);
     return p(Math.floor(m / 60)) + ':' + p(m % 60);
 }
+
+const fmtDeadline = (d) => d ? formatDate(parseDate(d), { day: '2-digit', month: 'short' }) : '—';
 
 function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
     const { wo } = item;
@@ -70,7 +72,10 @@ function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
                         {twinMeta && <TwinChip code={twinMeta.code} dir={twinMeta.dir} />}
                         {width > 16 && <span className="truncate" style={{ fontFamily: MONO, fontSize: 9, color: 'var(--om-muted)' }}>{wo.product_name}</span>}
                     </div>
-                    <span style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: 'var(--om-muted)', whiteSpace: 'nowrap' }}>{fmtMin(cur.start)}–{fmtMin(cur.end)} · {dur}</span>
+                    <span title={`${__('Estimated workload')}: ${fmtDurationMinutes(wo.estimated_duration_minutes)} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
+                        style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: 'var(--om-muted)', whiteSpace: 'nowrap' }}>
+                        {fmtMin(cur.start)}–{fmtMin(cur.end)} · {__('Est.')} {fmtDurationMinutes(wo.estimated_duration_minutes)} · {__('Due')} {fmtDeadline(wo.due_date)}
+                    </span>
                 </div>
                 {item.conflict && <span style={{ position: 'absolute', top: 3, right: 9, fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', background: 'var(--om-blocked)', borderRadius: 3, padding: '1px 4px', zIndex: 4, pointerEvents: 'none' }}>{__('overlap')}</span>}
                 {readOnly && <span title={item.placementKey !== 'primary' ? __('Minute plan is shared — edit it from the primary line') : __('Spans another day — edit it from that day')} style={{ position: 'absolute', bottom: 2, right: 4, fontSize: 9, color: 'var(--om-faint)' }}>⤢</span>}

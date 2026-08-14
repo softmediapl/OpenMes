@@ -80,7 +80,9 @@ class SchedulePlannerController extends Controller
             $shiftsPerDay = min(4, max(1, $shifts->count()));
         }
 
-        // Load work orders in range
+        // Customer due dates are commitments, not schedule positions. A primary
+        // placement is visible only when it has a complete planned time window;
+        // extra placements keep their own coarse schedule dates.
         $workOrders = WorkOrder::with(['productType', 'line', 'customer', 'extraPlacements'])
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
             ->where(function ($q) use ($lineIds) {
@@ -90,33 +92,17 @@ class SchedulePlannerController extends Controller
                     ->orWhereHas('extraPlacements', fn ($q2) => $q2->whereIn('line_id', $lineIds));
             })
             ->where(function ($q) use ($rangeStart, $rangeEnd) {
-                $q->whereBetween('due_date', [$rangeStart, $rangeEnd])
-                    // Extra segments are scheduled independently — an order
-                    // with any segment in the range must ship too.
-                    ->orWhereHas('extraPlacements', fn ($q2) => $q2->whereBetween('due_date', [$rangeStart, $rangeEnd]))
-                    ->orWhere(function ($q2) use ($rangeStart, $rangeEnd) {
-                        // Minute-planned orders that overlap the visible range
-                        $q2->whereNotNull('planned_start_at')
-                            ->whereNotNull('planned_end_at')
-                            ->where('planned_start_at', '<', $rangeEnd)
-                            ->where('planned_end_at', '>', $rangeStart);
-                    })
-                    ->orWhere(function ($q2) use ($rangeStart, $rangeEnd) {
-                        $q2->whereNull('due_date')
-                            ->where(function ($q3) use ($rangeStart, $rangeEnd) {
-                                // Match by week_number if due_date is null
-                                $weekNumbers = [];
-                                $cursor = $rangeStart->copy();
-                                while ($cursor->lte($rangeEnd)) {
-                                    $weekNumbers[] = $cursor->isoWeek();
-                                    $cursor->addWeek();
-                                }
-                                $q3->whereIn('week_number', array_unique($weekNumbers));
-                            });
-                    });
+                $q->where(function ($q2) use ($rangeStart, $rangeEnd) {
+                    $q2->whereNotNull('planned_start_at')
+                        ->whereNotNull('planned_end_at')
+                        ->where('planned_start_at', '<', $rangeEnd)
+                        ->where('planned_end_at', '>', $rangeStart);
+                })->orWhereHas('extraPlacements', function ($q2) use ($rangeStart, $rangeEnd) {
+                    $q2->whereBetween('due_date', [$rangeStart, $rangeEnd]);
+                });
             })
             ->orderBy('priority', 'desc')
-            ->orderBy('due_date')
+            ->orderBy('planned_start_at')
             ->get();
 
         // The grid layout is computed client-side (see the React Planner) from a
@@ -210,14 +196,13 @@ class SchedulePlannerController extends Controller
         // All lines for filter dropdown (unfiltered)
         $allLines = Line::where('is_active', true)->orderBy('name')->get();
 
-        // Backlog: unassigned work orders (no line or no due_date/week)
+        // Backlog: every active order without a complete primary time window.
+        // A preferred line and a customer deadline may already be present.
         $backlogOrders = WorkOrder::with(['productType', 'line', 'customer'])
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
             ->where(function ($q) {
-                $q->whereNull('line_id')
-                    ->orWhere(function ($q2) {
-                        $q2->whereNull('due_date')->whereNull('week_number');
-                    });
+                $q->whereNull('planned_start_at')
+                    ->orWhereNull('planned_end_at');
             })
             ->orderBy('priority_score', 'desc')
             ->orderBy('priority', 'desc')
@@ -271,6 +256,7 @@ class SchedulePlannerController extends Controller
         $workOrdersFlat = $workOrders->map(function ($wo) {
             $planned = (float) $wo->planned_qty;
             $produced = (float) $wo->produced_qty;
+            $standardMinutes = $wo->estimatedStandardProductionMinutes();
 
             return [
                 'id' => $wo->id,
@@ -306,23 +292,31 @@ class SchedulePlannerController extends Controller
                 'end_shift_number' => $wo->end_shift_number,
                 'planned_start_at' => $wo->planned_start_at?->toIso8601String(),
                 'planned_end_at' => $wo->planned_end_at?->toIso8601String(),
+                'standard_production_minutes' => $standardMinutes,
+                'estimated_duration_minutes' => $standardMinutes ?? $wo->estimatedDurationMinutes(),
             ];
         })->values()->all();
 
         // Flatten backlog orders
-        $backlogFlat = $backlogOrders->map(fn ($wo) => [
-            'id' => $wo->id,
-            'order_no' => $wo->order_no,
-            'product_name' => $wo->productType?->name,
-            'customer_name' => $wo->customer?->name,
-            'customer_tier' => $wo->customer?->tier?->value,
-            'line_id' => $wo->line_id,
-            'due_date' => $wo->due_date?->format('Y-m-d'),
-            'planned_qty' => $wo->planned_qty,
-            'status' => $wo->status,
-            'priority' => $wo->priority,
-            'priority_score' => $wo->priority_score,
-        ])->values()->all();
+        $backlogFlat = $backlogOrders->map(function ($wo) {
+            $standardMinutes = $wo->estimatedStandardProductionMinutes();
+
+            return [
+                'id' => $wo->id,
+                'order_no' => $wo->order_no,
+                'product_name' => $wo->productType?->name,
+                'customer_name' => $wo->customer?->name,
+                'customer_tier' => $wo->customer?->tier?->value,
+                'line_id' => $wo->line_id,
+                'due_date' => $wo->due_date?->format('Y-m-d'),
+                'planned_qty' => $wo->planned_qty,
+                'status' => $wo->status,
+                'priority' => $wo->priority,
+                'priority_score' => $wo->priority_score,
+                'standard_production_minutes' => $standardMinutes,
+                'estimated_duration_minutes' => $standardMinutes ?? $wo->estimatedDurationMinutes(),
+            ];
+        })->values()->all();
 
         // Flatten lines for props
         $linesFlat = $lines->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'code' => $l->code])->values()->all();

@@ -7,7 +7,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import LiveRefresh from '../../../components/LiveRefresh';
 import { apiCall, apiGet } from '../../../lib/http';
 import { __, formatDate } from '../../../lib/i18n';
-import { todayKey, dayList } from './planner/helpers';
+import { todayKey, dayList, shiftWindow } from './planner/helpers';
 import { WeeklyView, DailyView } from './planner/views';
 import { HourlyView, MonthlyView } from './planner/views2';
 import { Toolbar, BacklogRail } from './planner/panels';
@@ -112,6 +112,8 @@ export default function Planner() {
     };
 
     const performDrop = useCallback(async (wo, target, placement) => {
+        const window = shiftWindow(target.date, target.shift, target.date, target.shift, shifts);
+        if (!window) return;
         const body = placement !== 'primary'
             ? {
                 extra_placements: placementsPayload(wo, {
@@ -120,10 +122,9 @@ export default function Planner() {
             }
             : {
                 line_id: target.lineId,
-                due_date: target.date || '',
                 shift_number: target.shift || '',
                 week_number: '', end_date: '', end_shift_number: '',
-                planned_start_at: '', planned_end_at: '',
+                ...window,
             };
         const result = await saveOrder(wo.id, body);
         if (result) {
@@ -131,22 +132,13 @@ export default function Planner() {
             toast(`${wo.order_no} → ${code}`);
             refreshContent();
         }
-    }, [saveOrder, allLines, toast, refreshContent]);
+    }, [saveOrder, allLines, shifts, toast, refreshContent]);
 
     // Drop a card onto a coarse (weekly/daily) cell. `placement` says which
-    // schedule segment was dragged — only that segment moves. A coarse primary
-    // placement clears any exact minute plan — confirm first so an accidental
-    // drag doesn't silently destroy hourly timing.
+    // schedule segment was dragged — only that segment moves. A primary drop
+    // writes a real shift-boundary time window; it never changes the customer
+    // due date.
     const dropToCell = useCallback((wo, target, placement = 'primary') => {
-        if (placement === 'primary' && wo.planned_start_at && wo.planned_end_at) {
-            setConfirmBox({
-                title: __('Replace exact time plan?'),
-                body: __('This order has an exact time plan — replace it with a day/shift placement?'),
-                confirmLabel: __('Replace'),
-                apply: () => performDrop(wo, target, placement),
-            });
-            return;
-        }
         performDrop(wo, target, placement);
     }, [performDrop]);
 
@@ -154,7 +146,13 @@ export default function Planner() {
     const onHourlyChange = useCallback(async (wo, startMin, endMin, force = false) => {
         const day = data.range.start;
         const iso = (m) => `${day}T${pad(Math.floor(m / 60))}:${pad(m % 60)}:00`;
-        const body = { planned_start_at: iso(startMin), planned_end_at: iso(endMin) };
+        const shiftFor = (minute) => Math.min(config.shiftsPerDay, Math.floor(minute / (1440 / config.shiftsPerDay)) + 1);
+        const body = {
+            planned_start_at: iso(startMin),
+            planned_end_at: iso(endMin),
+            shift_number: shiftFor(startMin),
+            end_shift_number: shiftFor(Math.max(startMin, endMin - 1)),
+        };
         if (force) body.force_conflict = true;
         setSaving(true);
         try {
@@ -171,7 +169,7 @@ export default function Planner() {
         } finally {
             setSaving(false);
         }
-    }, [data.range.start, toast, refreshContent]);
+    }, [data.range.start, config.shiftsPerDay, toast, refreshContent]);
 
     const saveEdit = useCallback(async (wo, patch) => {
         const result = await saveOrder(wo.id, patch);
@@ -180,10 +178,12 @@ export default function Planner() {
     }, [saveOrder, toast, refreshContent]);
 
     const performUnassign = useCallback(async (wo) => {
-        // Clearing the primary line also deletes every extra segment server-side.
+        // Unscheduling removes only planner placement. The preferred line and
+        // customer commitment remain part of the work order.
         const result = await saveOrder(wo.id, {
-            line_id: '', due_date: '', week_number: '', shift_number: '',
+            week_number: '', shift_number: '',
             end_date: '', end_shift_number: '', planned_start_at: '', planned_end_at: '',
+            extra_placements: [],
         });
         setSelected(null);
         if (result) { toast(`${wo.order_no} → ${__('Backlog')}`); refreshContent(); }
@@ -227,15 +227,17 @@ export default function Planner() {
                 }),
             };
         } else {
+            const window = shiftWindow(a.date, a.shift, b.date, b.shift, shifts);
+            if (!window) return;
             body = {
                 line_id: newLineId ?? wo.line_id,
-                due_date: a.date, week_number: '', shift_number: a.shift,
+                week_number: '', shift_number: a.shift,
                 end_date: spanned ? b.date : '', end_shift_number: spanned ? b.shift : '',
-                planned_start_at: '', planned_end_at: '',
+                ...window,
             };
         }
         saveOrder(wo.id, body).then((r) => { if (r) { toast(`${wo.order_no} ${__('updated')}`); refreshContent(); } });
-    }, [config.shiftsPerDay, days, saveOrder, toast, refreshContent]);
+    }, [config.shiftsPerDay, days, shifts, saveOrder, toast, refreshContent]);
 
     // Diagonal edge-stretch: the order continues on another line — the
     // extension is APPENDED as a new segment, so the block chain reads as a

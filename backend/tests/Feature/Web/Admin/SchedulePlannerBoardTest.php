@@ -48,12 +48,18 @@ class SchedulePlannerBoardTest extends TestCase
         $thisWeek = WorkOrder::factory()->create([
             'line_id' => $line->id,
             'status' => WorkOrder::STATUS_PENDING,
-            'due_date' => $monday->copy()->addDay(),       // Tuesday this week
+            // A later customer deadline must not influence planner placement.
+            'due_date' => $monday->copy()->addMonth(),
+            'planned_start_at' => $monday->copy()->addDay()->setTime(6, 0),
+            'planned_end_at' => $monday->copy()->addDay()->setTime(14, 0),
         ]);
         $nextWeek = WorkOrder::factory()->create([
             'line_id' => $line->id,
             'status' => WorkOrder::STATUS_PENDING,
-            'due_date' => $monday->copy()->addWeek()->addDay(), // Tuesday next week
+            // Even a deadline inside this week must not pull a later plan in.
+            'due_date' => $monday->copy()->addDay(),
+            'planned_start_at' => $monday->copy()->addWeek()->addDay()->setTime(6, 0),
+            'planned_end_at' => $monday->copy()->addWeek()->addDay()->setTime(14, 0),
         ]);
 
         $ids = collect($this->props([
@@ -65,6 +71,29 @@ class SchedulePlannerBoardTest extends TestCase
         // must not be sent (it would render nowhere).
         $this->assertContains($thisWeek->id, $ids->all());
         $this->assertNotContains($nextWeek->id, $ids->all());
+    }
+
+    public function test_deadline_only_order_stays_in_backlog(): void
+    {
+        $line = Line::factory()->create(['is_active' => true]);
+        $monday = Carbon::now()->startOfWeek();
+        $order = WorkOrder::factory()->create([
+            'line_id' => $line->id,
+            'status' => WorkOrder::STATUS_PENDING,
+            'due_date' => $monday->copy()->addDay(),
+            'planned_start_at' => null,
+            'planned_end_at' => null,
+        ]);
+
+        $props = $this->props([
+            'view_mode' => 'weekly',
+            'start_date' => $monday->format('Y-m-d'),
+        ]);
+
+        $this->assertNull(collect($props['workOrders'])->firstWhere('id', $order->id));
+        $backlog = collect($props['backlogOrders'])->firstWhere('id', $order->id);
+        $this->assertNotNull($backlog);
+        $this->assertSame($monday->copy()->addDay()->format('Y-m-d'), $backlog['due_date']);
     }
 
     public function test_distinct_shifts_sharing_a_sort_order_are_not_collapsed(): void

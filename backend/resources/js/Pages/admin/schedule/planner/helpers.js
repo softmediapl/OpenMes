@@ -62,6 +62,44 @@ export function fmtKey(date) {
 }
 export function todayKey() { return fmtKey(new Date()); }
 
+function addDaysKey(dateStr, days) {
+    const date = parseDate(dateStr);
+    if (!date) return dateStr;
+    date.setDate(date.getDate() + days);
+    return fmtKey(date);
+}
+
+// Convert a manual day/shift placement into the canonical minute-level window.
+// Wall-clock strings are intentional: Laravel interprets them in the plant
+// timezone, avoiding browser timezone conversion at the scheduling boundary.
+export function shiftWindow(startDate, startShift, endDate, endShift, shifts = []) {
+    if (!startDate || !startShift) return null;
+
+    const count = Math.max(1, shifts.length);
+    const fallbackTime = (slot, edge) => {
+        const minutes = Math.round(((slot - 1 + edge) * 1440) / count) % 1440;
+        return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+    };
+    const startDefinition = shifts[startShift - 1];
+    const resolvedEndShift = endShift || startShift;
+    const endDefinition = shifts[resolvedEndShift - 1];
+    const startTime = hhmm(startDefinition?.start_time) || fallbackTime(startShift, 0);
+    const endShiftStartTime = hhmm(endDefinition?.start_time) || fallbackTime(resolvedEndShift, 0);
+    const endTime = hhmm(endDefinition?.end_time) || fallbackTime(resolvedEndShift, 1);
+    let resolvedEndDate = endDate || startDate;
+
+    // The selected end cell owns an overnight shift that finishes on the next
+    // calendar day, regardless of which shift the whole span started in.
+    if (endTime <= endShiftStartTime) {
+        resolvedEndDate = addDaysKey(resolvedEndDate, 1);
+    }
+
+    return {
+        planned_start_at: `${startDate}T${startTime}:00`,
+        planned_end_at: `${resolvedEndDate}T${endTime}:00`,
+    };
+}
+
 export function dayList(startStr, count, showWeekends) {
     const start = parseDate(startStr);
     if (!start) return [];
@@ -99,6 +137,36 @@ export function isoWeek(dateStr) {
     return Math.ceil((((t - yearStart) / 86400000) + 1) / 7);
 }
 export function fmtQty(n) { return n == null ? '—' : formatNumber(n); }
+export function fmtDurationMinutes(minutes) {
+    if (minutes == null || minutes <= 0) return '—';
+    const hours = Math.floor(minutes / 60);
+    const remainder = minutes % 60;
+    if (!hours) return `${remainder} min`;
+    const duration = remainder ? `${hours} h ${remainder} min` : `${hours} h`;
+    if (minutes < 1440) return duration;
+
+    const days = formatNumber(minutes / 1440, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    return `${duration} (${days} d)`;
+}
+
+// planned_end_at is an exclusive boundary. Subtract one wall-clock minute
+// before mapping it to a weekly cell, so a night shift ending at 06:00 does
+// not appear to occupy the following day's night-shift column as well.
+function exclusiveEndDate(iso, endShift, shifts, shiftsPerDay) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || '');
+    if (!match) return null;
+
+    const definition = shifts[endShift - 1];
+    const fallbackStart = Math.round(((endShift - 1) * 1440) / shiftsPerDay);
+    const fallbackEnd = Math.round((endShift * 1440) / shiftsPerDay) % 1440;
+    const startMinute = definition ? minuteOfDay(`T${hhmm(definition.start_time)}`) : fallbackStart;
+    const endMinute = definition ? minuteOfDay(`T${hhmm(definition.end_time)}`) : fallbackEnd;
+    if (endMinute <= startMinute) return addDaysKey(iso.slice(0, 10), -1);
+
+    const date = new Date(Date.UTC(+match[1], +match[2] - 1, +match[3], +match[4], +match[5]));
+    date.setUTCMinutes(date.getUTCMinutes() - 1);
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
+}
 
 // ── Multi-segment placements ────────────────────────────────────────────────
 // An order runs one primary placement (the wo's own line/date columns — the
@@ -108,8 +176,22 @@ export function fmtQty(n) { return n == null ? '—' : formatNumber(n); }
 
 export function placementsOf(wo) {
     return [
-        { key: 'primary', line_id: wo.line_id, due_date: wo.due_date, shift_number: wo.shift_number, end_date: wo.end_date, end_shift_number: wo.end_shift_number },
-        ...(wo.placements || []).map((p) => ({ key: p.id, ...p })),
+        {
+            key: 'primary',
+            line_id: wo.line_id,
+            schedule_date: wo.planned_start_at?.slice(0, 10) ?? null,
+            schedule_end_date: wo.planned_end_at?.slice(0, 10) ?? null,
+            shift_number: wo.shift_number,
+            end_shift_number: wo.end_shift_number,
+            is_extra: false,
+        },
+        ...(wo.placements || []).map((p) => ({
+            key: p.id,
+            ...p,
+            schedule_date: p.due_date,
+            schedule_end_date: p.end_date,
+            is_extra: true,
+        })),
     ];
 }
 
@@ -121,26 +203,34 @@ export function onLine(wo, lineId) {
 // The order as if the given segment were its (coarse) schedule. Extra
 // segments never carry the minute plan — that belongs to the primary.
 export function projectSegment(wo, p) {
-    if (p.key === 'primary') return wo;
+    if (p.key === 'primary') {
+        return {
+            ...wo,
+            schedule_date: p.schedule_date,
+            schedule_end_date: p.schedule_end_date,
+            is_extra_placement: false,
+        };
+    }
     return {
         ...wo,
-        due_date: p.due_date,
+        schedule_date: p.schedule_date,
+        schedule_end_date: p.schedule_end_date,
         shift_number: p.shift_number ?? wo.shift_number,
-        end_date: p.end_date,
         end_shift_number: p.end_shift_number,
         planned_start_at: null,
         planned_end_at: null,
+        is_extra_placement: true,
     };
 }
 
-const segStartKey = (p) => `${p.due_date}|${String(p.shift_number ?? 1).padStart(2, '0')}`;
-const segEndKey = (p) => `${p.end_date || p.due_date}|${String(p.end_shift_number ?? p.shift_number ?? 1).padStart(2, '0')}`;
+const segStartKey = (p) => `${p.schedule_date}|${String(p.shift_number ?? 1).padStart(2, '0')}`;
+const segEndKey = (p) => `${p.schedule_end_date || p.schedule_date}|${String(p.end_shift_number ?? p.shift_number ?? 1).padStart(2, '0')}`;
 
 // The order's dated segments in chronological order — the chain a staircase
 // follows across lines (chips and connectors are drawn between neighbours).
 export function segmentChain(wo) {
     return placementsOf(wo)
-        .filter((p) => p.line_id && p.due_date)
+        .filter((p) => p.line_id && p.schedule_date)
         .sort((a, b) => (segStartKey(a) < segStartKey(b) ? -1 : 1));
 }
 
@@ -161,14 +251,11 @@ export function chainChipMeta(wo, key, allLines) {
 }
 
 // ── Weekly placement ────────────────────────────────────────────────────────
-// The coarse (day + shift) slot an order occupies. Placed by due_date; minute-
-// planned orders (which also carry planned_start_at) still appear, falling back
-// to the planned date and deriving the shift from the planned hour when no
-// explicit shift_number is set.
+// The coarse day/shift slot occupied by a canonical schedule placement. The
+// customer due date is deliberately never considered here.
 export function weeklySlot(wo, shiftsPerDay) {
-    let date = wo.due_date;
+    const date = wo.schedule_date ?? wo.planned_start_at?.slice(0, 10) ?? null;
     let shift = wo.shift_number;
-    if (!date && wo.planned_start_at) date = wo.planned_start_at.slice(0, 10);
     if (!shift && wo.planned_start_at) {
         // Read the hour from the ISO string (plant-timezone offset), not via
         // new Date().getHours() which would shift by the viewer's browser TZ.
@@ -178,28 +265,19 @@ export function weeklySlot(wo, shiftsPerDay) {
     return { date, shift: Math.min(shift || 1, shiftsPerDay) };
 }
 
-// Which calendar day a work order shows on in the monthly view. Mirrors
-// weeklySlot's precedence so coarsely-placed orders aren't dropped: explicit
-// due_date, else the planned-start day, else the Monday of its ISO week, else
-// (month-only) the 1st of its month.
+// Which calendar day a work order shows on in the monthly view.
 export function onMonthlyDay(wo, iso, dayNum, monthNum) {
     // Extra segments occupy their own days too.
     if ((wo.placements || []).some((p) => p.due_date === iso)) return true;
-    if (wo.due_date) return wo.due_date === iso;
     if (wo.planned_start_at) return wo.planned_start_at.slice(0, 10) === iso;
-    if (wo.week_number) {
-        const d = parseDate(iso);
-        return !!d && d.getDay() === 1 && isoWeek(iso) === wo.week_number;
-    }
-    if (wo.month_number) return wo.month_number === monthNum && dayNum === 1;
     return false;
 }
 
 // Lay a line's orders onto the day×shift columns as spanning blocks. Each item
-// gets startCol/endCol (covering due_date·shift → end_date·end_shift) and a lane
+// gets startCol/endCol (covering the canonical planned window) and a lane
 // so overlapping spans stack instead of colliding. Columns: day*shiftsPerDay +
 // (shift-1).
-export function weeklyPlacements(orders, days, shiftsPerDay, lineId = null) {
+export function weeklyPlacements(orders, days, shiftsPerDay, lineId = null, shifts = []) {
     const dayIdx = {}; days.forEach((d, i) => { dayIdx[d.date] = i; });
     const N = days.length * shiftsPerDay;
     const colOf = (date, shift) => (date in dayIdx ? dayIdx[date] * shiftsPerDay + (Math.min(shift, shiftsPerDay) - 1) : -1);
@@ -215,7 +293,10 @@ export function weeklyPlacements(orders, days, shiftsPerDay, lineId = null) {
             const startCol = colOf(sl.date, sl.shift);
             if (startCol < 0) return;
             let endCol = startCol;
-            if (wo.end_date && (wo.end_date in dayIdx)) endCol = colOf(wo.end_date, wo.end_shift_number || sl.shift);
+            const endDate = wo.is_extra_placement
+                ? wo.schedule_end_date
+                : exclusiveEndDate(wo.planned_end_at, wo.end_shift_number || wo.shift_number || sl.shift, shifts, shiftsPerDay);
+            if (endDate && (endDate in dayIdx)) endCol = colOf(endDate, wo.end_shift_number || sl.shift);
             else if (wo.end_shift_number && wo.end_shift_number > sl.shift) endCol = colOf(sl.date, wo.end_shift_number);
             if (endCol < startCol) endCol = startCol;
             items.push({ wo: orig, placementKey: p.key, lineId, startCol, endCol });
@@ -261,9 +342,7 @@ export function hourlyLanes(orders, lineId, dateStr) {
             if (proj.planned_start_at && proj.planned_end_at) {
                 return proj.planned_start_at.slice(0, 10) <= dateStr && dateStr <= proj.planned_end_at.slice(0, 10);
             }
-            // Legacy: a due-date-only order on this day shows as a placeholder
-            // block so it stays visible and can be dragged to get real times.
-            return proj.due_date === dateStr;
+            return proj.is_extra_placement && proj.schedule_date === dateStr;
         })
         .map(({ orig, proj, key }) => {
             if (!proj.planned_start_at || !proj.planned_end_at) {

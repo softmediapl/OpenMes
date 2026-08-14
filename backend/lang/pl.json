@@ -5254,5 +5254,7 @@
     "Used for shift boundaries, reports and all displayed production timestamps.": "Używana do granic zmian, raportów i wszystkich wyświetlanych znaczników czasu produkcji.",
     "Additional lot picks must be selected manually.": "Dodatkowe partie materiału muszą zostać wybrane ręcznie.",
     "This terminal cannot operate this step. The step is assigned to :station.": "Ten terminal nie może obsługiwać tego kroku. Krok jest przypisany do stanowiska: :station.",
-    "unknown workstation": "nieznane stanowisko"
+    "unknown workstation": "nieznane stanowisko",
+    "Customer deadline": "Termin klienta",
+    "Estimated workload": "Szacowane obciążenie"
 }

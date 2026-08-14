@@ -5,7 +5,7 @@ import { usePage } from '@inertiajs/react';
 import { Dropdown, DatePicker } from '@openmes/ui';
 import { __ } from '../../../../lib/i18n';
 import WorkOrderForm from '../../work-orders/WorkOrderForm';
-import { statusOf, statusLabel, priorityMeta, fmtQty, MONO } from './helpers';
+import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, shiftWindow, MONO } from './helpers';
 import { StatusPill } from './OrderCard';
 
 const lblStyle = { fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--om-faint)', marginBottom: 5 };
@@ -24,8 +24,8 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
     const s = statusOf(wo.status);
     const [line, setLine] = useState(wo.line_id || '');
     const [extras, setExtras] = useState((wo.placements || []).map((p) => ({ ...p })));
-    const [due, setDue] = useState(wo.due_date || '');
-    const [endDate, setEndDate] = useState(wo.end_date || '');
+    const [startDate, setStartDate] = useState(wo.planned_start_at?.slice(0, 10) || '');
+    const [endDate, setEndDate] = useState(wo.planned_end_at?.slice(0, 10) || '');
     const [shift, setShift] = useState(wo.shift_number || '');
     const [endShift, setEndShift] = useState(wo.end_shift_number || '');
     // shift_number is a 1-based slot index (matching the weekly grid), not sort_order.
@@ -50,6 +50,17 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                         <span onClick={onClose} style={{ color: 'var(--om-faint)', fontSize: 19, cursor: 'pointer', lineHeight: 1 }}>×</span>
                     </div>
 
+                    <div className="grid grid-cols-2 gap-3 mb-4" style={{ background: 'var(--om-chip)', borderRadius: 8, padding: '10px 12px' }}>
+                        <div>
+                            <div style={lblStyle}>{__('Customer deadline')}</div>
+                            <div style={{ fontFamily: MONO, fontSize: 12, color: wo.is_overdue ? 'var(--om-blocked)' : 'var(--om-ink)' }}>{wo.due_date || __('Not set')}</div>
+                        </div>
+                        <div>
+                            <div style={lblStyle}>{__('Estimated workload')}</div>
+                            <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--om-ink)' }}>{fmtDurationMinutes(wo.estimated_duration_minutes)}</div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 mb-4">
                         <div>
                             <div style={lblStyle}>{__('Production line')}</div>
@@ -61,7 +72,7 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                             <div style={lblStyle}>{__('Also runs on')}</div>
                             <Dropdown value="" onChange={(v) => {
                                 if (!v) return;
-                                setExtras((xs) => [...xs, { id: null, line_id: +v, due_date: due || wo.due_date || data.range.startDate, shift_number: shift ? +shift : 1, end_date: null, end_shift_number: null }]);
+                                setExtras((xs) => [...xs, { id: null, line_id: +v, due_date: startDate || data.range.startDate, shift_number: shift ? +shift : 1, end_date: null, end_shift_number: null }]);
                             }} placeholder={__('+ Add line')} disabled={!line}
                                 options={[{ value: '', label: __('+ Add line') }, ...data.allLines.map((l) => ({ value: String(l.id), label: `${l.code} · ${l.name}` }))]} />
                             {extras.length > 0 && (
@@ -82,17 +93,17 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                         </div>
                         <div>
                             <div style={{ ...lblStyle, display: 'flex', justifyContent: 'space-between' }}>
-                                {__('Due date')}
-                                {due && <button type="button" onClick={() => setDue('')} style={{ color: 'var(--om-accent)', textTransform: 'none', letterSpacing: 0 }}>{__('Clear')}</button>}
+                                {__('Planned start')}
+                                {startDate && <button type="button" onClick={() => setStartDate('')} style={{ color: 'var(--om-accent)', textTransform: 'none', letterSpacing: 0 }}>{__('Clear')}</button>}
                             </div>
-                            <DatePicker value={due || null} onChange={(iso) => setDue(iso ?? '')} className="w-full" />
+                            <DatePicker value={startDate || null} onChange={(iso) => setStartDate(iso ?? '')} className="w-full" />
                         </div>
                         <div>
                             <div style={{ ...lblStyle, display: 'flex', justifyContent: 'space-between' }}>
-                                {__('End date')}
+                                {__('Planned end')}
                                 {endDate && <button type="button" onClick={() => setEndDate('')} style={{ color: 'var(--om-accent)', textTransform: 'none', letterSpacing: 0 }}>{__('Clear')}</button>}
                             </div>
-                            <DatePicker value={endDate || null} min={due || undefined} onChange={(iso) => setEndDate(iso ?? '')} className="w-full" />
+                            <DatePicker value={endDate || null} min={startDate || undefined} onChange={(iso) => setEndDate(iso ?? '')} className="w-full" />
                         </div>
                         <div><div style={lblStyle}>{__('Start shift')}</div><Dropdown value={shift == null ? '' : String(shift)} onChange={(v) => setShift(v)} placeholder="—" options={shiftOpts} /></div>
                         <div><div style={lblStyle}>{__('End shift')}</div><Dropdown value={endShift == null ? '' : String(endShift)} onChange={(v) => setEndShift(v)} placeholder="—" options={shiftOpts} /></div>
@@ -100,15 +111,22 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
 
                     <div className="flex gap-2.5">
                         <a href={`/admin/work-orders/${wo.id}`} className="flex-1 text-center" style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--om-on-ink)', background: 'var(--om-ink)', borderRadius: 9, padding: 11 }}>{__('Open work order')} ↗</a>
-                        <button onClick={() => onSave(wo, {
-                            line_id: line ? +line : null,
-                            due_date: due || null, week_number: wo.week_number ?? null, end_date: endDate || null,
-                            shift_number: shift ? +shift : null, end_shift_number: endShift ? +endShift : null,
-                            extra_placements: extras.map((p) => ({
-                                id: p.id ?? null, line_id: p.line_id, due_date: p.due_date,
-                                shift_number: p.shift_number ?? null, end_date: p.end_date ?? null, end_shift_number: p.end_shift_number ?? null,
-                            })),
-                        })}
+                        <button onClick={() => {
+                            const window = shiftWindow(startDate, +shift, endDate || startDate, +(endShift || shift), data.shifts);
+                            onSave(wo, {
+                                line_id: line ? +line : null,
+                                week_number: null,
+                                shift_number: window ? +shift : null,
+                                end_date: null,
+                                end_shift_number: window ? +(endShift || shift) : null,
+                                planned_start_at: window?.planned_start_at ?? null,
+                                planned_end_at: window?.planned_end_at ?? null,
+                                extra_placements: extras.map((p) => ({
+                                    id: p.id ?? null, line_id: p.line_id, due_date: p.due_date,
+                                    shift_number: p.shift_number ?? null, end_date: p.end_date ?? null, end_shift_number: p.end_shift_number ?? null,
+                                })),
+                            });
+                        }}
                             style={{ fontSize: 13.5, fontWeight: 600, color: '#fff', background: 'var(--om-accent)', borderRadius: 9, padding: '11px 18px' }}>{__('Save')}</button>
                         <button onClick={() => onUnassign(wo)} style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--om-blocked)', background: 'var(--om-blocked-bg)', borderRadius: 9, padding: '11px 18px' }}>{__('Unschedule')}</button>
                     </div>

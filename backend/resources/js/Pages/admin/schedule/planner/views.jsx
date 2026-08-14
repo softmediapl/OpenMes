@@ -7,22 +7,23 @@ import { __, formatDate } from '../../../../lib/i18n';
 import { OrderCard, TwinChip, TierDot } from './OrderCard';
 import { DraggableOrder, useOrderDrop } from './dnd';
 import {
-    weeklySlot, weeklyPlacements, lineLoad, loadColor, shiftColor, statusOf, fmtQty, parseDate, dayList, onLine, chainChipMeta, segmentChain, placementsOf, projectSegment, MONO,
+    weeklySlot, weeklyPlacements, lineLoad, loadColor, shiftColor, statusOf, fmtQty, fmtDurationMinutes, parseDate, dayList, onLine, chainChipMeta, segmentChain, placementsOf, projectSegment, MONO,
 } from './helpers';
 
 const LINE_COL_W = 172;
 const COL_MIN = 92;
-const LANE_H = 46;
+const LANE_H = 58;
 const LANE_GAP = 5;
 // Minimum row height — keep rows at least as tall as the (compact) line-info
 // column so a single-lane block fills the cell with no gap.
-const MIN_ROW = 56;
+const MIN_ROW = 68;
 // Height of the maintenance strip tucked directly under the work blocks, so an
 // order and a maintenance event sharing a cell are both visible and connected.
 const MAINT_H = 17;
 
 const fmtDow = (d) => formatDate(parseDate(d), { weekday: 'short' });
 const fmtDayMon = (d) => formatDate(parseDate(d), { day: '2-digit', month: 'short' });
+const fmtDeadline = (d) => d ? formatDate(parseDate(d), { day: '2-digit', month: 'short' }) : '—';
 
 function MaintPill({ m }) {
     return (
@@ -148,6 +149,10 @@ function WeekBlock({ item, ctx, N, laneH, setPreview }) {
                         {wo.is_overdue && <span className="ml-auto" style={{ fontFamily: MONO, fontSize: 8, color: '#fff', background: 'var(--om-blocked)', borderRadius: 3, padding: '0 3px' }}>!</span>}
                     </div>
                     <span className="truncate" style={{ fontSize: 10, color: 'var(--om-muted)' }}>{wo.product_name || '—'} · {fmtQty(wo.planned_qty)}</span>
+                    <span className="truncate" title={`${__('Estimated workload')}: ${fmtDurationMinutes(wo.estimated_duration_minutes)} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
+                        style={{ fontFamily: MONO, fontSize: 8.5, color: 'var(--om-faint)' }}>
+                        {__('Est.')} {fmtDurationMinutes(wo.estimated_duration_minutes)} · {__('Due')} {fmtDeadline(wo.due_date)}
+                    </span>
                 </div>
                 <span onPointerDown={(e) => begin('r', e)} className="flex items-center justify-center" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 7, cursor: 'ew-resize', zIndex: 3 }}>
                     <span style={{ width: 2, height: 14, borderRadius: 2, background: s.solid, opacity: 0.5 }} />
@@ -176,7 +181,7 @@ function StickyLineCell({ line, load, lc }) {
 }
 
 function WeekLineRow({ line, ctx, days, shiftsPerDay, today, gridMinW, preview, setPreview }) {
-    const { items, lanes, N } = weeklyPlacements(ctx.data.workOrders.filter((o) => onLine(o, line.id)), days, shiftsPerDay, line.id);
+    const { items, lanes, N } = weeklyPlacements(ctx.data.workOrders.filter((o) => onLine(o, line.id)), days, shiftsPerDay, line.id, ctx.data.shifts);
     const load = lineLoad(ctx.data.workOrders, line.id, days, shiftsPerDay);
     const lc = loadColor(load);
     const maint = (ctx.data.maintenance || []).filter((m) => m.line_id === line.id && days.some((d) => d.date === m.scheduled_at_date));
@@ -271,7 +276,7 @@ export function WeeklyView({ ctx }) {
     // Keyed on EVERY order's placement fields — moving any block can reflow
     // the lane packing and shift a chained segment to a different lane.
     const layoutKey = ctx.data.workOrders
-        .map((o) => [o.id, o.line_id, o.due_date, o.shift_number, o.end_date, o.end_shift_number, JSON.stringify(o.placements || [])].join('|'))
+        .map((o) => [o.id, o.line_id, o.planned_start_at, o.planned_end_at, o.shift_number, o.end_shift_number, JSON.stringify(o.placements || [])].join('|'))
         .join(';')
         // maintenance pills reserve row height, so they reflow lanes too
         + '#' + (ctx.data.maintenance || []).map((m) => `${m.line_id}@${m.scheduled_at_date}`).join(',');

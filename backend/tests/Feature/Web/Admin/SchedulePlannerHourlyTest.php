@@ -121,8 +121,10 @@ class SchedulePlannerHourlyTest extends TestCase
         $monday = now()->startOfWeek();
         $scheduled = $this->createWO($line, [
             'order_no' => 'WO-WK-SCHED',
-            'due_date' => $monday->copy()->addDay(),
+            'due_date' => $monday->copy()->addMonth(),
             'shift_number' => 1,
+            'planned_start_at' => $monday->copy()->addDay()->setTime(6, 0),
+            'planned_end_at' => $monday->copy()->addDay()->setTime(14, 0),
         ]);
         // Unassigned (no line) → backlog rail.
         $backlog = WorkOrder::factory()->create([
@@ -159,6 +161,8 @@ class SchedulePlannerHourlyTest extends TestCase
         $this->assertSame($line->id, $row['line_id']);
         $this->assertSame(1, $row['shift_number']);
         $this->assertNotNull($row['due_date']);
+        $this->assertNotNull($row['planned_start_at']);
+        $this->assertArrayHasKey('estimated_duration_minutes', $row);
 
         // The unassigned order lands in the backlog payload.
         $this->assertNotNull(collect($props['backlogOrders'])->firstWhere('id', $backlog->id));
@@ -247,6 +251,47 @@ class SchedulePlannerHourlyTest extends TestCase
             'planned_start_at' => $start->toDateTimeString(),
             'planned_end_at' => $end->toDateTimeString(),
         ]);
+    }
+
+    public function test_unscheduling_preserves_customer_deadline_and_preferred_line(): void
+    {
+        $line = $this->createLine();
+        $otherLine = $this->createLine();
+        $deadline = now()->addMonth()->startOfDay();
+        $start = $this->mondayAt('06:00');
+        $wo = $this->createWO($line, [
+            'due_date' => $deadline,
+            'shift_number' => 1,
+            'planned_start_at' => $start,
+            'planned_end_at' => $start->copy()->addHours(8),
+        ]);
+        $wo->extraPlacements()->create([
+            'line_id' => $otherLine->id,
+            'due_date' => $start->copy()->addDay(),
+            'shift_number' => 2,
+        ]);
+
+        $response = $this->actingAs($this->admin)->putJson(
+            "/admin/schedule/{$wo->id}",
+            [
+                'week_number' => '',
+                'shift_number' => '',
+                'end_date' => '',
+                'end_shift_number' => '',
+                'planned_start_at' => '',
+                'planned_end_at' => '',
+                'extra_placements' => [],
+            ]
+        );
+
+        $response->assertOk()->assertJsonPath('success', true);
+        $wo->refresh();
+        $this->assertSame($line->id, $wo->line_id);
+        $this->assertSame($deadline->format('Y-m-d'), $wo->due_date->format('Y-m-d'));
+        $this->assertNull($wo->planned_start_at);
+        $this->assertNull($wo->planned_end_at);
+        $this->assertNull($wo->shift_number);
+        $this->assertCount(0, $wo->extraPlacements);
     }
 
     public function test_update_order_rejects_overlapping_wo_on_same_line(): void
@@ -518,9 +563,9 @@ class SchedulePlannerHourlyTest extends TestCase
         $this->assertNotNull(collect($wos)->firstWhere('order_no', 'WO-MIDNIGHT-START'));
     }
 
-    // ── legacy (due-date only) order ─────────────────────────────────────────
+    // ── deadline-only order ──────────────────────────────────────────────────
 
-    public function test_legacy_wo_with_due_date_only_is_in_payload(): void
+    public function test_due_date_only_order_is_backlog_and_not_timeline_payload(): void
     {
         $line = $this->createLine();
         $monday = now()->startOfWeek();
@@ -536,16 +581,11 @@ class SchedulePlannerHourlyTest extends TestCase
             ->get('/admin/schedule?view_mode=hourly&start_date='.$monday->format('Y-m-d'));
 
         $response->assertOk();
-        $response->assertSee('WO-LEGACY');
-
-        // A due-date-only order is shipped in the payload (matched by due_date in
-        // range) but carries no minute timestamps — the hourly timeline simply
-        // won't lay it out (that is a client-side concern now).
-        $wos = $response->viewData('page')['props']['workOrders'];
-        $row = collect($wos)->firstWhere('order_no', 'WO-LEGACY');
+        $props = $response->viewData('page')['props'];
+        $this->assertNull(collect($props['workOrders'])->firstWhere('order_no', 'WO-LEGACY'));
+        $row = collect($props['backlogOrders'])->firstWhere('order_no', 'WO-LEGACY');
         $this->assertNotNull($row);
-        $this->assertNull($row['planned_start_at']);
-        $this->assertNull($row['planned_end_at']);
+        $this->assertSame($monday->format('Y-m-d'), $row['due_date']);
     }
 
     // ── slot_minutes setting ─────────────────────────────────────────────────
