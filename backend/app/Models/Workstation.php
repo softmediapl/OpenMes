@@ -65,6 +65,11 @@ class Workstation extends Model
             ->where('status', BatchStep::STATUS_IN_PROGRESS);
     }
 
+    public function materialStocks(): HasMany
+    {
+        return $this->hasMany(WorkstationMaterialStock::class);
+    }
+
     /**
      * Get the workers assigned to this workstation.
      */

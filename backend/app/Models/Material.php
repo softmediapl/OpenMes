@@ -106,6 +106,11 @@ class Material extends Model
         return $this->hasMany(WarehouseStock::class);
     }
 
+    public function workstationStocks(): HasMany
+    {
+        return $this->hasMany(WorkstationMaterialStock::class);
+    }
+
     protected static function booted(): void
     {
         // The other way to close a BOM loop: point an item at a producing
