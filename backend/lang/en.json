@@ -5350,5 +5350,15 @@
     "Transport unit :code capacity is :capacity, but :quantity was requested.": "Transport unit :code capacity is :capacity, but :quantity was requested.",
     "Transport unit loads total :loaded, but the operation requires :required.": "Transport unit loads total :loaded, but the operation requires :required.",
     "Transport unit quantity must be a number.": "Transport unit quantity must be a number.",
-    "Transport unit quantity must be greater than zero.": "Transport unit quantity must be greater than zero."
+    "Transport unit quantity must be greater than zero.": "Transport unit quantity must be greater than zero.",
+    "Prepare operation": "Prepare operation",
+    "Transport units": "Transport units",
+    "Unit code": "Unit code",
+    "Remove unit": "Remove unit",
+    "This unit code is already used.": "This unit code is already used.",
+    "Quantity exceeds unit capacity.": "Quantity exceeds unit capacity.",
+    "Enter a valid unit code and quantity.": "Enter a valid unit code and quantity.",
+    "+ Add unit": "+ Add unit",
+    "Confirm & start": "Confirm & start",
+    "Operation could not be started.": "Operation could not be started."
 }

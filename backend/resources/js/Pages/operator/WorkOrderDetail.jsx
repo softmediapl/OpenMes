@@ -14,6 +14,7 @@ import { customFieldInitial, customFieldProps, submitForm } from '../../lib/cust
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationQuantityBalance } from '../../lib/operationQuantity';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
+import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
 
 // Geist White restyle: light-only v1 — former `dark:` variants removed.
 
@@ -748,7 +749,7 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
 function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
-    const [pickModal, setPickModal] = useState(null); // { step, materials } | null
+    const [pickModal, setPickModal] = useState(null);
     const [completeModal, setCompleteModal] = useState(null);
     const [clock, setClock] = useState(Date.now());
     const hasRunningFixedHold = steps?.some((step) => (
@@ -812,9 +813,8 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
         );
     };
 
-    // Starting a step: first ask the server which material lots (if any) need
-    // picking. With lots to pick, open the WO-time picking modal seeded with the
-    // system's proposal; otherwise start the step directly (unchanged behavior).
+    // Resolve all controlled inputs before starting the operation. The backend
+    // remains authoritative and repeats each material and transport-unit check.
     const handleStart = async (step) => {
         setInflightStepId(step.id);
         try {
@@ -824,9 +824,11 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
             });
             if (res.ok) {
                 const data = await res.json();
-                if (data.materials && data.materials.length > 0) {
+                const materials = data.materials ?? [];
+                const transportUnitRequirement = data.transport_unit_requirement ?? null;
+                if (materials.length > 0 || transportUnitRequirement) {
                     setInflightStepId(null);
-                    setPickModal({ step, materials: data.materials });
+                    setPickModal({ step, materials, transportUnitRequirement });
                     return;
                 }
             }
@@ -984,6 +986,10 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                             <OperationQuantitySummary step={step} />
                         )}
 
+                        {(step.transport_unit_loads?.length > 0) && (
+                            <TransportUnitLoadSummary loads={step.transport_unit_loads} />
+                        )}
+
                         {(step.instruction?.trim() || media.length > 0) && (
                             <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
                         )}
@@ -1035,9 +1041,10 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
             )}
 
             {pickModal && (
-                <LotPickModal
+                <StepStartModal
                     step={pickModal.step}
                     materials={pickModal.materials}
+                    transportUnitRequirement={pickModal.transportUnitRequirement}
                     onClose={() => setPickModal(null)}
                 />
             )}
@@ -1050,6 +1057,28 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                     onClose={() => setCompleteModal(null)}
                 />
             )}
+        </div>
+    );
+}
+
+function TransportUnitLoadSummary({ loads }) {
+    return (
+        <div className="border-t border-om-line2 px-3 py-2.5">
+            <span className={`${sectionLabelCls} mb-2 block`}>{__('Transport units')}</span>
+            <div className="flex flex-wrap gap-2">
+                {loads.map((load) => (
+                    <div key={load.id} className="rounded-om-sm border border-om-line2 bg-om-card px-2.5 py-2">
+                        <span className="block font-mono text-[12px] font-semibold text-om-ink">
+                            {load.transport_unit?.code ?? `#${load.transport_unit_id}`}
+                        </span>
+                        <span className="font-mono text-[10px] text-om-muted">
+                            {fmtQty(load.quantity, 4)} {load.transport_unit?.unit_of_measure ?? load.transport_unit?.type?.unit_of_measure ?? ''}
+                            {' · '}
+                            {load.released_at ? __('Released') : __('In use')}
+                        </span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -1432,15 +1461,15 @@ function StepChecklist({ step, items = [], completedItemIds, completions = [], c
 }
 
 // ---------------------------------------------------------------------------
-// WO-time lot picking modal (ERP-aligned "suggest + override"): the system
-// proposes lots (FEFO/FIFO/LIFO); the operator can split/reassign quantities
-// across the candidate lots before starting the step. Lots only (phase 1).
+// Operation start modal. Material lots remain ERP-aligned "suggest + override";
+// required WIP carriers are scanned and quantity-balanced in the same action.
 // ---------------------------------------------------------------------------
 
 const EPSILON = 0.0001;
 
-function LotPickModal({ step, materials, onClose }) {
+function StepStartModal({ step, materials, transportUnitRequirement, onClose }) {
     const [submitting, setSubmitting] = useState(false);
+    const [serverError, setServerError] = useState('');
     // picks: { [materialId]: [{ material_lot_id, picked_qty: string }] }
     const [picks, setPicks] = useState(() =>
         Object.fromEntries(
@@ -1449,6 +1478,9 @@ function LotPickModal({ step, materials, onClose }) {
                 m.proposed.map((p) => ({ material_lot_id: p.material_lot_id, picked_qty: String(p.picked_qty) })),
             ])
         )
+    );
+    const [transportUnits, setTransportUnits] = useState(() =>
+        suggestTransportUnitLoads(transportUnitRequirement)
     );
 
     // material_id -> { lotId -> candidate } for quick lookups.
@@ -1494,11 +1526,26 @@ function LotPickModal({ step, materials, onClose }) {
         return Math.abs(sum - m.required_qty) < EPSILON;
     };
 
-    const allValid = materials.every(materialValid);
+    const transportValidation = validateTransportUnitLoads(transportUnitRequirement, transportUnits);
+    const allValid = materials.every(materialValid) && transportValidation.valid;
+
+    const setTransportUnit = (idx, patch) =>
+        setTransportUnits((prev) => prev.map((unit, index) => (index === idx ? { ...unit, ...patch } : unit)));
+
+    const removeTransportUnit = (idx) =>
+        setTransportUnits((prev) => prev.filter((_, index) => index !== idx));
+
+    const addTransportUnit = () => {
+        const capacity = Number(transportUnitRequirement?.default_capacity_quantity);
+        const remaining = Math.max(transportValidation.difference, 0);
+        const quantity = capacity > 0 ? Math.min(remaining || capacity, capacity) : remaining;
+        setTransportUnits((prev) => [...prev, { code: '', quantity: quantity > 0 ? String(round4(quantity)) : '' }]);
+    };
 
     const submit = (e) => {
         e.preventDefault();
         if (!allValid) return;
+        setServerError('');
         setSubmitting(true);
         const payload = {
             picks: materials.map((m) => ({
@@ -1508,18 +1555,104 @@ function LotPickModal({ step, materials, onClose }) {
                     picked_qty: Number(ln.picked_qty),
                 })),
             })),
+            transport_units: transportUnitRequirement
+                ? transportUnits.map((unit) => ({
+                    code: unit.code.trim(),
+                    quantity: Number(unit.quantity),
+                }))
+                : [],
         };
         router.post(`/operator/batch-step/${step.id}/start`, payload, {
             preserveScroll: true,
             onSuccess: onClose,
+            onError: (errors) => {
+                const message = errors.transport_units ?? errors.picks ?? Object.values(errors)[0];
+                setServerError(Array.isArray(message) ? message.join(' ') : String(message ?? __('Operation could not be started.')));
+            },
             onFinish: () => setSubmitting(false),
         });
     };
 
     return (
-        <ModalShell title={__("Pick material lots")} subtitle={step.name} onClose={onClose}>
+        <ModalShell title={__('Prepare operation')} subtitle={step.name} onClose={onClose}>
             <form onSubmit={submit}>
                 <div className="max-h-[60vh] space-y-5 overflow-y-auto px-[18px] py-4">
+                    {transportUnitRequirement && (
+                        <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                            <div className="mb-3 flex items-start justify-between gap-3">
+                                <div>
+                                    <span className="block text-sm font-medium text-om-ink">{transportUnitRequirement.name}</span>
+                                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">
+                                        {transportUnitRequirement.code} · {__('Transport units')}
+                                    </span>
+                                </div>
+                                <div className="text-right font-mono text-[11px]">
+                                    <span className="block text-om-faint">{__('Required')}</span>
+                                    <span className="font-semibold text-om-ink">
+                                        {fmtQty(transportUnitRequirement.required_quantity, 4)} {transportUnitRequirement.unit_of_measure}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2.5">
+                                {transportUnits.map((unit, idx) => {
+                                    const errors = transportValidation.rowErrors[idx] ?? [];
+                                    return (
+                                        <div key={idx} className="grid grid-cols-[minmax(0,1fr)_7rem_2rem] items-start gap-2">
+                                            <div>
+                                                <label className={fieldLabelCls}>{__('Unit code')}</label>
+                                                <input
+                                                    type="text"
+                                                    value={unit.code}
+                                                    onChange={(e) => setTransportUnit(idx, { code: e.target.value })}
+                                                    autoFocus={idx === 0}
+                                                    autoComplete="off"
+                                                    className={`${inputCls} font-mono uppercase`}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className={fieldLabelCls}>{__('Quantity')}</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.0001"
+                                                    inputMode="decimal"
+                                                    value={unit.quantity}
+                                                    onChange={(e) => setTransportUnit(idx, { quantity: e.target.value })}
+                                                    className={`${inputCls} font-mono text-right`}
+                                                />
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTransportUnit(idx)}
+                                                className="mt-[23px] h-10 cursor-pointer text-[20px] leading-none text-om-faint hover:text-om-blocked"
+                                                title={__('Remove unit')}
+                                            >
+                                                ×
+                                            </button>
+                                            {errors.length > 0 && (
+                                                <p className={`${errorCls} col-span-3 mt-0`}>
+                                                    {errors.includes('duplicate') && __('This unit code is already used.')}
+                                                    {errors.includes('capacity') && __('Quantity exceeds unit capacity.')}
+                                                    {!errors.includes('duplicate') && !errors.includes('capacity') && __('Enter a valid unit code and quantity.')}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                                <Button type="button" variant="secondary" onClick={addTransportUnit}>
+                                    {__('+ Add unit')}
+                                </Button>
+                                <span className={`font-mono text-[11px] ${Math.abs(transportValidation.difference) <= EPSILON ? 'text-om-done' : 'text-om-blocked'}`}>
+                                    {__('Allocated')} {fmtQty(transportValidation.total, 4)} / {fmtQty(transportUnitRequirement.required_quantity, 4)}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     {materials.map((m) => {
                         const lines = picks[m.material_id] ?? [];
                         const allocated = lines.reduce((s, ln) => s + (Number(ln.picked_qty) || 0), 0);
@@ -1613,13 +1746,14 @@ function LotPickModal({ step, materials, onClose }) {
                             </div>
                         );
                     })}
+                    {serverError && <p className={`${errorCls} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
                 </div>
                 <div className={modalFooterCls}>
                     <Button variant="secondary" type="button" onClick={onClose}>
                         {__('Cancel')}
                     </Button>
                     <Button variant="accent" type="submit" disabled={!allValid || submitting}>
-                        {submitting ? '…' : __('Confirm picks & start')}
+                        {submitting ? '…' : __('Confirm & start')}
                     </Button>
                 </div>
             </form>

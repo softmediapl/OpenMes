@@ -5350,5 +5350,15 @@
     "Transport unit :code capacity is :capacity, but :quantity was requested.": "Pojemność jednostki transportowej :code wynosi :capacity, a zażądano :quantity.",
     "Transport unit loads total :loaded, but the operation requires :required.": "Ładunki jednostek transportowych obejmują :loaded, a operacja wymaga :required.",
     "Transport unit quantity must be a number.": "Ilość na jednostce transportowej musi być liczbą.",
-    "Transport unit quantity must be greater than zero.": "Ilość na jednostce transportowej musi być większa od zera."
+    "Transport unit quantity must be greater than zero.": "Ilość na jednostce transportowej musi być większa od zera.",
+    "Prepare operation": "Przygotuj operację",
+    "Transport units": "Nośniki transportowe",
+    "Unit code": "Kod nośnika",
+    "Remove unit": "Usuń nośnik",
+    "This unit code is already used.": "Ten kod nośnika został już użyty.",
+    "Quantity exceeds unit capacity.": "Ilość przekracza pojemność nośnika.",
+    "Enter a valid unit code and quantity.": "Wprowadź prawidłowy kod nośnika i ilość.",
+    "+ Add unit": "+ Dodaj nośnik",
+    "Confirm & start": "Potwierdź i rozpocznij",
+    "Operation could not be started.": "Nie można rozpocząć operacji."
 }
