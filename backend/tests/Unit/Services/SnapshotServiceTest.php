@@ -99,6 +99,9 @@ class SnapshotServiceTest extends TestCase
         // ISA-95 additions (#52).
         $this->assertArrayHasKey('workstation_type_id', $step);
         $this->assertArrayHasKey('transport_unit_type_id', $step);
+        $this->assertArrayHasKey('transport_unit_capacity_quantity', $step);
+        $this->assertArrayHasKey('transport_unit_unit_of_measure', $step);
+        $this->assertArrayHasKey('workstation_capacity_slots', $step);
         $this->assertArrayHasKey('setup_time_minutes', $step);
         $this->assertArrayHasKey('run_time_per_unit_minutes', $step);
         $this->assertArrayHasKey('execution_mode', $step);
@@ -135,13 +138,27 @@ class SnapshotServiceTest extends TestCase
 
     public function test_snapshot_step_carries_required_transport_unit_type(): void
     {
-        $type = \App\Models\TransportUnitType::factory()->create();
+        $type = \App\Models\TransportUnitType::factory()->create([
+            'default_capacity_quantity' => 200,
+            'unit_of_measure' => 'pcs',
+        ]);
+        $line = \App\Models\Line::factory()->create();
+        $workstation = \App\Models\Workstation::factory()->create([
+            'line_id' => $line->id,
+            'capacity_slots' => 10,
+        ]);
         $template = ProcessTemplate::factory()->withSteps(1)->create();
-        $template->steps()->first()->update(['transport_unit_type_id' => $type->id]);
+        $template->steps()->first()->update([
+            'transport_unit_type_id' => $type->id,
+            'workstation_id' => $workstation->id,
+        ]);
 
         $step = $this->service->createSnapshot($template->fresh())['steps'][0];
 
         $this->assertSame($type->id, $step['transport_unit_type_id']);
+        $this->assertSame(200.0, $step['transport_unit_capacity_quantity']);
+        $this->assertSame('pcs', $step['transport_unit_unit_of_measure']);
+        $this->assertSame(10, $step['workstation_capacity_slots']);
     }
 
     public function test_snapshot_workstation_type_falls_back_to_process_segment(): void

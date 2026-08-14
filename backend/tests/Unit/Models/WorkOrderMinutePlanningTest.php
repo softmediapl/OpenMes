@@ -130,6 +130,53 @@ class WorkOrderMinutePlanningTest extends TestCase
         $this->assertSame(50, $wo->estimatedStandardProductionMinutes());
     }
 
+    public function test_estimated_lead_time_uses_dependencies_and_capacity_waves(): void
+    {
+        $wo = new WorkOrder([
+            'planned_qty' => 1000,
+            'process_snapshot' => [
+                'steps' => [
+                    [
+                        'step_number' => 1,
+                        'execution_mode' => 'per_batch',
+                        'estimated_duration_minutes' => 20,
+                    ],
+                    [
+                        'step_number' => 2,
+                        'execution_mode' => 'fixed_hold',
+                        'min_duration_minutes' => 30,
+                        'transport_unit_capacity_quantity' => 200,
+                        'workstation_capacity_slots' => 2,
+                    ],
+                ],
+                'dependencies' => [[
+                    'predecessor_step_number' => 1,
+                    'successor_step_number' => 2,
+                    'lag_minutes' => 0,
+                ]],
+            ],
+        ]);
+
+        $this->assertSame(110, $wo->estimatedDurationMinutes());
+        $this->assertSame(110, $wo->estimatedLeadTimeMinutes());
+    }
+
+    public function test_estimated_duration_keeps_legacy_snapshots_without_step_numbers_working(): void
+    {
+        $wo = new WorkOrder([
+            'planned_qty' => 10,
+            'process_snapshot' => [
+                'steps' => [
+                    ['estimated_duration_minutes' => 10],
+                    ['estimated_duration_minutes' => 20],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(30, $wo->estimatedDurationMinutes());
+        $this->assertSame(30, $wo->estimatedLeadTimeMinutes());
+    }
+
     public function test_planned_duration_minutes_returns_null_when_not_planned(): void
     {
         $wo = new WorkOrder;

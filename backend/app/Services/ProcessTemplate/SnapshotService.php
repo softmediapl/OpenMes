@@ -22,6 +22,7 @@ class SnapshotService
             'steps.media',
             'steps.photos',
             'steps.workstation',
+            'steps.transportUnitType',
             'dependencies.predecessor',
             'dependencies.successor',
             'bomItems.material.materialType',
@@ -78,8 +79,13 @@ class SnapshotService
                     'required_operators' => $step->effectiveRequiredOperators(),
                     'workstation_id' => $step->workstation_id,
                     'workstation_name' => $step->workstation?->name,
+                    'workstation_capacity_slots' => $step->workstation?->capacity_slots,
                     'workstation_type_id' => $step->effectiveWorkstationType(),
                     'transport_unit_type_id' => $step->transport_unit_type_id,
+                    'transport_unit_capacity_quantity' => $step->transportUnitType?->default_capacity_quantity !== null
+                        ? (float) $step->transportUnitType->default_capacity_quantity
+                        : null,
+                    'transport_unit_unit_of_measure' => $step->transportUnitType?->unit_of_measure,
                     'is_optional' => (bool) $step->is_optional,
                     'variant_group' => $step->variant_group,
                     'is_default_variant' => (bool) $step->is_default_variant,

@@ -6,6 +6,8 @@ use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\HasTenant;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use App\Services\Schedule\OperationDurationCalculator;
+use App\Services\Schedule\ProcessDurationEstimate;
+use App\Services\Schedule\ProcessDurationEstimator;
 use App\Support\SystemSetting;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -218,22 +220,27 @@ class WorkOrder extends Model
             }
         }
 
-        // 2. Process-snapshot step estimates captured from the product template.
-        $sum = 0;
-        $hasEstimate = false;
-        foreach ($this->process_snapshot['steps'] ?? [] as $step) {
-            $minutes = OperationDurationCalculator::planningMinutes(
-                $step,
-                (float) ($this->planned_qty ?? 0),
-            );
-            if ($minutes === null) {
-                continue;
-            }
-            $hasEstimate = true;
-            $sum += $minutes;
-        }
+        // 2. Aggregate operation demand from the immutable process snapshot.
+        // This remains distinct from dependency-graph lead time.
+        return $this->processDurationEstimate()->totalOperationMinutes;
+    }
 
-        return $hasEstimate ? $sum : null;
+    /**
+     * Earliest unconstrained process completion time from the dependency graph.
+     * Shift calendars, queueing and competing work orders are applied later by
+     * the finite-capacity scheduler.
+     */
+    public function estimatedLeadTimeMinutes(): ?int
+    {
+        return $this->processDurationEstimate()->leadTimeMinutes;
+    }
+
+    public function processDurationEstimate(): ProcessDurationEstimate
+    {
+        return ProcessDurationEstimator::estimate(
+            $this->process_snapshot ?? [],
+            (float) ($this->planned_qty ?? 0),
+        );
     }
 
     /**
