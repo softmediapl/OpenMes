@@ -11,6 +11,9 @@ use App\Models\Material;
 use App\Models\MaterialAllocation;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Models\Workstation;
+use App\Models\WorkstationMaterialMovement;
+use App\Models\WorkstationMaterialPolicy;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -19,6 +22,7 @@ class MaterialAllocationService
     public function __construct(
         protected StockMovementService $stockMovements,
         protected LotPickingService $lotPicking,
+        protected WorkstationMaterialStockService $workstationStocks,
     ) {}
 
     /**
@@ -178,8 +182,9 @@ class MaterialAllocationService
                 continue;
             }
 
-            // Phase 1: lots/batches only - serial-tracked materials are handled elsewhere.
-            if ($material->tracking_type === 'serial') {
+            // Lot selection is only meaningful for lot-tracked materials.
+            // Serial and untracked stock have their own execution paths.
+            if (in_array($material->tracking_type, ['serial', 'none'], true)) {
                 continue;
             }
 
@@ -195,7 +200,8 @@ class MaterialAllocationService
                 ? $step->expectedInputQuantity()
                 : (float) $batch->target_qty;
             $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
-            $proposal = $this->lotPicking->proposePicks($material, $requiredQty);
+            $workstation = $this->materialPolicyWorkstation($step, $material);
+            $proposal = $this->lotPicking->proposePicks($material, $requiredQty, workstation: $workstation);
 
             $out[] = [
                 'material_id' => $material->id,
@@ -225,7 +231,7 @@ class MaterialAllocationService
             $allocations = MaterialAllocation::where('batch_id', $batch->id)
                 ->where('status', MaterialAllocation::STATUS_ALLOCATED)
                 ->lockForUpdate()
-                ->with(['material', 'lotPicks'])
+                ->with(['material', 'workstationMaterialStock', 'lotPicks.workstationMaterialStock'])
                 ->get();
 
             foreach ($allocations as $allocation) {
@@ -246,10 +252,18 @@ class MaterialAllocationService
 
                 // Keep lot picks aligned with what physically left stock before
                 // writing genealogy. Remaining picks represent consumed + scrap.
-                $this->lotPicking->returnPartialForAllocation($allocation, $leftoverToReturn);
+                if ($allocation->lotPicks->isNotEmpty()) {
+                    $this->lotPicking->returnPartialForAllocation($allocation, $leftoverToReturn);
+                }
                 $allocation->unsetRelation('lotPicks');
-                $allocation->load('lotPicks');
+                $allocation->load('lotPicks.workstationMaterialStock');
                 $this->writeGenealogy($allocation);
+                $this->consumeWorkstationAllocation(
+                    $allocation,
+                    $actualConsumed,
+                    $scrapQty,
+                    $leftoverToReturn,
+                );
 
                 if ($actualConsumed > 0 && $allocation->material) {
                     $this->stockMovements->record(
@@ -294,7 +308,7 @@ class MaterialAllocationService
             $allocations = MaterialAllocation::where('batch_id', $batch->id)
                 ->where('status', MaterialAllocation::STATUS_ALLOCATED)
                 ->lockForUpdate()
-                ->with('material')
+                ->with(['material', 'workstationMaterialStock', 'lotPicks.workstationMaterialStock'])
                 ->get();
 
             foreach ($allocations as $allocation) {
@@ -303,7 +317,16 @@ class MaterialAllocationService
                 }
 
                 // Lot tracking: return picked qty back to each lot.
-                $this->lotPicking->returnPicksForAllocation($allocation);
+                if ($allocation->lotPicks->isNotEmpty()) {
+                    $this->lotPicking->returnPicksForAllocation($allocation);
+                } elseif ($allocation->workstationMaterialStock) {
+                    $this->workstationStocks->releaseReservation(
+                        $allocation->workstationMaterialStock,
+                        (float) $allocation->allocated_qty,
+                        sourceType: 'material_allocation',
+                        sourceId: $allocation->id,
+                    );
+                }
 
                 $allocation->update([
                     'status' => MaterialAllocation::STATUS_RETURNED,
@@ -378,16 +401,50 @@ class MaterialAllocationService
                 throw new \DomainException('Allocation has no associated material.');
             }
 
+            $allocation->loadMissing([
+                'workstationMaterialStock.workstation',
+                'lotPicks.workstationMaterialStock.workstation',
+            ]);
+            $stationPick = $allocation->lotPicks
+                ->first(fn ($pick) => $pick->workstationMaterialStock !== null);
+            $stationWorkstation = $allocation->workstationMaterialStock?->workstation
+                ?? $stationPick?->workstationMaterialStock?->workstation;
+
             if ($deltaQty > 0) {
                 if ($this->blockNegativeStockEnabled() && $material->available_quantity < $deltaQty) {
                     throw new InsufficientStockException($material, $deltaQty, $material->available_quantity);
                 }
 
                 $this->reserve($material, $deltaQty);
-                $this->lotPicking->increasePicksForAllocation($allocation, $material, $deltaQty);
+                if ($allocation->workstationMaterialStock) {
+                    $this->workstationStocks->reserve(
+                        $allocation->workstationMaterialStock,
+                        $deltaQty,
+                        $user,
+                        'material_allocation',
+                        $allocation->id,
+                    );
+                } else {
+                    $this->lotPicking->increasePicksForAllocation(
+                        $allocation,
+                        $material,
+                        $deltaQty,
+                        $stationWorkstation,
+                    );
+                }
             } else {
                 $releaseQty = abs($deltaQty);
-                $this->lotPicking->returnPartialForAllocation($allocation, $releaseQty);
+                if ($allocation->workstationMaterialStock) {
+                    $this->workstationStocks->releaseReservation(
+                        $allocation->workstationMaterialStock,
+                        $releaseQty,
+                        $user,
+                        'material_allocation',
+                        $allocation->id,
+                    );
+                } elseif ($allocation->lotPicks->isNotEmpty()) {
+                    $this->lotPicking->returnPartialForAllocation($allocation, $releaseQty);
+                }
                 $this->releaseReservation($material, $releaseQty);
             }
 
@@ -457,7 +514,18 @@ class MaterialAllocationService
             $this->releaseReservation($material, $qty);
 
             // Lot tracking: hand the returned quantity back to the picked lots.
-            $this->lotPicking->returnPartialForAllocation($allocation, $qty);
+            $allocation->loadMissing(['workstationMaterialStock', 'lotPicks.workstationMaterialStock']);
+            if ($allocation->workstationMaterialStock) {
+                $this->workstationStocks->releaseReservation(
+                    $allocation->workstationMaterialStock,
+                    $qty,
+                    $user,
+                    'material_allocation',
+                    $allocation->id,
+                );
+            } elseif ($allocation->lotPicks->isNotEmpty()) {
+                $this->lotPicking->returnPartialForAllocation($allocation, $qty);
+            }
 
             $allocation->update([
                 // Shrink the allocation so consumeForBatch's leftover calc excludes what we just returned.
@@ -480,6 +548,100 @@ class MaterialAllocationService
     }
 
     // ── internals ─────────────────────────────────────────────────────────────
+
+    private function materialPolicyWorkstation(BatchStep $step, Material $material): ?Workstation
+    {
+        $workstation = $step->workstation;
+        if (! $workstation) {
+            return null;
+        }
+
+        return WorkstationMaterialPolicy::query()
+            ->where('workstation_id', $workstation->id)
+            ->where('material_id', $material->id)
+            ->where('is_active', true)
+            ->exists()
+                ? $workstation
+                : null;
+    }
+
+    private function consumeWorkstationAllocation(
+        MaterialAllocation $allocation,
+        float $consumed,
+        float $scrap,
+        float $leftover,
+    ): void {
+        if ($allocation->workstationMaterialStock) {
+            if ($consumed > 0) {
+                $this->workstationStocks->consumeReserved(
+                    $allocation->workstationMaterialStock,
+                    $consumed,
+                    WorkstationMaterialMovement::TYPE_CONSUME,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+            }
+            if ($scrap > 0) {
+                $this->workstationStocks->consumeReserved(
+                    $allocation->workstationMaterialStock,
+                    $scrap,
+                    WorkstationMaterialMovement::TYPE_SCRAP,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+            }
+            if ($leftover > 0) {
+                $this->workstationStocks->releaseReservation(
+                    $allocation->workstationMaterialStock,
+                    $leftover,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+            }
+
+            return;
+        }
+
+        $stationPicks = $allocation->lotPicks
+            ->filter(fn ($pick) => $pick->workstationMaterialStock !== null);
+        if ($stationPicks->isEmpty()) {
+            return;
+        }
+
+        $remainingConsumed = $consumed;
+        $remainingScrap = $scrap;
+        foreach ($stationPicks as $pick) {
+            $pickRemaining = (float) $pick->picked_qty;
+            $consumeFromPick = min($remainingConsumed, $pickRemaining);
+            if ($consumeFromPick > 0) {
+                $this->workstationStocks->consumeReserved(
+                    $pick->workstationMaterialStock,
+                    $consumeFromPick,
+                    WorkstationMaterialMovement::TYPE_CONSUME,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+                $remainingConsumed -= $consumeFromPick;
+                $pickRemaining -= $consumeFromPick;
+            }
+
+            $scrapFromPick = min($remainingScrap, $pickRemaining);
+            if ($scrapFromPick > 0) {
+                $this->workstationStocks->consumeReserved(
+                    $pick->workstationMaterialStock,
+                    $scrapFromPick,
+                    WorkstationMaterialMovement::TYPE_SCRAP,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+                $remainingScrap -= $scrapFromPick;
+            }
+        }
+
+        if ($remainingConsumed > 0.0001 || $remainingScrap > 0.0001) {
+            throw new \DomainException('Workstation lot reservations do not cover reported material consumption.');
+        }
+    }
 
     /**
      * @param  array<int, array<int, array{material_lot_id: int|string, picked_qty: int|float|string}>>  $picksByMaterial
@@ -504,8 +666,11 @@ class MaterialAllocationService
 
         $blockNegative = $this->blockNegativeStockEnabled();
         $genealogyStepId = $stepId ?? $attributeStepId;
+        $workstation = $genealogyStepId
+            ? BatchStep::query()->with('workstation')->find($genealogyStepId)?->workstation
+            : null;
 
-        return DB::transaction(function () use ($batch, $user, $bom, $filter, $productionQuantity, $genealogyStepId, $picksByMaterial, $blockNegative) {
+        return DB::transaction(function () use ($batch, $user, $bom, $filter, $productionQuantity, $genealogyStepId, $picksByMaterial, $blockNegative, $workstation) {
             $allocations = collect();
 
             foreach ($bom as $bomItem) {
@@ -534,6 +699,12 @@ class MaterialAllocationService
                 }
 
                 $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
+                $useWorkstationStock = $workstation
+                    && WorkstationMaterialPolicy::query()
+                        ->where('workstation_id', $workstation->id)
+                        ->where('material_id', $material->id)
+                        ->where('is_active', true)
+                        ->exists();
 
                 if ($blockNegative && $material->available_quantity < $requiredQty) {
                     throw new InsufficientStockException(
@@ -561,13 +732,41 @@ class MaterialAllocationService
                 // the surrounding transaction so reservations stay consistent.
                 // When the operator supplied an explicit pick for this material
                 // (WO-time "suggest + override"), honour it; otherwise auto-pick.
-                if ($this->lotPicking->isLotTrackingEnabled()) {
+                if ($this->lotPicking->isLotTrackingEnabled() && $material->tracking_type !== 'none') {
                     $chosen = $picksByMaterial[$material->id] ?? null;
                     if (! empty($chosen)) {
-                        $this->lotPicking->pickManualForAllocation($newAllocation, $material, $requiredQty, $chosen);
+                        $this->lotPicking->pickManualForAllocation(
+                            $newAllocation,
+                            $material,
+                            $requiredQty,
+                            $chosen,
+                            $useWorkstationStock ? $workstation : null,
+                        );
                     } else {
-                        $this->lotPicking->pickForAllocation($newAllocation, $material, $requiredQty);
+                        $this->lotPicking->pickForAllocation(
+                            $newAllocation,
+                            $material,
+                            $requiredQty,
+                            workstation: $useWorkstationStock ? $workstation : null,
+                        );
                     }
+                } elseif ($useWorkstationStock) {
+                    if ($material->tracking_type !== 'none') {
+                        throw new \DomainException('Lot tracking must be enabled to consume tracked material from workstation stock.');
+                    }
+
+                    $stock = $this->workstationStocks->findStock($workstation, $material);
+                    if (! $stock) {
+                        throw new InsufficientStockException($material, $requiredQty, 0);
+                    }
+                    $this->workstationStocks->reserve(
+                        $stock,
+                        $requiredQty,
+                        $user,
+                        'material_allocation',
+                        $newAllocation->id,
+                    );
+                    $newAllocation->update(['workstation_material_stock_id' => $stock->id]);
                 }
 
                 $allocations->push($newAllocation);

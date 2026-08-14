@@ -24,6 +24,7 @@ class MaterialAllocation extends Model
         'batch_id',
         'batch_step_id',
         'material_id',
+        'workstation_material_stock_id',
         'work_order_id',
         'allocated_qty',
         'expected_qty',
@@ -74,6 +75,11 @@ class MaterialAllocation extends Model
     public function material(): BelongsTo
     {
         return $this->belongsTo(Material::class);
+    }
+
+    public function workstationMaterialStock(): BelongsTo
+    {
+        return $this->belongsTo(WorkstationMaterialStock::class);
     }
 
     public function workOrder(): BelongsTo

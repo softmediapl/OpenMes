@@ -189,6 +189,7 @@ class MaterialAllocationServiceTest extends TestCase
 
     private function enableLotTracking(): void
     {
+        $this->material->update(['tracking_type' => 'batch']);
         DB::table('system_settings')->updateOrInsert(['key' => 'lot_tracking_enabled'], ['value' => json_encode(true)]);
     }
 

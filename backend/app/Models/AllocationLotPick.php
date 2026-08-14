@@ -23,6 +23,7 @@ class AllocationLotPick extends Model
     protected $fillable = [
         'material_allocation_id',
         'material_lot_id',
+        'workstation_material_stock_id',
         'tenant_id',
         'picked_qty',
         'picking_strategy',
@@ -43,5 +44,10 @@ class AllocationLotPick extends Model
     public function lot(): BelongsTo
     {
         return $this->belongsTo(MaterialLot::class, 'material_lot_id');
+    }
+
+    public function workstationMaterialStock(): BelongsTo
+    {
+        return $this->belongsTo(WorkstationMaterialStock::class);
     }
 }

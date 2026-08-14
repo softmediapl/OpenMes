@@ -212,6 +212,64 @@ class WorkstationMaterialStockService
         });
     }
 
+    public function consumeReserved(
+        WorkstationMaterialStock $stock,
+        float $quantity,
+        string $movementType,
+        ?User $user = null,
+        ?string $sourceType = null,
+        ?int $sourceId = null,
+    ): WorkstationMaterialStock {
+        $this->assertPositive($quantity);
+        if (! in_array($movementType, [
+            WorkstationMaterialMovement::TYPE_CONSUME,
+            WorkstationMaterialMovement::TYPE_SCRAP,
+        ], true)) {
+            throw new \InvalidArgumentException('A reserved workstation quantity can only be consumed or scrapped.');
+        }
+
+        return DB::transaction(function () use ($stock, $quantity, $movementType, $user, $sourceType, $sourceId) {
+            $locked = $this->lockStock($stock);
+            if ((float) $locked->reserved_quantity + self::EPSILON < $quantity) {
+                throw ValidationException::withMessages([
+                    'quantity' => __('Consumed quantity exceeds the material reserved at this workstation.'),
+                ]);
+            }
+            if ((float) $locked->quantity + self::EPSILON < $quantity) {
+                throw ValidationException::withMessages([
+                    'quantity' => __('Consumed quantity exceeds the physical material at this workstation.'),
+                ]);
+            }
+
+            $locked->quantity = max(0, round((float) $locked->quantity - $quantity, 4));
+            $locked->reserved_quantity = max(0, round((float) $locked->reserved_quantity - $quantity, 4));
+            $locked->save();
+            $this->recordMovement(
+                $locked,
+                $movementType,
+                -$quantity,
+                -$quantity,
+                sourceType: $sourceType,
+                sourceId: $sourceId,
+                user: $user,
+            );
+
+            return $locked->refresh();
+        });
+    }
+
+    public function findStock(
+        Workstation $workstation,
+        Material $material,
+        ?MaterialLot $lot = null,
+    ): ?WorkstationMaterialStock {
+        return WorkstationMaterialStock::query()
+            ->where('workstation_id', $workstation->id)
+            ->where('material_id', $material->id)
+            ->where('material_lot_id', $lot?->id)
+            ->first();
+    }
+
     private function assertPositive(float $quantity): void
     {
         if ($quantity <= 0) {

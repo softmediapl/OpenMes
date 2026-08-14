@@ -7,6 +7,8 @@ use App\Models\AllocationLotPick;
 use App\Models\Material;
 use App\Models\MaterialAllocation;
 use App\Models\MaterialLot;
+use App\Models\Workstation;
+use App\Models\WorkstationMaterialStock;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -23,6 +25,8 @@ class LotPickingService
     /** Floating-point tolerance for quantity comparisons (matches test deltas). */
     private const EPSILON = 0.0001;
 
+    public function __construct(private WorkstationMaterialStockService $workstationStocks) {}
+
     /**
      * Pick lots for the given allocation/material/quantity. Decrements
      * each picked lot's available_qty, marks depleted lots, and writes
@@ -36,8 +40,13 @@ class LotPickingService
         Material $material,
         float $requiredQty,
         ?string $strategy = null,
+        ?Workstation $workstation = null,
     ): array {
         $strategy = $strategy ?? $this->defaultStrategy();
+
+        if ($workstation) {
+            return $this->pickStationLotsForAllocation($allocation, $material, $requiredQty, $strategy, $workstation);
+        }
 
         return DB::transaction(function () use ($allocation, $material, $requiredQty, $strategy) {
             $candidates = $this->orderedAvailableLots($material->id, $strategy);
@@ -88,6 +97,7 @@ class LotPickingService
         MaterialAllocation $allocation,
         Material $material,
         float $additionalQty,
+        ?Workstation $workstation = null,
     ): array {
         if ($additionalQty <= 0 || ! $this->isLotTrackingEnabled()) {
             return [];
@@ -96,6 +106,10 @@ class LotPickingService
         $strategy = $this->defaultStrategy();
         if ($strategy === AllocationLotPick::STRATEGY_MANUAL) {
             throw new \DomainException(__('Additional lot picks must be selected manually.'));
+        }
+
+        if ($workstation) {
+            return $this->pickStationLotsForAllocation($allocation, $material, $additionalQty, $strategy, $workstation, mergeExisting: true);
         }
 
         return DB::transaction(function () use ($allocation, $material, $additionalQty, $strategy) {
@@ -163,7 +177,12 @@ class LotPickingService
         Material $material,
         float $requiredQty,
         array $chosen,
+        ?Workstation $workstation = null,
     ): array {
+        if ($workstation) {
+            return $this->pickManualStationLotsForAllocation($allocation, $material, $requiredQty, $chosen, $workstation);
+        }
+
         return DB::transaction(function () use ($allocation, $material, $requiredQty, $chosen) {
             // Normalise + collapse duplicate lot lines (the unique index on
             // (allocation, lot) forbids two rows for the same lot anyway).
@@ -228,9 +247,17 @@ class LotPickingService
      *
      * @return array{strategy: string, proposed: array<int, array{material_lot_id: int, picked_qty: float}>, candidates: array<int, array{id: int, lot_number: string, quantity_available: float, expiry_date: ?string, received_at: ?string, status: string}>}
      */
-    public function proposePicks(Material $material, float $requiredQty, ?string $strategy = null): array
-    {
+    public function proposePicks(
+        Material $material,
+        float $requiredQty,
+        ?string $strategy = null,
+        ?Workstation $workstation = null,
+    ): array {
         $strategy = $strategy ?? $this->defaultStrategy();
+
+        if ($workstation) {
+            return $this->proposeStationPicks($material, $requiredQty, $strategy, $workstation);
+        }
 
         // Manual strategy proposes nothing; still order candidates by FEFO so
         // the operator sees the most sensible lots first.
@@ -271,9 +298,20 @@ class LotPickingService
     public function returnPicksForAllocation(MaterialAllocation $allocation): void
     {
         DB::transaction(function () use ($allocation) {
-            $picks = $allocation->lotPicks()->with('lot')->lockForUpdate()->get();
+            $picks = $allocation->lotPicks()
+                ->with(['lot', 'workstationMaterialStock'])
+                ->lockForUpdate()
+                ->get();
 
             foreach ($picks as $pick) {
+                if ($pick->workstation_material_stock_id) {
+                    $this->workstationStocks->releaseReservation(
+                        $pick->workstationMaterialStock,
+                        (float) $pick->picked_qty,
+                        sourceType: 'material_allocation',
+                        sourceId: $allocation->id,
+                    );
+                }
                 if (! $pick->lot) {
                     continue;
                 }
@@ -302,7 +340,11 @@ class LotPickingService
         }
 
         DB::transaction(function () use ($allocation, $qty) {
-            $picks = $allocation->lotPicks()->with('lot')->lockForUpdate()->get()->reverse();
+            $picks = $allocation->lotPicks()
+                ->with(['lot', 'workstationMaterialStock'])
+                ->lockForUpdate()
+                ->get()
+                ->reverse();
             $remaining = $qty;
 
             foreach ($picks as $pick) {
@@ -320,6 +362,15 @@ class LotPickingService
                         $pick->lot->update(['status' => MaterialLot::STATUS_RELEASED]);
                     }
                     \App\Sync\CollectionBroadcaster::flush($pick->lot); // increment bypasses model events
+                }
+
+                if ($pick->workstation_material_stock_id) {
+                    $this->workstationStocks->releaseReservation(
+                        $pick->workstationMaterialStock,
+                        $take,
+                        sourceType: 'material_allocation',
+                        sourceId: $allocation->id,
+                    );
                 }
 
                 $newPicked = (float) $pick->picked_qty - $take;
@@ -359,6 +410,235 @@ class LotPickingService
         } catch (\Throwable) {
             return 'fefo';
         }
+    }
+
+    /** @return array<int, AllocationLotPick> */
+    private function pickStationLotsForAllocation(
+        MaterialAllocation $allocation,
+        Material $material,
+        float $requiredQty,
+        string $strategy,
+        Workstation $workstation,
+        bool $mergeExisting = false,
+    ): array {
+        if ($strategy === AllocationLotPick::STRATEGY_MANUAL) {
+            throw new \DomainException(__('Lot picks must be selected manually.'));
+        }
+
+        return DB::transaction(function () use ($allocation, $material, $requiredQty, $strategy, $workstation, $mergeExisting) {
+            $stocks = $this->orderedStationStocks($workstation, $material, $strategy, lock: true);
+            $totalAvailable = (float) $stocks->sum(fn (WorkstationMaterialStock $stock) => $this->stationLotAvailable($stock));
+            if ($totalAvailable + self::EPSILON < $requiredQty) {
+                throw new InsufficientStockException($material, $requiredQty, $totalAvailable);
+            }
+
+            $remaining = $requiredQty;
+            $picks = [];
+            foreach ($stocks as $stock) {
+                if ($remaining <= self::EPSILON) {
+                    break;
+                }
+
+                $take = min($remaining, $this->stationLotAvailable($stock));
+                if ($take <= self::EPSILON) {
+                    continue;
+                }
+
+                $pick = $mergeExisting
+                    ? AllocationLotPick::query()
+                        ->where('material_allocation_id', $allocation->id)
+                        ->where('material_lot_id', $stock->material_lot_id)
+                        ->lockForUpdate()
+                        ->first()
+                    : null;
+
+                if ($pick) {
+                    $pick->increment('picked_qty', $take);
+                    $pick->refresh();
+                } else {
+                    $pick = AllocationLotPick::create([
+                        'tenant_id' => $allocation->tenant_id,
+                        'material_allocation_id' => $allocation->id,
+                        'material_lot_id' => $stock->material_lot_id,
+                        'workstation_material_stock_id' => $stock->id,
+                        'picked_qty' => $take,
+                        'picking_strategy' => $strategy,
+                    ]);
+                }
+
+                $stock->materialLot->decrement('quantity_available', $take);
+                $stock->materialLot->refresh()->markConsumedIfEmpty();
+                \App\Sync\CollectionBroadcaster::flush($stock->materialLot);
+                $this->workstationStocks->reserve(
+                    $stock,
+                    $take,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+
+                $picks[] = $pick;
+                $remaining -= $take;
+            }
+
+            return $picks;
+        });
+    }
+
+    /** @return array<int, AllocationLotPick> */
+    private function pickManualStationLotsForAllocation(
+        MaterialAllocation $allocation,
+        Material $material,
+        float $requiredQty,
+        array $chosen,
+        Workstation $workstation,
+    ): array {
+        return DB::transaction(function () use ($allocation, $material, $requiredQty, $chosen, $workstation) {
+            $lines = [];
+            foreach ($chosen as $row) {
+                $lotId = (int) ($row['material_lot_id'] ?? 0);
+                $qty = round((float) ($row['picked_qty'] ?? 0), 4);
+                if ($lotId <= 0 || $qty <= 0) {
+                    throw new \DomainException(__('Each lot pick must reference a lot and a positive quantity.'));
+                }
+                $lines[$lotId] = ($lines[$lotId] ?? 0) + $qty;
+            }
+
+            if (empty($lines) || abs(array_sum($lines) - $requiredQty) > self::EPSILON) {
+                throw new \DomainException(__('Quantities must sum to the required amount'));
+            }
+
+            $stocks = WorkstationMaterialStock::query()
+                ->with('materialLot')
+                ->where('workstation_id', $workstation->id)
+                ->where('material_id', $material->id)
+                ->whereIn('material_lot_id', array_keys($lines))
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('material_lot_id');
+
+            $picks = [];
+            foreach ($lines as $lotId => $qty) {
+                $stock = $stocks->get($lotId);
+                if (! $stock || $this->stationLotAvailable($stock) + self::EPSILON < $qty) {
+                    throw new InsufficientStockException(
+                        $material,
+                        $qty,
+                        $stock ? $this->stationLotAvailable($stock) : 0,
+                    );
+                }
+
+                $picks[] = AllocationLotPick::create([
+                    'tenant_id' => $allocation->tenant_id,
+                    'material_allocation_id' => $allocation->id,
+                    'material_lot_id' => $lotId,
+                    'workstation_material_stock_id' => $stock->id,
+                    'picked_qty' => $qty,
+                    'picking_strategy' => AllocationLotPick::STRATEGY_MANUAL,
+                ]);
+                $stock->materialLot->decrement('quantity_available', $qty);
+                $stock->materialLot->refresh()->markConsumedIfEmpty();
+                \App\Sync\CollectionBroadcaster::flush($stock->materialLot);
+                $this->workstationStocks->reserve(
+                    $stock,
+                    $qty,
+                    sourceType: 'material_allocation',
+                    sourceId: $allocation->id,
+                );
+            }
+
+            return $picks;
+        });
+    }
+
+    private function proposeStationPicks(
+        Material $material,
+        float $requiredQty,
+        string $strategy,
+        Workstation $workstation,
+    ): array {
+        $orderStrategy = $strategy === AllocationLotPick::STRATEGY_MANUAL
+            ? AllocationLotPick::STRATEGY_FEFO
+            : $strategy;
+        $stocks = $this->orderedStationStocks($workstation, $material, $orderStrategy, lock: false);
+
+        $proposed = [];
+        if ($strategy !== AllocationLotPick::STRATEGY_MANUAL) {
+            $remaining = $requiredQty;
+            foreach ($stocks as $stock) {
+                if ($remaining <= self::EPSILON) {
+                    break;
+                }
+                $take = min($remaining, $this->stationLotAvailable($stock));
+                if ($take > self::EPSILON) {
+                    $proposed[] = [
+                        'material_lot_id' => $stock->material_lot_id,
+                        'picked_qty' => round($take, 4),
+                    ];
+                    $remaining -= $take;
+                }
+            }
+        }
+
+        return [
+            'strategy' => $strategy,
+            'proposed' => $proposed,
+            'candidates' => $stocks->map(fn (WorkstationMaterialStock $stock) => [
+                'id' => $stock->materialLot->id,
+                'lot_number' => $stock->materialLot->lot_number,
+                'quantity_available' => round($this->stationLotAvailable($stock), 4),
+                'expiry_date' => $stock->materialLot->expiry_date?->toDateString(),
+                'received_at' => $stock->materialLot->received_at?->toDateString(),
+                'status' => $stock->materialLot->status,
+            ])->values()->all(),
+        ];
+    }
+
+    /** @return \Illuminate\Support\Collection<int, WorkstationMaterialStock> */
+    private function orderedStationStocks(
+        Workstation $workstation,
+        Material $material,
+        string $strategy,
+        bool $lock,
+    ): \Illuminate\Support\Collection {
+        $query = WorkstationMaterialStock::query()
+            ->with('materialLot')
+            ->where('workstation_id', $workstation->id)
+            ->where('material_id', $material->id)
+            ->whereNotNull('material_lot_id')
+            ->whereColumn('quantity', '>', 'reserved_quantity');
+
+        if ($lock) {
+            $query->lockForUpdate();
+        }
+
+        $stocks = $query->get()->filter(fn (WorkstationMaterialStock $stock) => $stock->materialLot?->status === MaterialLot::STATUS_RELEASED
+            && (float) $stock->materialLot->quantity_available > self::EPSILON
+        );
+
+        return match ($strategy) {
+            AllocationLotPick::STRATEGY_FIFO => $stocks->sortBy(
+                fn (WorkstationMaterialStock $stock) => sprintf('%020d-%020d', $stock->materialLot->received_at?->timestamp ?? PHP_INT_MAX, $stock->material_lot_id),
+            )->values(),
+            AllocationLotPick::STRATEGY_LIFO => $stocks->sortByDesc(
+                fn (WorkstationMaterialStock $stock) => sprintf('%020d-%020d', $stock->materialLot->received_at?->timestamp ?? 0, $stock->material_lot_id),
+            )->values(),
+            default => $stocks->sortBy(
+                fn (WorkstationMaterialStock $stock) => sprintf(
+                    '%s-%020d-%020d',
+                    $stock->materialLot->expiry_date?->format('Y-m-d') ?? '9999-12-31',
+                    $stock->materialLot->received_at?->timestamp ?? PHP_INT_MAX,
+                    $stock->material_lot_id,
+                ),
+            )->values(),
+        };
+    }
+
+    private function stationLotAvailable(WorkstationMaterialStock $stock): float
+    {
+        return max(0, min(
+            $stock->available_quantity,
+            (float) ($stock->materialLot?->quantity_available ?? 0),
+        ));
     }
 
     /**

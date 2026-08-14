@@ -261,6 +261,7 @@ class LotPickingServiceTest extends TestCase
 
     public function test_setting_toggles_lot_tracking_for_allocator(): void
     {
+        $this->material->update(['tracking_type' => 'batch']);
         $this->makeLot('LOT-A', 200);
         DB::table('system_settings')->updateOrInsert(
             ['key' => 'lot_tracking_enabled'],
