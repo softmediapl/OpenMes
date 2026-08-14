@@ -7,6 +7,7 @@ import LineSync from '../../components/LineSync';
 import LabelPrintMenu from '../../components/LabelPrintMenu';
 import CustomFields from '../../components/CustomFields';
 import EngineeringViewerModal from '../../components/EngineeringViewerModal';
+import StepInstructions from '../../components/operator/StepInstructions';
 import { packageMeta, isInteractive, formatBytes } from '../../components/engineeringDocuments';
 import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
@@ -827,8 +828,9 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                     const blockingDocs = stepDocs.filter((d) => d.is_mandatory && d.requires_validation && !d.validated_at);
                     const isDocBlocked = blockingDocs.length > 0;
                     // Read-confirmation gate: a critical step must be acknowledged before completion.
-                    const needsConfirm = !!step.requires_confirmation && !step.confirmed_at;
                     const media = stepMedia[step.step_number] || [];
+                    const hasInstructionContent = !!step.instruction?.trim() || !!photo || media.length > 0;
+                    const needsConfirm = !!step.requires_confirmation && hasInstructionContent && !step.confirmed_at;
                     const checklist = stepChecklists[step.step_number] || [];
                     const completions = step.checklist_completions || [];
                     const completedItemIds = new Set(completions.map((c) => c.checklist_item_id));
@@ -930,9 +932,11 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                             />
                         </div>
 
-                        {media.length > 0 && <StepInstructions media={media} onZoom={setPhotoZoom} />}
+                        {(step.instruction?.trim() || media.length > 0) && (
+                            <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
+                        )}
 
-                        {step.requires_confirmation && (
+                        {step.requires_confirmation && hasInstructionContent && (
                             <StepReadConfirmation
                                 step={step}
                                 canConfirm={canCheck}
@@ -1166,36 +1170,6 @@ function StepDocuments({ docs = [], blocked, canValidate, inflightDocId, onValid
                     );
                 })}
             </ul>
-        </div>
-    );
-}
-
-// Rich work instructions shown under a step: images (tap to zoom), inline PDFs
-// and videos. Tablet-friendly - large media, no tiny controls.
-function StepInstructions({ media = [], onZoom }) {
-    return (
-        <div className="border-t border-om-line2 px-3 py-2 space-y-3">
-            {media.map((m) => (
-                <div key={m.id}>
-                    {m.title && <p className="text-[12px] font-medium text-om-muted mb-1">{m.title}</p>}
-                    {m.media_type === 'image' && (
-                        <button type="button" onClick={() => onZoom({ url: m.url, caption: m.title })} className="block cursor-pointer">
-                            <img src={m.url} alt={m.title || ''} loading="lazy" className="max-h-56 rounded-om-sm border border-om-line bg-om-chip object-contain" />
-                        </button>
-                    )}
-                    {m.media_type === 'video' && (
-                        <video src={m.url} controls preload="metadata" className="w-full max-h-72 rounded-om-sm border border-om-line bg-black" />
-                    )}
-                    {m.media_type === 'pdf' && (
-                        <div>
-                            <embed src={m.url} type="application/pdf" className="w-full h-72 rounded-om-sm border border-om-line bg-om-chip" />
-                            <a href={m.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-1 text-[12px] text-om-accent hover:underline">
-                                {__('Open PDF')}
-                            </a>
-                        </div>
-                    )}
-                </div>
-            ))}
         </div>
     );
 }

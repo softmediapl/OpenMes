@@ -220,6 +220,31 @@ class BatchStep extends Model
         return $this->confirmed_at !== null;
     }
 
+    /** Whether this immutable step or its template presents readable content. */
+    public function hasConfirmableInstructionContent(): bool
+    {
+        if (filled($this->instruction)) {
+            return true;
+        }
+
+        $templateId = data_get($this->batch?->workOrder?->process_snapshot, 'template_id');
+        if (! $templateId) {
+            return false;
+        }
+
+        $templateStepId = TemplateStep::query()
+            ->where('process_template_id', $templateId)
+            ->where('step_number', $this->step_number)
+            ->value('id');
+
+        if (! $templateStepId) {
+            return false;
+        }
+
+        return TemplateStepMedia::where('template_step_id', $templateStepId)->exists()
+            || ProcessTemplatePhoto::where('template_step_id', $templateStepId)->exists();
+    }
+
     /**
      * Whether this step is holding on an outstanding read-confirmation: it is
      * flagged critical (`requires_confirmation`) and has not been acknowledged
@@ -227,7 +252,9 @@ class BatchStep extends Model
      */
     public function needsReadConfirmation(): bool
     {
-        return $this->requires_confirmation && ! $this->isReadConfirmed();
+        return $this->requires_confirmation
+            && $this->hasConfirmableInstructionContent()
+            && ! $this->isReadConfirmed();
     }
 
     /**

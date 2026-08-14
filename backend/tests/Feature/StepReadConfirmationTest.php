@@ -5,6 +5,9 @@ namespace Tests\Feature;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\Line;
+use App\Models\ProcessSegment;
+use App\Models\ProcessTemplate;
+use App\Models\TemplateStep;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\BatchService;
@@ -82,6 +85,16 @@ class StepReadConfirmationTest extends TestCase
         $step = $this->inProgressStep(requiresConfirmation: false);
 
         $this->service->completeStep($step, $this->operator);
+
+        $this->assertSame(BatchStep::STATUS_DONE, $step->fresh()->status);
+    }
+
+    public function test_legacy_flag_without_instruction_content_does_not_block_completion(): void
+    {
+        $step = $this->inProgressStep(requiresConfirmation: true);
+        $step->update(['instruction' => null]);
+
+        $this->service->completeStep($step->fresh(), $this->operator);
 
         $this->assertSame(BatchStep::STATUS_DONE, $step->fresh()->status);
     }
@@ -173,6 +186,19 @@ class StepReadConfirmationTest extends TestCase
         $this->assertNull($step->fresh()->confirmed_at);
     }
 
+    public function test_confirm_rejects_legacy_flag_without_instruction_content(): void
+    {
+        $step = $this->inProgressStep(requiresConfirmation: true);
+        $step->update(['instruction' => null]);
+
+        $this->actingAs($this->operator)
+            ->withSession(['selected_line_id' => $this->line->id])
+            ->post(route('operator.batch-step.confirm-instructions', $step))
+            ->assertSessionHas('error');
+
+        $this->assertNull($step->fresh()->confirmed_at);
+    }
+
     public function test_guest_cannot_confirm_instructions(): void
     {
         $step = $this->inProgressStep(requiresConfirmation: true);
@@ -257,5 +283,31 @@ class StepReadConfirmationTest extends TestCase
         $steps = $batch->steps()->orderBy('step_number')->get();
         $this->assertTrue($steps->first()->requires_confirmation, 'Critical template step must flag its batch step.');
         $this->assertFalse($steps->last()->requires_confirmation, 'Non-critical step must stay unflagged.');
+    }
+
+    public function test_effective_segment_instruction_is_frozen_into_the_batch_step(): void
+    {
+        $segment = ProcessSegment::factory()->create([
+            'standard_instruction' => 'Cool the rack for at least 30 minutes.',
+        ]);
+        $template = ProcessTemplate::factory()->create();
+        TemplateStep::factory()->create([
+            'process_template_id' => $template->id,
+            'process_segment_id' => $segment->id,
+            'instruction' => null,
+            'requires_confirmation' => true,
+        ]);
+
+        $snapshot = $template->fresh()->toSnapshot();
+        $workOrder = WorkOrder::factory()->create([
+            'line_id' => $this->line->id,
+            'planned_qty' => 10,
+            'process_snapshot' => $snapshot,
+        ]);
+        $batch = app(WorkOrderService::class)->createBatch($workOrder, 10);
+        $step = $batch->steps()->firstOrFail();
+
+        $this->assertSame('Cool the rack for at least 30 minutes.', $step->instruction);
+        $this->assertTrue($step->requires_confirmation);
     }
 }

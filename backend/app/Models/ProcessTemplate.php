@@ -87,6 +87,15 @@ class ProcessTemplate extends Model
      */
     public function toSnapshot(): array
     {
+        $this->loadMissing([
+            'steps.processSegment',
+            'steps.media',
+            'steps.photos',
+            'steps.workstation',
+            'bomItems.material.materialType',
+            'bomItems.templateStep',
+        ]);
+
         return [
             'template_id' => $this->id,
             'template_name' => $this->name,
@@ -95,8 +104,9 @@ class ProcessTemplate extends Model
                 return [
                     'step_number' => $step->step_number,
                     'name' => $step->name,
-                    'instruction' => $step->instruction,
-                    'requires_confirmation' => (bool) $step->requires_confirmation,
+                    'instruction' => $step->effectiveInstruction(),
+                    'requires_confirmation' => (bool) $step->requires_confirmation
+                        && $step->hasConfirmableInstructionContent(),
                     'estimated_duration_minutes' => $step->estimated_duration_minutes,
                     'setup_time_minutes' => $step->setup_time_minutes,
                     'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,

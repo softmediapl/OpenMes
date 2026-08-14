@@ -92,6 +92,17 @@ class ProcessTemplateApiTest extends TestCase
         $r2->assertJsonPath('data.step_number', 2);
     }
 
+    public function test_api_rejects_confirmation_without_instruction_content(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Unspecified critical step',
+            'requires_confirmation' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('requires_confirmation');
+    }
+
     public function test_admin_can_reorder_steps(): void
     {
         $template = ProcessTemplate::factory()->create();

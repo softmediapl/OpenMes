@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web\Admin;
 
+use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
 use App\Models\TemplateStep;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Rule;
  */
 abstract class TemplateStepRequest extends FormRequest
 {
+    use ValidatesTemplateStepInstruction;
+
     public function authorize(): bool
     {
         return true;
@@ -38,6 +41,8 @@ abstract class TemplateStepRequest extends FormRequest
 
     public function withValidator($validator): void
     {
+        $this->validateConfirmableInstruction($validator, $this->route('step'));
+
         $validator->after(function ($v) {
             if ($v->errors()->isNotEmpty()) {
                 return;

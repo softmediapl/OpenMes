@@ -5292,5 +5292,8 @@
     "exp": "ważn.",
     "photos": "zdjęcia",
     "— Select workstation —": "— Wybierz stanowisko —",
-    "⚠ Blocking": "⚠ Blokujące"
+    "⚠ Blocking": "⚠ Blokujące",
+    "Read-confirmation requires an instruction, photo, or media attachment.": "Potwierdzenie przeczytania wymaga instrukcji, zdjęcia lub załącznika multimedialnego.",
+    "This step has no instruction content to acknowledge.": "Ten krok nie zawiera instrukcji, którą można potwierdzić.",
+    "Work instruction": "Instrukcja robocza"
 }

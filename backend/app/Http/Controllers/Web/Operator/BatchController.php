@@ -174,6 +174,10 @@ class BatchController extends Controller
             return back()->with('error', __('This step does not require read-confirmation.'));
         }
 
+        if (! $batchStep->hasConfirmableInstructionContent()) {
+            return back()->with('error', __('This step has no instruction content to acknowledge.'));
+        }
+
         $batchStep->markReadConfirmed($request->user());
 
         return back()->with('success', __('Instructions acknowledged.'));

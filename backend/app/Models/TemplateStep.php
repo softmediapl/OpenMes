@@ -120,6 +120,23 @@ class TemplateStep extends Model
         return $this->instruction ?? $this->processSegment?->standard_instruction;
     }
 
+    /** Whether the step presents content that an operator can acknowledge. */
+    public function hasConfirmableInstructionContent(): bool
+    {
+        if (filled($this->effectiveInstruction())) {
+            return true;
+        }
+
+        $hasMedia = $this->relationLoaded('media')
+            ? $this->media->isNotEmpty()
+            : $this->media()->exists();
+        $hasPhotos = $this->relationLoaded('photos')
+            ? $this->photos->isNotEmpty()
+            : $this->photos()->exists();
+
+        return $hasMedia || $hasPhotos;
+    }
+
     /**
      * Resolve the effective estimated duration — step value wins; otherwise
      * fall back to the linked Process Segment's default.

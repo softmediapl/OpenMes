@@ -73,6 +73,23 @@ class ProcessTemplateStepWebTest extends TestCase
         ]);
     }
 
+    public function test_confirmation_requires_readable_instruction_content(): void
+    {
+        [$pt, $tpl] = $this->template();
+
+        $this->actingAs($this->admin)
+            ->post($this->base($pt, $tpl).'/steps', [
+                'name' => 'Unspecified critical step',
+                'requires_confirmation' => true,
+            ])
+            ->assertSessionHasErrors('requires_confirmation');
+
+        $this->assertDatabaseMissing('template_steps', [
+            'process_template_id' => $tpl->id,
+            'name' => 'Unspecified critical step',
+        ]);
+    }
+
     public function test_admin_can_set_isa95_workstation_type_and_standard_times(): void
     {
         [$pt, $tpl] = $this->template();

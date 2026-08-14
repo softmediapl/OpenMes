@@ -114,6 +114,15 @@ class BatchStepController extends Controller
             ], 422);
         }
 
+        if (! $batchStep->hasConfirmableInstructionContent()) {
+            return response()->json([
+                'message' => 'This step has no instruction content to acknowledge.',
+                'errors' => [
+                    'step' => ['This step has no instruction content to acknowledge.'],
+                ],
+            ], 422);
+        }
+
         $batchStep->markReadConfirmed($request->user());
 
         return response()->json([

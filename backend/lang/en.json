@@ -5292,5 +5292,8 @@
     "exp": "exp",
     "photos": "photos",
     "— Select workstation —": "— Select workstation —",
-    "⚠ Blocking": "⚠ Blocking"
+    "⚠ Blocking": "⚠ Blocking",
+    "Read-confirmation requires an instruction, photo, or media attachment.": "Read-confirmation requires an instruction, photo, or media attachment.",
+    "This step has no instruction content to acknowledge.": "This step has no instruction content to acknowledge.",
+    "Work instruction": "Work instruction"
 }
