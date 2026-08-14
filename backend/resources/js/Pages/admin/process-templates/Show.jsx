@@ -6,6 +6,7 @@ import AppLayout from '../../../layouts/AppLayout';
 // case and would resolve wrong on case-insensitive filesystems.
 import EngineeringDocuments from '../../../components/EngineeringDocuments.jsx';
 import { __ } from '../../../lib/i18n';
+import ProcessDependenciesEditor from './ProcessDependenciesEditor';
 
 /* ------------------------------------------------------------------ */
 /* Small SVG helper                                                      */
@@ -1111,6 +1112,13 @@ export default function ProcessTemplatesShow() {
                         workstationTypes={workstationTypes}
                         transportUnitTypes={transportUnitTypes}
                         onCancel={() => setShowAddForm(false)}
+                    />
+                )}
+
+                {steps.length > 0 && (
+                    <ProcessDependenciesEditor
+                        productType={productType}
+                        processTemplate={processTemplate}
                     />
                 )}
 
