@@ -5307,6 +5307,7 @@
     "Scrap reason": "Scrap reason",
     "Quantity notes": "Quantity notes",
     "Optional traceability note…": "Optional traceability note…",
+    "Enter valid quantities for the complete balance.": "Enter valid quantities for the complete balance.",
     "Require an operation quantity balance": "Require an operation quantity balance",
     "The operator must account for the complete input as good, rework or scrap before completing this step.": "The operator must account for the complete input as good, rework or scrap before completing this step.",
     "Quantity balance": "Quantity balance",

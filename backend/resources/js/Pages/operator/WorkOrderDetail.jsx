@@ -12,6 +12,7 @@ import { packageMeta, isInteractive, formatBytes } from '../../components/engine
 import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
+import { operationQuantityBalance } from '../../lib/operationQuantity';
 
 // Geist White restyle: light-only v1 — former `dark:` variants removed.
 
@@ -651,7 +652,7 @@ function ProductionControls({ batch }) {
 // Single Batch card
 // ---------------------------------------------------------------------------
 
-function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, workstationLocked = false }) {
+function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false }) {
     const [expanded, setExpanded] = useState(defaultOpen);
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
 
@@ -721,7 +722,14 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
                     </div>
 
                     {/* Steps */}
-                    <BatchStepList steps={batch.steps ?? []} labelTemplates={labelTemplates} stepPhotos={stepPhotos} stepMedia={stepMedia} stepChecklists={stepChecklists} />
+                    <BatchStepList
+                        steps={batch.steps ?? []}
+                        labelTemplates={labelTemplates}
+                        stepPhotos={stepPhotos}
+                        stepMedia={stepMedia}
+                        stepChecklists={stepChecklists}
+                        scrapReasons={scrapReasons}
+                    />
 
                     {/* Production controls */}
                     {showControls && !workstationLocked && <ProductionControls batch={batch} />}
@@ -735,11 +743,11 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {} }) {
+function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [] }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null); // { step, materials } | null
-    const [completeModal, setCompleteModal] = useState(null); // { step } — actual-times confirmation (#52)
+    const [completeModal, setCompleteModal] = useState(null);
 
     if (!steps || steps.length === 0) return null;
 
@@ -904,9 +912,9 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                                     variant="primary"
                                     disabled={isInflight || isDocBlocked || needsConfirm}
                                     onClick={() => (
-                                        // Opt-in: only steps with ISA-95 standard times (#52) prompt for
-                                        // operator-confirmed actuals; the rest complete directly as before.
-                                        step.setup_time_minutes != null || step.run_time_per_unit_minutes != null
+                                        step.quantity_reporting_required
+                                            || step.setup_time_minutes != null
+                                            || step.run_time_per_unit_minutes != null
                                             ? setCompleteModal({ step })
                                             : handleStepAction(step, 'complete')
                                     )}
@@ -931,6 +939,10 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                                 label="Label"
                             />
                         </div>
+
+                        {(step.quantity_reporting_required || step.quantity_reported_at) && (
+                            <OperationQuantitySummary step={step} />
+                        )}
 
                         {(step.instruction?.trim() || media.length > 0) && (
                             <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
@@ -991,8 +1003,9 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
             )}
 
             {completeModal && (
-                <ConfirmTimesModal
+                <CompleteOperationModal
                     step={completeModal.step}
+                    scrapReasons={scrapReasons}
                     onClose={() => setCompleteModal(null)}
                 />
             )}
@@ -1000,45 +1013,96 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
     );
 }
 
+function OperationQuantitySummary({ step }) {
+    const items = [
+        ['Input', step.input_quantity],
+        ['Good', step.good_quantity],
+        ['Rework', step.rework_quantity],
+        ['Scrap', step.scrap_quantity],
+        ['Released', step.released_quantity],
+    ];
+
+    return (
+        <div className="border-t border-om-line2 px-3 py-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {items.map(([label, value]) => (
+                    <div key={label} className="rounded-om-sm bg-om-card px-2.5 py-2">
+                        <span className="block font-mono text-[9px] uppercase tracking-[0.08em] text-om-faint">
+                            {__(label)}
+                        </span>
+                        <span className="font-mono text-[13px] font-medium text-om-ink">
+                            {value == null ? '—' : fmtQty(value, 4)}
+                        </span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
 /**
- * Confirm-actual-times modal (#52), shown at step completion only for steps with
- * ISA-95 standard times configured. Prefills elapsed from started_at→now and the
- * setup/run split from the plan; the operator can correct them. Setup + run must
- * fit within elapsed. Posts to the same complete route with the actual times.
+ * Complete an operation with one auditable confirmation. Quantity-reporting
+ * steps must account for their full WIP input; timed steps additionally capture
+ * operator-confirmed actuals introduced by #52.
  */
-function ConfirmTimesModal({ step, onClose }) {
+function CompleteOperationModal({ step, scrapReasons = [], onClose }) {
     const startedAt = step.started_at ? new Date(step.started_at).getTime() : null;
     const initialElapsed = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 60000)) : 0;
     const initialSetup = step.setup_time_minutes != null ? Number(step.setup_time_minutes) : 0;
-
-    const [elapsed, setElapsed] = useState(String(initialElapsed));
-    const [setup, setSetup] = useState(step.setup_time_minutes != null ? String(initialSetup) : '');
-    const [run, setRun] = useState(String(Math.max(0, initialElapsed - initialSetup)));
-    const [saving, setSaving] = useState(false);
+    const inputQuantity = Number(step.input_quantity ?? 0);
+    const reportsQuantity = !!step.quantity_reporting_required;
+    const reportsTime = step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
+    const form = useForm({
+        actual_elapsed_minutes: reportsTime ? String(initialElapsed) : '',
+        actual_setup_minutes: reportsTime && step.setup_time_minutes != null ? String(initialSetup) : '',
+        actual_run_minutes: reportsTime ? String(Math.max(0, initialElapsed - initialSetup)) : '',
+        good_quantity: reportsQuantity ? String(inputQuantity) : '',
+        rework_quantity: reportsQuantity ? '0' : '',
+        scrap_quantity: reportsQuantity ? '0' : '',
+        scrap_reason_id: '',
+        quantity_notes: '',
+    });
 
     // Backend rules are integer|min:0; mirror them so bad values never submit
     // (the number inputs' min= does not block this custom-button submission).
     const isNonNegInt = (v) => /^\d+$/.test(String(v).trim());
-    const elapsedValid = isNonNegInt(elapsed);
-    const setupValid = setup === '' || isNonNegInt(setup);
-    const runValid = run === '' || isNonNegInt(run);
-    const elapsedNum = elapsedValid ? Number(elapsed) : 0;
-    const overflow = (Number(setup) || 0) + (Number(run) || 0) > elapsedNum;
-    const invalid = ! elapsedValid || ! setupValid || ! runValid || overflow;
+    const elapsedValid = !reportsTime || isNonNegInt(form.data.actual_elapsed_minutes);
+    const setupValid = form.data.actual_setup_minutes === '' || isNonNegInt(form.data.actual_setup_minutes);
+    const runValid = form.data.actual_run_minutes === '' || isNonNegInt(form.data.actual_run_minutes);
+    const elapsedNum = elapsedValid ? Number(form.data.actual_elapsed_minutes) : 0;
+    const overflow = reportsTime
+        && (Number(form.data.actual_setup_minutes) || 0) + (Number(form.data.actual_run_minutes) || 0) > elapsedNum;
+
+    const quantityBalance = operationQuantityBalance({
+        input: inputQuantity,
+        good: form.data.good_quantity,
+        rework: form.data.rework_quantity,
+        scrap: form.data.scrap_quantity,
+    });
+    const {
+        scrapQuantity,
+        difference: balanceDifference,
+    } = quantityBalance;
+    const quantityInvalid = reportsQuantity && (
+        !quantityBalance.balanced
+        || (scrapQuantity > 0 && !form.data.scrap_reason_id)
+    );
+    const invalid = !elapsedValid || !setupValid || !runValid || overflow || quantityInvalid;
 
     const submit = () => {
         if (invalid) return;
-        setSaving(true);
-        router.post(`/operator/batch-step/${step.id}/complete`, {
-            actual_elapsed_minutes: elapsedNum,
-            actual_setup_minutes: setup === '' ? null : Number(setup),
-            actual_run_minutes: run === '' ? null : Number(run),
-        }, {
+        form.transform((data) => ({
+            actual_elapsed_minutes: reportsTime ? elapsedNum : null,
+            actual_setup_minutes: reportsTime && data.actual_setup_minutes !== '' ? Number(data.actual_setup_minutes) : null,
+            actual_run_minutes: reportsTime && data.actual_run_minutes !== '' ? Number(data.actual_run_minutes) : null,
+            good_quantity: reportsQuantity ? Number(data.good_quantity) : null,
+            rework_quantity: reportsQuantity ? Number(data.rework_quantity) : null,
+            scrap_quantity: reportsQuantity ? Number(data.scrap_quantity) : null,
+            scrap_reason_id: reportsQuantity && scrapQuantity > 0 ? Number(data.scrap_reason_id) : null,
+            quantity_notes: reportsQuantity && data.quantity_notes.trim() !== '' ? data.quantity_notes.trim() : null,
+        })).post(`/operator/batch-step/${step.id}/complete`, {
             preserveScroll: true,
-            // Close only on success; keep the modal open (with values intact) so a
-            // 422 or completion error stays visible instead of being dismissed.
             onSuccess: () => onClose(),
-            onFinish: () => setSaving(false),
         });
     };
 
@@ -1046,28 +1110,95 @@ function ConfirmTimesModal({ step, onClose }) {
     const labelCls = 'block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-1';
 
     return (
-        <ModalShell title={__('Confirm actual times')} subtitle={step.name} onClose={onClose}>
-            <div className="px-[18px] py-4 space-y-3">
-                <div>
-                    <label className={labelCls}>{__('Actual elapsed (minutes)')}</label>
-                    <input type="number" min="0" value={elapsed} onChange={(e) => setElapsed(e.target.value)} className={inputCls} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className={labelCls}>{__('Actual setup (minutes)')}</label>
-                        <input type="number" min="0" value={setup} onChange={(e) => setSetup(e.target.value)} className={inputCls} placeholder={__('optional')} />
+        <ModalShell title={__('Complete operation')} subtitle={step.name} onClose={onClose}>
+            <div className="max-h-[70vh] space-y-5 overflow-y-auto px-[18px] py-4">
+                {reportsQuantity && (
+                    <section className="space-y-3">
+                        <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                            <span className={labelCls}>{__('Input quantity')}</span>
+                            <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, 4)}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            <div>
+                                <label className={labelCls}>{__('Good quantity')}</label>
+                                <input type="number" min="0" step="0.0001" value={form.data.good_quantity} onChange={(e) => form.setData('good_quantity', e.target.value)} className={inputCls} />
+                            </div>
+                            <div>
+                                <label className={labelCls}>{__('Rework quantity')}</label>
+                                <input type="number" min="0" step="0.0001" value={form.data.rework_quantity} onChange={(e) => form.setData('rework_quantity', e.target.value)} className={inputCls} />
+                            </div>
+                            <div>
+                                <label className={labelCls}>{__('Scrap quantity')}</label>
+                                <input type="number" min="0" step="0.0001" value={form.data.scrap_quantity} onChange={(e) => form.setData('scrap_quantity', e.target.value)} className={inputCls} />
+                            </div>
+                        </div>
+                        <div className={`rounded-om-sm border px-3 py-2 text-xs ${quantityBalance.balanced ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
+                            {quantityBalance.balanced
+                                ? __('Quantity balance is complete.')
+                                : Number.isFinite(balanceDifference)
+                                    ? __('Unaccounted quantity: :quantity', { quantity: fmtQty(balanceDifference, 4) })
+                                    : __('Enter valid quantities for the complete balance.')}
+                        </div>
+                        {scrapQuantity > 0 && (
+                            <div>
+                                <label className={labelCls}>{__('Scrap reason')}</label>
+                                <Dropdown
+                                    options={scrapReasons.map((reason) => ({
+                                        value: String(reason.id),
+                                        label: `${reason.code} — ${reason.name}`,
+                                    }))}
+                                    value={String(form.data.scrap_reason_id || '')}
+                                    onChange={(value) => form.setData('scrap_reason_id', value)}
+                                    placeholder={__('— Select reason —')}
+                                    className="w-full"
+                                />
+                                {form.errors.scrap_reason_id && <p className={errorCls}>{form.errors.scrap_reason_id}</p>}
+                            </div>
+                        )}
+                        <div>
+                            <label className={labelCls}>{__('Quantity notes')}</label>
+                            <textarea
+                                rows={2}
+                                maxLength={2000}
+                                value={form.data.quantity_notes}
+                                onChange={(e) => form.setData('quantity_notes', e.target.value)}
+                                className={`${inputCls} resize-none`}
+                                placeholder={__('Optional traceability note…')}
+                            />
+                        </div>
+                    </section>
+                )}
+
+                {reportsTime && (
+                    <section className="space-y-3 border-t border-om-line2 pt-4">
+                        <div>
+                            <label className={labelCls}>{__('Actual elapsed (minutes)')}</label>
+                            <input type="number" min="0" value={form.data.actual_elapsed_minutes} onChange={(e) => form.setData('actual_elapsed_minutes', e.target.value)} className={inputCls} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className={labelCls}>{__('Actual setup (minutes)')}</label>
+                                <input type="number" min="0" value={form.data.actual_setup_minutes} onChange={(e) => form.setData('actual_setup_minutes', e.target.value)} className={inputCls} placeholder={__('optional')} />
+                            </div>
+                            <div>
+                                <label className={labelCls}>{__('Actual run (minutes)')}</label>
+                                <input type="number" min="0" value={form.data.actual_run_minutes} onChange={(e) => form.setData('actual_run_minutes', e.target.value)} className={inputCls} placeholder={__('optional')} />
+                            </div>
+                        </div>
+                        {overflow && <p className="text-om-blocked text-xs">{__('Setup + run cannot exceed the elapsed time.')}</p>}
+                    </section>
+                )}
+
+                {Object.keys(form.errors).length > 0 && (
+                    <div className="rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-xs text-om-blocked">
+                        {Object.values(form.errors)[0]}
                     </div>
-                    <div>
-                        <label className={labelCls}>{__('Actual run (minutes)')}</label>
-                        <input type="number" min="0" value={run} onChange={(e) => setRun(e.target.value)} className={inputCls} placeholder={__('optional')} />
-                    </div>
-                </div>
-                {overflow && <p className="text-om-blocked text-xs">{__('Setup + run cannot exceed the elapsed time.')}</p>}
+                )}
             </div>
             <div className={modalFooterCls}>
                 <Button variant="secondary" onClick={onClose}>{__('Cancel')}</Button>
-                <Button variant="primary" disabled={invalid || saving} onClick={submit}>
-                    {saving ? '…' : __('Complete step')}
+                <Button variant="primary" disabled={invalid || form.processing} onClick={submit}>
+                    {form.processing ? '…' : __('Complete step')}
                 </Button>
             </div>
         </ModalShell>
@@ -1974,6 +2105,7 @@ export default function WorkOrderDetail() {
                                             stepPhotos={stepPhotos}
                                             stepMedia={stepMedia}
                                             stepChecklists={stepChecklists}
+                                            scrapReasons={scrapReasons}
                                             workstationLocked={workstationLocked}
                                         />
                                     ))}

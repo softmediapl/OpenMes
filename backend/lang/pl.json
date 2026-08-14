@@ -5307,6 +5307,7 @@
     "Scrap reason": "Przyczyna odpadu",
     "Quantity notes": "Uwagi do bilansu",
     "Optional traceability note…": "Opcjonalna uwaga dla identyfikowalności…",
+    "Enter valid quantities for the complete balance.": "Wprowadź prawidłowe ilości dla pełnego bilansu.",
     "Require an operation quantity balance": "Wymagaj bilansu ilościowego operacji",
     "The operator must account for the complete input as good, rework or scrap before completing this step.": "Operator musi przed zakończeniem kroku rozliczyć całe wejście jako wyrób dobry, poprawkę albo odpad.",
     "Quantity balance": "Bilans ilościowy",
