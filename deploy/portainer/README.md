@@ -86,7 +86,7 @@ Restore example from inside the Portainer host:
 docker run --rm --network openmes_default \
   -v openmes_postgres_backups:/backups:ro \
   -e PGPASSWORD='production-db-password' \
-  postgres:17-alpine \
+  postgres:18-alpine \
   pg_restore --host=postgres --username=openmes_user --dbname=openmes --clean --if-exists /backups/openmes-YYYYMMDDTHHMMSSZ.dump
 ```
 

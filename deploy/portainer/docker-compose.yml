@@ -32,7 +32,7 @@ x-laravel-env: &laravel-env
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     command:
       - postgres
       - -c
@@ -46,7 +46,7 @@ services:
       POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
@@ -61,7 +61,7 @@ services:
     build:
       context: ../..
       dockerfile: backend/Dockerfile
-    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    image: ${OPENMES_IMAGE:-openmes-local/openmes}:${OPENMES_IMAGE_TAG:-local}
     pull_policy: build
     environment:
       <<: *laravel-env
@@ -88,7 +88,7 @@ services:
     build:
       context: ../..
       dockerfile: backend/Dockerfile
-    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    image: ${OPENMES_IMAGE:-openmes-local/openmes}:${OPENMES_IMAGE_TAG:-local}
     pull_policy: build
     command: php artisan reverb:start --host=0.0.0.0 --port=8080
     environment:
@@ -106,7 +106,7 @@ services:
     build:
       context: ../..
       dockerfile: backend/Dockerfile
-    image: ${OPENMES_IMAGE:-softmedia/openmes}:${OPENMES_IMAGE_TAG:-local}
+    image: ${OPENMES_IMAGE:-openmes-local/openmes}:${OPENMES_IMAGE_TAG:-local}
     pull_policy: build
     command: ["php", "artisan", "queue:work", "--sleep=1", "--tries=5", "--timeout=120"]
     environment:
@@ -125,7 +125,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/portainer/Caddy.Dockerfile
-    image: ${OPENMES_CADDY_IMAGE:-softmedia/openmes-caddy}:${OPENMES_IMAGE_TAG:-local}
+    image: ${OPENMES_CADDY_IMAGE:-openmes-local/openmes-caddy}:${OPENMES_IMAGE_TAG:-local}
     pull_policy: build
     volumes:
       - caddy_config:/config
@@ -142,7 +142,7 @@ services:
           - openmes-web
 
   postgres-backup:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB is required}"
       POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER is required}"
