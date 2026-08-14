@@ -149,6 +149,29 @@ export function fmtDurationMinutes(minutes) {
     return `${duration} (${days} d)`;
 }
 
+export function durationEstimateMeta(workOrder) {
+    const leadTime = workOrder.estimated_lead_time_minutes ?? workOrder.estimated_duration_minutes ?? null;
+    const operationTime = workOrder.estimated_operation_minutes ?? null;
+    const missingSteps = workOrder.unestimated_step_numbers ?? [];
+    const complete = workOrder.estimate_complete !== false && leadTime != null;
+    const parts = [
+        `${__('Minimum process lead time')}: ${fmtDurationMinutes(leadTime)}`,
+        `${__('Total operation time')}: ${fmtDurationMinutes(operationTime)}`,
+    ];
+    if (!complete) {
+        parts.push(missingSteps.length
+            ? `${__('Missing time standards for steps')}: ${missingSteps.join(', ')}`
+            : __('Time estimate is incomplete'));
+    }
+
+    return {
+        leadTime,
+        operationTime,
+        complete,
+        title: parts.join(' · '),
+    };
+}
+
 // planned_end_at is an exclusive boundary. Subtract one wall-clock minute
 // before mapping it to a weekly cell, so a night shift ending at 06:00 does
 // not appear to occupy the following day's night-shift column as well.

@@ -256,7 +256,6 @@ class SchedulePlannerController extends Controller
         $workOrdersFlat = $workOrders->map(function ($wo) {
             $planned = (float) $wo->planned_qty;
             $produced = (float) $wo->produced_qty;
-            $standardMinutes = $wo->estimatedStandardProductionMinutes();
 
             return [
                 'id' => $wo->id,
@@ -292,15 +291,12 @@ class SchedulePlannerController extends Controller
                 'end_shift_number' => $wo->end_shift_number,
                 'planned_start_at' => $wo->planned_start_at?->toIso8601String(),
                 'planned_end_at' => $wo->planned_end_at?->toIso8601String(),
-                'standard_production_minutes' => $standardMinutes,
-                'estimated_duration_minutes' => $standardMinutes ?? $wo->estimatedDurationMinutes(),
+                ...$this->durationEstimatePayload($wo),
             ];
         })->values()->all();
 
         // Flatten backlog orders
         $backlogFlat = $backlogOrders->map(function ($wo) {
-            $standardMinutes = $wo->estimatedStandardProductionMinutes();
-
             return [
                 'id' => $wo->id,
                 'order_no' => $wo->order_no,
@@ -313,8 +309,7 @@ class SchedulePlannerController extends Controller
                 'status' => $wo->status,
                 'priority' => $wo->priority,
                 'priority_score' => $wo->priority_score,
-                'standard_production_minutes' => $standardMinutes,
-                'estimated_duration_minutes' => $standardMinutes ?? $wo->estimatedDurationMinutes(),
+                ...$this->durationEstimatePayload($wo),
             ];
         })->values()->all();
 
@@ -792,6 +787,26 @@ class SchedulePlannerController extends Controller
             ->whereIn('key', $keys)
             ->pluck('value', 'key')
             ->toArray();
+    }
+
+    /**
+     * Keep resource demand, dependency lead time and costing standards separate
+     * in the planner contract. The legacy duration field follows lead time.
+     *
+     * @return array<string, mixed>
+     */
+    private function durationEstimatePayload(WorkOrder $workOrder): array
+    {
+        $estimate = $workOrder->processDurationEstimate();
+
+        return [
+            'standard_production_minutes' => $workOrder->estimatedStandardProductionMinutes(),
+            'estimated_operation_minutes' => $workOrder->estimatedDurationMinutes(),
+            'estimated_lead_time_minutes' => $estimate->leadTimeMinutes,
+            'estimated_duration_minutes' => $estimate->leadTimeMinutes,
+            'estimate_complete' => $estimate->isComplete() && $estimate->leadTimeMinutes !== null,
+            'unestimated_step_numbers' => $estimate->unestimatedStepNumbers,
+        ];
     }
 
     private function calculateDateRange(string $viewMode, Carbon $startDate, int $horizonWeeks): array

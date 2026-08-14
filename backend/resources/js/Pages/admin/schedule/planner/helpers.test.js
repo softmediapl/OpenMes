@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
+import { durationEstimateMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
 
 const shifts = [
     { start_time: '06:00:00', end_time: '14:00:00' },
@@ -40,5 +40,29 @@ describe('planner schedule helpers', () => {
     it('shows long workload as hours and a day equivalent', () => {
         expect(fmtDurationMinutes(130 * 60)).toContain('130 h');
         expect(fmtDurationMinutes(130 * 60)).toMatch(/5[.,]4 d/);
+    });
+
+    it('keeps operation workload separate from dependency lead time', () => {
+        const meta = durationEstimateMeta({
+            estimated_operation_minutes: 210,
+            estimated_lead_time_minutes: 150,
+            estimate_complete: true,
+        });
+
+        expect(meta.operationTime).toBe(210);
+        expect(meta.leadTime).toBe(150);
+        expect(meta.complete).toBe(true);
+    });
+
+    it('describes missing operation standards', () => {
+        const meta = durationEstimateMeta({
+            estimated_operation_minutes: null,
+            estimated_lead_time_minutes: null,
+            estimate_complete: false,
+            unestimated_step_numbers: [4, 7],
+        });
+
+        expect(meta.complete).toBe(false);
+        expect(meta.title).toContain('4, 7');
     });
 });

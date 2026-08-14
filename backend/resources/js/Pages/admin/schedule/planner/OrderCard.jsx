@@ -2,7 +2,7 @@
 // status-tinted surface, Geist-Mono order numbers, hover-✕ to unschedule.
 import { __, formatDate } from '../../../../lib/i18n';
 import { TIER_BADGE_STYLES, tierLabel } from '../../customers/fields';
-import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, parseDate, shiftColor, MONO } from './helpers';
+import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, parseDate, shiftColor, MONO } from './helpers';
 
 const compactDate = (value) => value
     ? formatDate(parseDate(value), { day: '2-digit', month: 'short', year: 'numeric' })
@@ -68,6 +68,7 @@ export function LoadBar({ pct, color, w = 90 }) {
 export function OrderCard({ wo, variant = 'cell', selected = false, conflict = false, twinMeta = null, onClick, onUnassign, unassignTitle, dragProps = {} }) {
     const s = statusOf(wo.status);
     const overdue = wo.is_overdue;
+    const estimate = durationEstimateMeta(wo);
     const ring = selected ? `0 0 0 2px var(--om-accent)` : (overdue || conflict ? '0 0 0 1.5px var(--om-blocked)' : 'none');
 
     if (variant === 'backlog') {
@@ -95,7 +96,7 @@ export function OrderCard({ wo, variant = 'cell', selected = false, conflict = f
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-2 pt-2" style={{ borderTop: '1px solid var(--om-line2)', fontFamily: MONO, fontSize: 9, color: 'var(--om-muted)' }}>
                     <span title={__('Customer deadline')}>{__('Due')} {compactDate(wo.due_date)}</span>
-                    <span className="text-right" title={__('Estimated workload')}>{__('Est.')} {fmtDurationMinutes(wo.estimated_duration_minutes)}</span>
+                    <span className="text-right" title={estimate.title} style={{ color: estimate.complete ? undefined : 'var(--om-blocked)' }}>{__('Lead')} {fmtDurationMinutes(estimate.leadTime)}</span>
                 </div>
             </div>
         );
@@ -114,9 +115,9 @@ export function OrderCard({ wo, variant = 'cell', selected = false, conflict = f
                 </div>
                 <div className="truncate" style={{ fontSize: 11, color: 'var(--om-muted)' }}>{wo.product_name || '—'}</div>
                 <div className="mt-0.5" style={{ fontFamily: MONO, fontSize: 9, color: 'var(--om-faint)' }}>{fmtQty(wo.planned_qty)} {__('pcs')} · {statusLabel(wo.status)}</div>
-                <div className="mt-0.5 truncate" title={`${__('Estimated workload')}: ${fmtDurationMinutes(wo.estimated_duration_minutes)} · ${__('Customer deadline')}: ${compactDate(wo.due_date)}`}
+                <div className="mt-0.5 truncate" title={`${estimate.title} · ${__('Customer deadline')}: ${compactDate(wo.due_date)}`}
                     style={{ fontFamily: MONO, fontSize: 8.5, color: 'var(--om-muted)' }}>
-                    {__('Est.')} {fmtDurationMinutes(wo.estimated_duration_minutes)} · {__('Due')} {compactDate(wo.due_date)}
+                    {__('Lead')} {fmtDurationMinutes(estimate.leadTime)} · {__('Due')} {compactDate(wo.due_date)}
                 </div>
             </div>
         );

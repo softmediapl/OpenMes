@@ -5505,5 +5505,12 @@
     "Every dependency must reference steps from this process template.": "Every dependency must reference steps from this process template.",
     "A process step cannot depend on itself.": "A process step cannot depend on itself.",
     "This process dependency is duplicated.": "This process dependency is duplicated.",
-    "Process dependencies must not contain a cycle.": "Process dependencies must not contain a cycle."
+    "Process dependencies must not contain a cycle.": "Process dependencies must not contain a cycle.",
+    "Lead": "Lead",
+    "Minimum lead time": "Minimum lead time",
+    "Operation time": "Operation time",
+    "Minimum process lead time": "Minimum process lead time",
+    "Total operation time": "Total operation time",
+    "Time estimate is incomplete": "Time estimate is incomplete",
+    "Missing time standards for steps": "Missing time standards for steps"
 }

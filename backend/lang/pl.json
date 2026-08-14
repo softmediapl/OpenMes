@@ -5505,5 +5505,12 @@
     "Every dependency must reference steps from this process template.": "Każda zależność musi wskazywać kroki z tego szablonu procesu.",
     "A process step cannot depend on itself.": "Krok procesu nie może zależeć od samego siebie.",
     "This process dependency is duplicated.": "Ta zależność procesu jest zduplikowana.",
-    "Process dependencies must not contain a cycle.": "Zależności procesu nie mogą tworzyć cyklu."
+    "Process dependencies must not contain a cycle.": "Zależności procesu nie mogą tworzyć cyklu.",
+    "Lead": "Przejście",
+    "Minimum lead time": "Minimalny czas przejścia",
+    "Operation time": "Czas operacji",
+    "Minimum process lead time": "Minimalny czas przejścia procesu",
+    "Total operation time": "Łączny czas operacji",
+    "Time estimate is incomplete": "Estymacja czasu jest niekompletna",
+    "Missing time standards for steps": "Brak norm czasu dla kroków"
 }

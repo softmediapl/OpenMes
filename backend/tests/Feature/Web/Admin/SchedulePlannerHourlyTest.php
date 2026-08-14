@@ -125,6 +125,17 @@ class SchedulePlannerHourlyTest extends TestCase
             'shift_number' => 1,
             'planned_start_at' => $monday->copy()->addDay()->setTime(6, 0),
             'planned_end_at' => $monday->copy()->addDay()->setTime(14, 0),
+            'process_snapshot' => [
+                'steps' => [
+                    ['step_number' => 1, 'estimated_duration_minutes' => 10],
+                    ['step_number' => 2, 'estimated_duration_minutes' => 20],
+                    ['step_number' => 3, 'estimated_duration_minutes' => 5],
+                ],
+                'dependencies' => [
+                    ['predecessor_step_number' => 1, 'successor_step_number' => 3],
+                    ['predecessor_step_number' => 2, 'successor_step_number' => 3],
+                ],
+            ],
         ]);
         // Unassigned (no line) → backlog rail.
         $backlog = WorkOrder::factory()->create([
@@ -163,6 +174,11 @@ class SchedulePlannerHourlyTest extends TestCase
         $this->assertNotNull($row['due_date']);
         $this->assertNotNull($row['planned_start_at']);
         $this->assertArrayHasKey('estimated_duration_minutes', $row);
+        $this->assertSame(35, $row['estimated_operation_minutes']);
+        $this->assertSame(25, $row['estimated_lead_time_minutes']);
+        $this->assertSame(25, $row['estimated_duration_minutes']);
+        $this->assertTrue($row['estimate_complete']);
+        $this->assertSame([], $row['unestimated_step_numbers']);
 
         // The unassigned order lands in the backlog payload.
         $this->assertNotNull(collect($props['backlogOrders'])->firstWhere('id', $backlog->id));

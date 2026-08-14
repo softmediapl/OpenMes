@@ -5,7 +5,7 @@ import { usePage } from '@inertiajs/react';
 import { Dropdown, DatePicker } from '@openmes/ui';
 import { __ } from '../../../../lib/i18n';
 import WorkOrderForm from '../../work-orders/WorkOrderForm';
-import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, shiftWindow, MONO } from './helpers';
+import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, shiftWindow, MONO } from './helpers';
 import { StatusPill } from './OrderCard';
 
 const lblStyle = { fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--om-faint)', marginBottom: 5 };
@@ -22,6 +22,7 @@ function Backdrop({ children, onClose }) {
 export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
     const { data, config } = ctx;
     const s = statusOf(wo.status);
+    const estimate = durationEstimateMeta(wo);
     const [line, setLine] = useState(wo.line_id || '');
     const [extras, setExtras] = useState((wo.placements || []).map((p) => ({ ...p })));
     const [startDate, setStartDate] = useState(wo.planned_start_at?.slice(0, 10) || '');
@@ -50,14 +51,18 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                         <span onClick={onClose} style={{ color: 'var(--om-faint)', fontSize: 19, cursor: 'pointer', lineHeight: 1 }}>×</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4" style={{ background: 'var(--om-chip)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div className="grid grid-cols-3 gap-3 mb-4" style={{ background: 'var(--om-chip)', borderRadius: 8, padding: '10px 12px' }}>
                         <div>
                             <div style={lblStyle}>{__('Customer deadline')}</div>
                             <div style={{ fontFamily: MONO, fontSize: 12, color: wo.is_overdue ? 'var(--om-blocked)' : 'var(--om-ink)' }}>{wo.due_date || __('Not set')}</div>
                         </div>
                         <div>
-                            <div style={lblStyle}>{__('Estimated workload')}</div>
-                            <div style={{ fontFamily: MONO, fontSize: 12, color: 'var(--om-ink)' }}>{fmtDurationMinutes(wo.estimated_duration_minutes)}</div>
+                            <div style={lblStyle}>{__('Minimum lead time')}</div>
+                            <div title={estimate.title} style={{ fontFamily: MONO, fontSize: 12, color: estimate.complete ? 'var(--om-ink)' : 'var(--om-blocked)' }}>{fmtDurationMinutes(estimate.leadTime)}</div>
+                        </div>
+                        <div>
+                            <div style={lblStyle}>{__('Operation time')}</div>
+                            <div title={estimate.title} style={{ fontFamily: MONO, fontSize: 12, color: 'var(--om-ink)' }}>{fmtDurationMinutes(estimate.operationTime)}</div>
                         </div>
                     </div>
 
