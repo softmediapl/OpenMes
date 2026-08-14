@@ -5340,5 +5340,15 @@
     "Concurrent operation capacity": "Pojemność operacji równoległych",
     "Maximum number of operations that may occupy this workstation at the same time.": "Maksymalna liczba operacji, które mogą jednocześnie zajmować to stanowisko.",
     "Occupied capacity": "Zajęta pojemność",
-    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Stanowisko :station osiągnęło limit pojemności (:occupied/:capacity aktywnych operacji)."
+    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Stanowisko :station osiągnęło limit pojemności (:occupied/:capacity aktywnych operacji).",
+    "At least one transport unit must be scanned.": "Należy zeskanować co najmniej jedną jednostkę transportową.",
+    "Transport unit code is required.": "Kod jednostki transportowej jest wymagany.",
+    "A transport unit may only be scanned once per operation.": "Jednostkę transportową można zeskanować tylko raz w ramach operacji.",
+    "Unknown transport unit: :code.": "Nieznana jednostka transportowa: :code.",
+    "Transport unit :code is not available.": "Jednostka transportowa :code nie jest dostępna.",
+    "Transport unit :code has an incompatible type.": "Jednostka transportowa :code ma niezgodny typ.",
+    "Transport unit :code capacity is :capacity, but :quantity was requested.": "Pojemność jednostki transportowej :code wynosi :capacity, a zażądano :quantity.",
+    "Transport unit loads total :loaded, but the operation requires :required.": "Ładunki jednostek transportowych obejmują :loaded, a operacja wymaga :required.",
+    "Transport unit quantity must be a number.": "Ilość na jednostce transportowej musi być liczbą.",
+    "Transport unit quantity must be greater than zero.": "Ilość na jednostce transportowej musi być większa od zera."
 }

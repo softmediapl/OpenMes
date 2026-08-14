@@ -120,6 +120,16 @@ class BatchStep extends Model
         return $this->belongsTo(Workstation::class);
     }
 
+    public function transportUnitLoads(): HasMany
+    {
+        return $this->hasMany(BatchStepTransportUnit::class);
+    }
+
+    public function activeTransportUnitLoads(): HasMany
+    {
+        return $this->transportUnitLoads()->whereNull('released_at');
+    }
+
     /**
      * ISA-95 Equipment Class required for this step (#52), carried from the
      * snapshot — shown when no specific workstation is assigned yet.

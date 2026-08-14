@@ -5340,5 +5340,15 @@
     "Concurrent operation capacity": "Concurrent operation capacity",
     "Maximum number of operations that may occupy this workstation at the same time.": "Maximum number of operations that may occupy this workstation at the same time.",
     "Occupied capacity": "Occupied capacity",
-    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Workstation :station is at capacity (:occupied/:capacity active operations)."
+    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Workstation :station is at capacity (:occupied/:capacity active operations).",
+    "At least one transport unit must be scanned.": "At least one transport unit must be scanned.",
+    "Transport unit code is required.": "Transport unit code is required.",
+    "A transport unit may only be scanned once per operation.": "A transport unit may only be scanned once per operation.",
+    "Unknown transport unit: :code.": "Unknown transport unit: :code.",
+    "Transport unit :code is not available.": "Transport unit :code is not available.",
+    "Transport unit :code has an incompatible type.": "Transport unit :code has an incompatible type.",
+    "Transport unit :code capacity is :capacity, but :quantity was requested.": "Transport unit :code capacity is :capacity, but :quantity was requested.",
+    "Transport unit loads total :loaded, but the operation requires :required.": "Transport unit loads total :loaded, but the operation requires :required.",
+    "Transport unit quantity must be a number.": "Transport unit quantity must be a number.",
+    "Transport unit quantity must be greater than zero.": "Transport unit quantity must be greater than zero."
 }
