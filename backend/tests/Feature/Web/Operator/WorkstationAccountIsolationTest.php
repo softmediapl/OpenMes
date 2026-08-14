@@ -4,9 +4,12 @@ namespace Tests\Feature\Web\Operator;
 
 use App\Models\Batch;
 use App\Models\BatchStep;
+use App\Models\BatchStepTransportUnit;
 use App\Models\IssueType;
 use App\Models\Line;
 use App\Models\ScrapReason;
+use App\Models\TransportUnit;
+use App\Models\TransportUnitType;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
@@ -139,6 +142,39 @@ class WorkstationAccountIsolationTest extends TestCase
         $this->actingAs($this->terminal)
             ->post(route('operator.batch-step.confirm-instructions', $futureAssignedStep))
             ->assertSessionHas('error');
+    }
+
+    public function test_terminal_detail_contains_the_current_transport_unit_load(): void
+    {
+        [$workOrder, , $step] = $this->workAt($this->assignedStation);
+        $type = TransportUnitType::factory()->create([
+            'code' => 'RACK',
+            'name' => 'Cooling rack',
+            'unit_of_measure' => 'pcs',
+        ]);
+        $unit = TransportUnit::factory()->create([
+            'transport_unit_type_id' => $type->id,
+            'code' => 'RACK-001',
+            'unit_of_measure' => 'pcs',
+            'status' => TransportUnit::STATUS_IN_USE,
+        ]);
+        BatchStepTransportUnit::create([
+            'batch_step_id' => $step->id,
+            'transport_unit_id' => $unit->id,
+            'quantity' => 50,
+            'loaded_at' => now(),
+            'loaded_by_id' => $this->terminal->id,
+            'released_at' => null,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('operator.work-order.detail', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workOrder.batches.0.steps.0.transport_unit_loads.0.transport_unit.code', 'RACK-001')
+                ->where('workOrder.batches.0.steps.0.transport_unit_loads.0.quantity', '50.0000')
+                ->where('workOrder.batches.0.steps.0.transport_unit_loads.0.released_at', null)
+            );
     }
 
     public function test_terminal_sees_a_shared_station_task_from_another_line(): void

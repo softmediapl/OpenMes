@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Web\Operator;
 
 use App\Http\Controllers\Controller;
+use App\Models\Batch;
+use App\Models\BatchStep;
 use App\Models\IssueType;
 use App\Models\LineStatus;
 use App\Models\ScrapReason;
@@ -258,6 +260,8 @@ class WorkOrderController extends Controller
             'batches.steps.confirmedBy',
             'batches.steps.documents.validatedBy',
             'batches.steps.checklistCompletions.checkedBy',
+            'batches.steps.transportUnitType',
+            'batches.steps.transportUnitLoads.transportUnit.type',
             'batches.workstation',
             'batches.processConfirmations.confirmedBy',
             'batches.qualityChecks.samples',
@@ -281,12 +285,12 @@ class WorkOrderController extends Controller
         if ($workstationLocked) {
             $visibleBatches = $workOrder->batches
                 ->filter(function ($batch) use ($lockedWorkstation) {
-                    $step = $batch->currentStep();
+                    $step = $this->currentLoadedStep($batch);
 
                     return $step && (int) $step->workstation_id === (int) $lockedWorkstation->id;
                 })
                 ->map(function ($batch) {
-                    $currentStep = $batch->currentStep();
+                    $currentStep = $this->currentLoadedStep($batch);
                     $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
 
                     return $batch;
@@ -410,5 +414,27 @@ class WorkOrderController extends Controller
         $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
 
         return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+    }
+
+    private function currentLoadedStep(Batch $batch): ?BatchStep
+    {
+        $inProgress = $batch->steps->first(
+            fn (BatchStep $step) => $step->status === BatchStep::STATUS_IN_PROGRESS
+        );
+        if ($inProgress) {
+            return $inProgress;
+        }
+
+        return $batch->steps
+            ->filter(fn (BatchStep $step) => in_array(
+                $step->status,
+                [BatchStep::STATUS_READY, BatchStep::STATUS_PENDING],
+                true,
+            ))
+            ->sortBy(fn (BatchStep $step) => [
+                $step->status === BatchStep::STATUS_READY ? 0 : 1,
+                $step->step_number,
+            ])
+            ->first();
     }
 }
