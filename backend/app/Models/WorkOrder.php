@@ -421,6 +421,12 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderPlacement::class)->orderBy('due_date')->orderBy('shift_number');
     }
 
+    /** Committed finite-capacity reservations for released process operations. */
+    public function operationPlans(): HasMany
+    {
+        return $this->hasMany(WorkOrderOperationPlan::class)->orderBy('step_number');
+    }
+
     /**
      * Get the product type for this work order.
      */
