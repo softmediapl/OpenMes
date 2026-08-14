@@ -131,6 +131,16 @@ class BatchStep extends Model
         return $this->transportUnitLoads()->whereNull('released_at');
     }
 
+    public function predecessorDependencies(): HasMany
+    {
+        return $this->hasMany(BatchStepDependency::class, 'successor_step_id');
+    }
+
+    public function successorDependencies(): HasMany
+    {
+        return $this->hasMany(BatchStepDependency::class, 'predecessor_step_id');
+    }
+
     /**
      * ISA-95 Equipment Class required for this step (#52), carried from the
      * snapshot — shown when no specific workstation is assigned yet.
@@ -347,6 +357,27 @@ class BatchStep extends Model
             return true;
         }
 
+        $dependencyMode = data_get($this->batch?->workOrder?->process_snapshot, 'dependency_mode');
+        $hasMaterializedGraph = $this->batch->stepDependencies()->exists();
+
+        if ($dependencyMode === 'explicit' || $hasMaterializedGraph) {
+            return $this->predecessorDependencies()
+                ->with('predecessor:id,status,completed_at')
+                ->get()
+                ->every(function (BatchStepDependency $dependency) {
+                    $predecessor = $dependency->predecessor;
+                    if (! $predecessor || ! in_array($predecessor->status, [self::STATUS_DONE, self::STATUS_SKIPPED], true)) {
+                        return false;
+                    }
+
+                    if ($dependency->lag_minutes === 0 || $predecessor->status === self::STATUS_SKIPPED) {
+                        return true;
+                    }
+
+                    return $predecessor->completed_at?->addMinutes($dependency->lag_minutes)->isPast() ?? false;
+                });
+        }
+
         if ($this->step_number === 1) {
             return true;
         }
@@ -420,6 +451,29 @@ class BatchStep extends Model
     {
         if ($this->input_quantity !== null) {
             return (float) $this->input_quantity;
+        }
+
+        $hasMaterializedGraph = $this->batch->stepDependencies()->exists();
+        $dependencyMode = data_get($this->batch?->workOrder?->process_snapshot, 'dependency_mode');
+        $graphPredecessors = $this->predecessorDependencies()
+            ->with('predecessor')
+            ->get()
+            ->pluck('predecessor')
+            ->filter(fn (?BatchStep $step) => $step?->status === self::STATUS_DONE);
+
+        if ($graphPredecessors->isNotEmpty()) {
+            return (float) $graphPredecessors
+                ->map(fn (BatchStep $step) => (float) ($step->released_quantity
+                    ?? $step->good_quantity
+                    ?? $step->input_quantity
+                    ?? $this->batch->target_qty))
+                ->min();
+        }
+
+        // A graph root receives the released batch quantity. It must never
+        // inherit output from an unrelated, lower-numbered parallel branch.
+        if ($dependencyMode === 'explicit' || $hasMaterializedGraph) {
+            return (float) $this->batch->target_qty;
         }
 
         $previous = $this->batch->steps()

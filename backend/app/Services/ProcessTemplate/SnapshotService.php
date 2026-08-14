@@ -22,15 +22,46 @@ class SnapshotService
             'steps.media',
             'steps.photos',
             'steps.workstation',
+            'dependencies.predecessor',
+            'dependencies.successor',
             'bomItems.material.materialType',
             'bomItems.templateStep',
         ]);
+
+        $stepsById = $template->steps->keyBy('id');
+        $dependencyMode = $template->dependency_mode === 'explicit' ? 'explicit' : 'sequential';
+        if ($dependencyMode === 'explicit') {
+            $dependencies = $template->dependencies->map(function ($dependency) use ($stepsById) {
+                $predecessor = $stepsById->get($dependency->predecessor_step_id);
+                $successor = $stepsById->get($dependency->successor_step_id);
+
+                return $predecessor && $successor ? [
+                    'predecessor_step_number' => $predecessor->step_number,
+                    'successor_step_number' => $successor->step_number,
+                    'dependency_type' => $dependency->dependency_type,
+                    'lag_minutes' => $dependency->lag_minutes,
+                ] : null;
+            })->filter()->values();
+        } else {
+            $orderedSteps = $template->steps->values();
+            $dependencies = collect();
+            for ($index = 1; $index < $orderedSteps->count(); $index++) {
+                $dependencies->push([
+                    'predecessor_step_number' => $orderedSteps[$index - 1]->step_number,
+                    'successor_step_number' => $orderedSteps[$index]->step_number,
+                    'dependency_type' => \App\Models\TemplateStepDependency::TYPE_FINISH_TO_START,
+                    'lag_minutes' => 0,
+                ]);
+            }
+        }
 
         return [
             'template_id' => $template->id,
             'template_name' => $template->name,
             'template_version' => $template->version,
             'product_type_id' => $template->product_type_id,
+            'dependency_mode' => $dependencyMode,
+            'dependencies' => $dependencies->toArray(),
             'steps' => $template->steps->map(function ($step) {
                 return [
                     'step_number' => $step->step_number,

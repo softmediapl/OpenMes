@@ -113,6 +113,16 @@ class TemplateStep extends Model
         return $this->hasMany(TemplateStepChecklistItem::class)->orderBy('sort_order')->orderBy('id');
     }
 
+    public function predecessorDependencies(): HasMany
+    {
+        return $this->hasMany(TemplateStepDependency::class, 'successor_step_id');
+    }
+
+    public function successorDependencies(): HasMany
+    {
+        return $this->hasMany(TemplateStepDependency::class, 'predecessor_step_id');
+    }
+
     /** Soft-deleting a step cascades to its rich-instruction media and checklist items. */
     public function softDeleteCascades(): array
     {

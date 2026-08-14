@@ -685,6 +685,7 @@ class WorkOrderChangeRequestApiTest extends TestCase
     {
         $batch = app(WorkOrderService::class)->createBatch($this->workOrder, 20);
         $originalStepIds = $batch->steps()->pluck('id')->all();
+        $originalDependencyCount = $batch->stepDependencies()->count();
 
         $this->stopForChange();
         $cr = $this->createRequest();
@@ -698,6 +699,10 @@ class WorkOrderChangeRequestApiTest extends TestCase
         $this->assertNotEquals($originalStepIds, $newStepIds);
         // The old rows are soft-deleted with an audit stamp, not silently dropped.
         $this->assertSoftDeleted('batch_steps', ['id' => $originalStepIds[0]]);
+        $this->assertSame($originalDependencyCount, $batch->stepDependencies()->count());
+        $this->assertDatabaseMissing('batch_step_dependencies', [
+            'predecessor_step_id' => $originalStepIds[0],
+        ]);
     }
 
     public function test_the_diff_shows_a_before_value_for_the_bom_selection(): void

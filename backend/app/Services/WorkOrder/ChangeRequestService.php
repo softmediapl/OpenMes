@@ -544,6 +544,11 @@ class ChangeRequestService
             ->filter(fn (Batch $batch) => ! $this->hasExecution($batch));
 
         foreach ($batches as $batch) {
+            // Dependency rows do not use soft deletes. Remove the immutable graph
+            // before replacing its steps so the regenerated batch has one coherent
+            // graph and no stale edges pointing at archived step records.
+            $batch->stepDependencies()->delete();
+
             // Per-model delete, not a builder mass-delete: BatchStep soft-deletes with
             // audit, and both the `deleted_by_id` stamp and the cascade to its
             // documents run in the model's deleted event, which a bulk UPDATE skips.

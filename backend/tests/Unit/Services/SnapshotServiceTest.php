@@ -30,6 +30,8 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('template_version', $snapshot);
         $this->assertArrayHasKey('product_type_id', $snapshot);
         $this->assertArrayHasKey('steps', $snapshot);
+        $this->assertArrayHasKey('dependency_mode', $snapshot);
+        $this->assertArrayHasKey('dependencies', $snapshot);
         $this->assertArrayHasKey('snapshot_created_at', $snapshot);
     }
 

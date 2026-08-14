@@ -7,6 +7,7 @@ use App\Models\ProductType;
 use App\Models\TemplateStep;
 use App\Models\TransportUnitType;
 use App\Models\User;
+use App\Services\ProcessTemplate\StepDependencyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -162,16 +163,55 @@ class ProcessTemplateStepWebTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_replace_process_dependencies(): void
+    {
+        [$pt, $tpl] = $this->template();
+        $first = TemplateStep::factory()->create(['process_template_id' => $tpl->id, 'step_number' => 1]);
+        $second = TemplateStep::factory()->create(['process_template_id' => $tpl->id, 'step_number' => 2]);
+
+        $this->actingAs($this->admin)
+            ->put($this->base($pt, $tpl).'/step-dependencies', [
+                'dependency_mode' => 'explicit',
+                'dependencies' => [[
+                    'predecessor_step_id' => $first->id,
+                    'successor_step_id' => $second->id,
+                    'lag_minutes' => 5,
+                ]],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('process_templates', ['id' => $tpl->id, 'dependency_mode' => 'explicit']);
+        $this->assertDatabaseHas('template_step_dependencies', [
+            'process_template_id' => $tpl->id,
+            'predecessor_step_id' => $first->id,
+            'successor_step_id' => $second->id,
+            'lag_minutes' => 5,
+        ]);
+    }
+
     public function test_admin_can_delete_step(): void
     {
         [$pt, $tpl] = $this->template();
         $step = TemplateStep::factory()->create(['process_template_id' => $tpl->id, 'step_number' => 1]);
+        $successor = TemplateStep::factory()->create(['process_template_id' => $tpl->id, 'step_number' => 2]);
+        app(StepDependencyService::class)->replace($tpl, 'explicit', [[
+            'predecessor_step_id' => $step->id,
+            'successor_step_id' => $successor->id,
+        ]]);
 
         $response = $this->actingAs($this->admin)
             ->delete($this->base($pt, $tpl)."/steps/{$step->id}");
 
         $response->assertRedirect();
         $this->assertSoftDeleted('template_steps', ['id' => $step->id]);
+        $this->assertDatabaseMissing('template_step_dependencies', [
+            'process_template_id' => $tpl->id,
+            'predecessor_step_id' => $step->id,
+        ]);
+        $this->assertDatabaseHas('template_steps', [
+            'id' => $successor->id,
+            'step_number' => 1,
+        ]);
     }
 
     public function test_admin_can_move_step_up(): void

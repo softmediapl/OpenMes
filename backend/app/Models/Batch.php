@@ -154,6 +154,11 @@ class Batch extends Model
         return $this->hasMany(MaterialLot::class, 'source_batch_id');
     }
 
+    public function stepDependencies(): HasMany
+    {
+        return $this->hasMany(BatchStepDependency::class);
+    }
+
     /**
      * Promote every PENDING step whose sequence prerequisites are now met to
      * READY ("next in line"). Idempotent — safe to call after any step

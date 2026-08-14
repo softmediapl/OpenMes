@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\Admin\StoreTemplateStepRequest;
+use App\Http\Requests\Web\Admin\UpdateTemplateStepDependenciesRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepRequest;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
 use App\Models\Workstation;
+use App\Services\ProcessTemplate\StepDependencyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -88,6 +90,7 @@ class ProcessTemplateManagementController extends Controller
             'photos.uploadedBy',
             'stepMedia',
             'checklistItems',
+            'dependencies',
         ]);
         $workstations = Workstation::active()->with('line')->orderBy('name')->get();
         $processSegments = \App\Models\ProcessSegment::query()
@@ -103,6 +106,12 @@ class ProcessTemplateManagementController extends Controller
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
                 'is_active' => (bool) $processTemplate->is_active,
+                'dependency_mode' => $processTemplate->dependency_mode,
+                'dependencies' => $processTemplate->dependencies->map(fn ($dependency) => [
+                    'predecessor_step_id' => $dependency->predecessor_step_id,
+                    'successor_step_id' => $dependency->successor_step_id,
+                    'lag_minutes' => $dependency->lag_minutes,
+                ])->values(),
                 'steps' => $processTemplate->steps->map(fn ($s) => [
                     'id' => $s->id,
                     'step_number' => $s->step_number,
@@ -309,6 +318,25 @@ class ProcessTemplateManagementController extends Controller
             ->with('success', 'Step updated successfully.');
     }
 
+    public function updateDependencies(
+        UpdateTemplateStepDependenciesRequest $request,
+        ProductType $productType,
+        ProcessTemplate $processTemplate,
+        StepDependencyService $dependencies,
+    ) {
+        if ($processTemplate->product_type_id !== $productType->id) {
+            abort(404);
+        }
+
+        $dependencies->replace(
+            $processTemplate,
+            $request->validated('dependency_mode'),
+            $request->validated('dependencies'),
+        );
+
+        return back()->with('success', __('Process dependencies updated successfully.'));
+    }
+
     /**
      * Build the validated step payload: coerce the booleans and drop the
      * default-variant flag when the step isn't part of a variant group.
@@ -337,14 +365,23 @@ class ProcessTemplateManagementController extends Controller
             abort(404);
         }
 
-        $stepNumber = $step->step_number;
-        $step->delete();
+        DB::transaction(function () use ($processTemplate, $step) {
+            $stepNumber = $step->step_number;
 
-        // Renumber remaining steps
-        DB::table('template_steps')
-            ->where('process_template_id', $processTemplate->id)
-            ->where('step_number', '>', $stepNumber)
-            ->decrement('step_number');
+            $processTemplate->dependencies()
+                ->where(fn ($query) => $query
+                    ->where('predecessor_step_id', $step->id)
+                    ->orWhere('successor_step_id', $step->id))
+                ->delete();
+            $step->delete();
+
+            // Renumber remaining steps after the graph no longer references the
+            // removed operation. Snapshot dependencies use these stable numbers.
+            DB::table('template_steps')
+                ->where('process_template_id', $processTemplate->id)
+                ->where('step_number', '>', $stepNumber)
+                ->decrement('step_number');
+        });
 
         return redirect()->route('admin.product-types.process-templates.show', [$productType, $processTemplate])
             ->with('success', 'Step deleted successfully.');

@@ -20,6 +20,7 @@ class ProcessTemplate extends Model
         'name',
         'version',
         'ideal_cycle_minutes',
+        'dependency_mode',
         'is_active',
         'tenant_id',
     ];
@@ -80,6 +81,12 @@ class ProcessTemplate extends Model
     public function checklistItems(): HasMany
     {
         return $this->hasMany(TemplateStepChecklistItem::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    /** Explicit finish-to-start edges used when dependency_mode is explicit. */
+    public function dependencies(): HasMany
+    {
+        return $this->hasMany(TemplateStepDependency::class);
     }
 
     /**

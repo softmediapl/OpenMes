@@ -655,6 +655,7 @@ class WorkOrderService
             }
         }
 
+        $batchStepsByNumber = [];
         foreach ($steps as $stepData) {
             $group = $stepData['variant_group'] ?? null;
             $status = BatchStep::STATUS_PENDING;
@@ -662,7 +663,7 @@ class WorkOrderService
                 $status = BatchStep::STATUS_SKIPPED;
             }
 
-            BatchStep::create([
+            $batchStep = BatchStep::create([
                 'batch_id' => $batch->id,
                 'step_number' => $stepData['step_number'],
                 'name' => $stepData['name'],
@@ -683,6 +684,37 @@ class WorkOrderService
                 'status' => $status,
                 'is_optional' => $stepData['is_optional'] ?? false,
                 'variant_group' => $group,
+            ]);
+            $batchStepsByNumber[(int) $stepData['step_number']] = $batchStep;
+        }
+
+        $dependencies = $processSnapshot['dependencies'] ?? null;
+        if ($dependencies === null) {
+            $numbers = array_keys($batchStepsByNumber);
+            sort($numbers);
+            $dependencies = [];
+            for ($index = 1; $index < count($numbers); $index++) {
+                $dependencies[] = [
+                    'predecessor_step_number' => $numbers[$index - 1],
+                    'successor_step_number' => $numbers[$index],
+                    'dependency_type' => \App\Models\TemplateStepDependency::TYPE_FINISH_TO_START,
+                    'lag_minutes' => 0,
+                ];
+            }
+        }
+
+        foreach ($dependencies as $dependency) {
+            $predecessor = $batchStepsByNumber[(int) $dependency['predecessor_step_number']] ?? null;
+            $successor = $batchStepsByNumber[(int) $dependency['successor_step_number']] ?? null;
+            if (! $predecessor || ! $successor) {
+                continue;
+            }
+
+            $batch->stepDependencies()->create([
+                'predecessor_step_id' => $predecessor->id,
+                'successor_step_id' => $successor->id,
+                'dependency_type' => $dependency['dependency_type'] ?? \App\Models\TemplateStepDependency::TYPE_FINISH_TO_START,
+                'lag_minutes' => (int) ($dependency['lag_minutes'] ?? 0),
             ]);
         }
 
