@@ -5360,5 +5360,20 @@
     "Enter a valid unit code and quantity.": "Wprowadź prawidłowy kod nośnika i ilość.",
     "+ Add unit": "+ Dodaj nośnik",
     "Confirm & start": "Potwierdź i rozpocznij",
-    "Operation could not be started.": "Nie można rozpocząć operacji."
+    "Operation could not be started.": "Nie można rozpocząć operacji.",
+    "Transport Unit Types": "Typy nośników transportowych",
+    "New Transport Unit Type": "Nowy typ nośnika transportowego",
+    "Edit Transport Unit Type": "Edytuj typ nośnika transportowego",
+    "Edit Transport Unit Type: :name": "Edytuj typ nośnika transportowego: :name",
+    "Default capacity": "Domyślna pojemność",
+    "Maximum quantity carried by a unit unless the individual unit overrides it.": "Maksymalna ilość przenoszona przez nośnik, o ile dany egzemplarz nie ma własnego limitu.",
+    "Required when a default capacity is provided.": "Wymagana, gdy określono domyślną pojemność.",
+    "No transport unit types yet.": "Brak typów nośników transportowych.",
+    "Delete transport unit type \":name\"?": "Usunąć typ nośnika transportowego \":name\"?",
+    "Transport unit type created successfully.": "Utworzono typ nośnika transportowego.",
+    "Transport unit type updated successfully.": "Zaktualizowano typ nośnika transportowego.",
+    "Transport unit type deleted successfully.": "Usunięto typ nośnika transportowego.",
+    "Transport unit type activated successfully.": "Aktywowano typ nośnika transportowego.",
+    "Transport unit type deactivated successfully.": "Dezaktywowano typ nośnika transportowego.",
+    "Cannot delete a referenced transport unit type. Deactivate it instead.": "Nie można usunąć używanego typu nośnika transportowego. Zamiast tego go dezaktywuj."
 }

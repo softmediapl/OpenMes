@@ -5360,5 +5360,20 @@
     "Enter a valid unit code and quantity.": "Enter a valid unit code and quantity.",
     "+ Add unit": "+ Add unit",
     "Confirm & start": "Confirm & start",
-    "Operation could not be started.": "Operation could not be started."
+    "Operation could not be started.": "Operation could not be started.",
+    "Transport Unit Types": "Transport Unit Types",
+    "New Transport Unit Type": "New Transport Unit Type",
+    "Edit Transport Unit Type": "Edit Transport Unit Type",
+    "Edit Transport Unit Type: :name": "Edit Transport Unit Type: :name",
+    "Default capacity": "Default capacity",
+    "Maximum quantity carried by a unit unless the individual unit overrides it.": "Maximum quantity carried by a unit unless the individual unit overrides it.",
+    "Required when a default capacity is provided.": "Required when a default capacity is provided.",
+    "No transport unit types yet.": "No transport unit types yet.",
+    "Delete transport unit type \":name\"?": "Delete transport unit type \":name\"?",
+    "Transport unit type created successfully.": "Transport unit type created successfully.",
+    "Transport unit type updated successfully.": "Transport unit type updated successfully.",
+    "Transport unit type deleted successfully.": "Transport unit type deleted successfully.",
+    "Transport unit type activated successfully.": "Transport unit type activated successfully.",
+    "Transport unit type deactivated successfully.": "Transport unit type deactivated successfully.",
+    "Cannot delete a referenced transport unit type. Deactivate it instead.": "Cannot delete a referenced transport unit type. Deactivate it instead."
 }

@@ -62,6 +62,7 @@ class CollectionBroadcaster
             'tools' => [Models\Tool::class, null],
             'personnel_classes' => [Models\PersonnelClass::class, null],
             'workstation_types' => [Models\WorkstationType::class, null],
+            'transport_unit_types' => [Models\TransportUnitType::class, null],
             'subassemblies' => [Models\Subassembly::class, null],
             'shifts' => [Models\Shift::class, null],
             'users' => [Models\User::class, null],

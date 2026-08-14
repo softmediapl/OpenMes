@@ -26,6 +26,8 @@ class SoftDeleteRegistry
         'skills' => Models\Skill::class,
         'personnel_classes' => Models\PersonnelClass::class,
         'workstation_types' => Models\WorkstationType::class,
+        'transport_unit_types' => Models\TransportUnitType::class,
+        'transport_units' => Models\TransportUnit::class,
         'subassemblies' => Models\Subassembly::class,
         'issue_types' => Models\IssueType::class,
         'issue_actions' => Models\IssueAction::class,

@@ -113,6 +113,13 @@ class ShapeRegistry
             'table' => 'workstation_types',
             'columns' => ['id', 'code', 'name', 'description', 'is_active', 'created_at', 'updated_at'],
         ],
+        'transport_unit_types' => [
+            'table' => 'transport_unit_types',
+            'columns' => [
+                'id', 'code', 'name', 'description', 'default_capacity_quantity',
+                'unit_of_measure', 'is_active', 'created_at', 'updated_at',
+            ],
+        ],
         'subassemblies' => [
             'table' => 'subassemblies',
             'columns' => ['id', 'code', 'name', 'description', 'product_type_id', 'is_active', 'created_at', 'updated_at'],

@@ -153,7 +153,11 @@ export default function ResourceForm({
 }
 
 function Field({ field, value, error, setData, data }) {
-    const { name, label, type = 'text', required, placeholder, help, options, filterByField, deriveFromField, deriveValue, readOnly = false } = field;
+    const {
+        name, label, type = 'text', required, placeholder, help, options,
+        filterByField, deriveFromField, deriveValue, readOnly = false,
+        min, max, step,
+    } = field;
     const set = (v) => setData(name, v);
 
     // Dependent select: options carrying a `group` are scoped to the current
@@ -239,6 +243,9 @@ function Field({ field, value, error, setData, data }) {
                     onChange={(e) => set(e.target.value)}
                     placeholder={placeholder ? __(placeholder) : undefined}
                     readOnly={readOnly}
+                    min={min}
+                    max={max}
+                    step={step}
                     className={`${INPUT_CLASS} ${readOnly ? 'bg-om-panel text-om-muted cursor-not-allowed' : ''}`}
                 />
             )}

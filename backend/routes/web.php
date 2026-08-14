@@ -675,6 +675,9 @@ Route::middleware('auth')->group(function () {
         Route::resource('workstation-types', WorkstationTypeController::class)->except(['show']);
         Route::post('/workstation-types/{workstationType}/toggle-active', [WorkstationTypeController::class, 'toggleActive'])->name('workstation-types.toggle-active');
 
+        Route::resource('transport-unit-types', \App\Http\Controllers\Web\Admin\TransportUnitTypeController::class)->except(['show']);
+        Route::post('/transport-unit-types/{transportUnitType}/toggle-active', [\App\Http\Controllers\Web\Admin\TransportUnitTypeController::class, 'toggleActive'])->name('transport-unit-types.toggle-active');
+
         // Workstation Devices (shop-floor PCs running the OpenMES Workstation client)
         Route::get('/workstation-devices', [\App\Http\Controllers\Web\Admin\WorkstationDeviceController::class, 'index'])->name('workstation-devices.index')->middleware('role:Admin');
         Route::delete('/workstation-devices/{workstationDevice}', [\App\Http\Controllers\Web\Admin\WorkstationDeviceController::class, 'destroy'])->name('workstation-devices.destroy')->middleware('role:Admin');
