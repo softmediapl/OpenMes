@@ -10,6 +10,7 @@ use App\Models\ScrapReason;
 use App\Models\User;
 use App\Models\Workstation;
 use App\Services\Material\MaterialAllocationService;
+use App\Services\Production\TransportUnitLoadService;
 use App\Services\Quality\QualityTriggerService;
 use App\Support\SystemSetting;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class BatchService
         protected WorkOrderService $workOrderService,
         protected MaterialAllocationService $allocationService,
         protected QualityTriggerService $qualityTriggerService,
+        protected TransportUnitLoadService $transportUnitLoadService,
     ) {}
 
     /**
@@ -31,9 +33,13 @@ class BatchService
      *
      * @throws \Exception
      */
-    public function startStep(BatchStep $step, User $user, array $picksByMaterial = []): BatchStep
-    {
-        return DB::transaction(function () use ($step, $user, $picksByMaterial) {
+    public function startStep(
+        BatchStep $step,
+        User $user,
+        array $picksByMaterial = [],
+        array $transportUnitLoads = [],
+    ): BatchStep {
+        return DB::transaction(function () use ($step, $user, $picksByMaterial, $transportUnitLoads) {
             $step = BatchStep::query()->lockForUpdate()->findOrFail($step->getKey());
 
             // Enforce workstation routing (if enabled)
@@ -51,6 +57,18 @@ class BatchService
             }
 
             $this->guardWorkstationCapacity($step);
+
+            if ($step->transport_unit_type_id !== null) {
+                $this->transportUnitLoadService->loadForStep(
+                    $step,
+                    $user,
+                    $transportUnitLoads,
+                    (int) $step->transport_unit_type_id,
+                    $step->expectedInputQuantity(),
+                );
+            } elseif ($transportUnitLoads !== []) {
+                throw new \DomainException(__('This operation does not require a transport unit.'));
+            }
 
             $batch = $step->batch;
             $wasPending = $batch->status === Batch::STATUS_PENDING;
@@ -171,6 +189,8 @@ class BatchService
                 'actual_setup_minutes' => $actualSetup,
                 'actual_run_minutes' => $actualRun,
             ], $quantityPayload, $holdOverridePayload));
+
+            $this->transportUnitLoadService->releaseForStep($step, $user, 'Operation completed');
 
             if ((float) $step->scrap_quantity > 0) {
                 ScrapEntry::create([

@@ -10,6 +10,8 @@ use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\MaterialType;
 use App\Models\ProductType;
+use App\Models\TransportUnit;
+use App\Models\TransportUnitType;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\WorkOrderService;
@@ -122,7 +124,44 @@ class WoTimeLotPickingTest extends TestCase
         $this->actingOperator()
             ->getJson("/operator/batch-step/{$this->step->id}/pick-preview")
             ->assertOk()
-            ->assertExactJson(['materials' => []]);
+            ->assertExactJson([
+                'materials' => [],
+                'transport_unit_requirement' => null,
+            ]);
+    }
+
+    public function test_preview_and_start_enforce_transport_unit_requirement(): void
+    {
+        $type = TransportUnitType::factory()->create([
+            'code' => 'RACK',
+            'name' => 'Cooling rack',
+            'default_capacity_quantity' => 10,
+            'unit_of_measure' => 'pcs',
+        ]);
+        $unit = TransportUnit::factory()->create([
+            'transport_unit_type_id' => $type->id,
+            'code' => 'RACK-001',
+        ]);
+        $this->step->update(['transport_unit_type_id' => $type->id]);
+
+        $this->actingOperator()
+            ->getJson("/operator/batch-step/{$this->step->id}/pick-preview")
+            ->assertOk()
+            ->assertJsonPath('transport_unit_requirement.code', 'RACK')
+            ->assertJsonPath('transport_unit_requirement.required_quantity', 10)
+            ->assertJsonPath('transport_unit_requirement.suggested_unit_count', 1);
+
+        $this->actingOperator()
+            ->post("/operator/batch-step/{$this->step->id}/start")
+            ->assertSessionHasErrors('transport_units');
+
+        $this->actingOperator()
+            ->post("/operator/batch-step/{$this->step->id}/start", [
+                'transport_units' => [['code' => 'RACK-001', 'quantity' => 10]],
+            ])->assertSessionHasNoErrors();
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $this->step->fresh()->status);
+        $this->assertSame(TransportUnit::STATUS_IN_USE, $unit->fresh()->status);
     }
 
     public function test_operator_can_start_step_with_split_manual_picks(): void

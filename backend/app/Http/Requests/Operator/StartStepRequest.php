@@ -27,6 +27,9 @@ class StartStepRequest extends FormRequest
             'picks.*.lots' => ['required', 'array', 'min:1'],
             'picks.*.lots.*.material_lot_id' => ['required', 'integer', 'exists:material_lots,id'],
             'picks.*.lots.*.picked_qty' => ['required', 'numeric', 'gt:0'],
+            'transport_units' => ['nullable', 'array'],
+            'transport_units.*.code' => ['required', 'string', 'max:100'],
+            'transport_units.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
         ];
     }
 }

@@ -4,6 +4,9 @@ namespace Tests\Unit\Services;
 
 use App\Models\Batch;
 use App\Models\BatchStep;
+use App\Models\BatchStepTransportUnit;
+use App\Models\TransportUnit;
+use App\Models\TransportUnitType;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\BatchService;
@@ -75,6 +78,78 @@ class BatchServiceTest extends TestCase
         $this->service->startStep($step, $this->user);
 
         $this->assertEquals(WorkOrder::STATUS_IN_PROGRESS, $this->workOrder->fresh()->status);
+    }
+
+    public function test_required_transport_units_are_loaded_and_released_with_the_operation(): void
+    {
+        $type = TransportUnitType::factory()->create(['default_capacity_quantity' => 50]);
+        $unit = TransportUnit::factory()->create([
+            'transport_unit_type_id' => $type->id,
+            'code' => 'RACK-001',
+        ]);
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update(['transport_unit_type_id' => $type->id]);
+
+        $this->service->startStep(
+            $step,
+            $this->user,
+            [],
+            [['code' => 'RACK-001', 'quantity' => 50]],
+        );
+
+        $load = BatchStepTransportUnit::where('batch_step_id', $step->id)->sole();
+        $this->assertNull($load->released_at);
+        $this->assertSame(TransportUnit::STATUS_IN_USE, $unit->fresh()->status);
+
+        $this->service->completeStep($step->fresh(), $this->user);
+
+        $this->assertNotNull($load->fresh()->released_at);
+        $this->assertSame($this->user->id, $load->fresh()->released_by_id);
+        $this->assertSame(TransportUnit::STATUS_AVAILABLE, $unit->fresh()->status);
+    }
+
+    public function test_required_transport_unit_cannot_be_bypassed(): void
+    {
+        $type = TransportUnitType::factory()->create(['default_capacity_quantity' => 50]);
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update(['transport_unit_type_id' => $type->id]);
+
+        try {
+            $this->service->startStep($step->fresh(), $this->user);
+            $this->fail('A required transport-unit scan was bypassed.');
+        } catch (\DomainException $exception) {
+            $this->assertStringContainsString('must be scanned', $exception->getMessage());
+        }
+
+        $this->assertSame(BatchStep::STATUS_READY, $step->fresh()->status);
+        $this->assertSame(0, BatchStepTransportUnit::count());
+    }
+
+    public function test_unbalanced_transport_load_rolls_back_step_start(): void
+    {
+        $type = TransportUnitType::factory()->create(['default_capacity_quantity' => 50]);
+        $unit = TransportUnit::factory()->create([
+            'transport_unit_type_id' => $type->id,
+            'code' => 'RACK-001',
+        ]);
+        $step = $this->batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update(['transport_unit_type_id' => $type->id]);
+
+        try {
+            $this->service->startStep(
+                $step->fresh(),
+                $this->user,
+                [],
+                [['code' => 'RACK-001', 'quantity' => 40]],
+            );
+            $this->fail('An unbalanced transport-unit load was accepted.');
+        } catch (\DomainException $exception) {
+            $this->assertStringContainsString('requires 50', $exception->getMessage());
+        }
+
+        $this->assertSame(BatchStep::STATUS_READY, $step->fresh()->status);
+        $this->assertSame(TransportUnit::STATUS_AVAILABLE, $unit->fresh()->status);
+        $this->assertSame(0, BatchStepTransportUnit::count());
     }
 
     public function test_start_already_in_progress_step_throws(): void

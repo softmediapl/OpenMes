@@ -49,8 +49,26 @@ class BatchController extends Controller
             return response()->json(['message' => 'This step does not belong to the selected line.'], 403);
         }
 
+        $batchStep->loadMissing('transportUnitType');
+        $transportType = $batchStep->transportUnitType;
+        $requiredQuantity = $transportType ? $batchStep->expectedInputQuantity() : null;
+        $defaultCapacity = $transportType?->default_capacity_quantity !== null
+            ? (float) $transportType->default_capacity_quantity
+            : null;
+
         return response()->json([
             'materials' => $this->allocationService->pickPreviewForStep($batchStep),
+            'transport_unit_requirement' => $transportType ? [
+                'type_id' => $transportType->id,
+                'code' => $transportType->code,
+                'name' => $transportType->name,
+                'required_quantity' => $requiredQuantity,
+                'default_capacity_quantity' => $defaultCapacity,
+                'suggested_unit_count' => $defaultCapacity > 0
+                    ? (int) ceil($requiredQuantity / $defaultCapacity)
+                    : null,
+                'unit_of_measure' => $transportType->unit_of_measure,
+            ] : null,
         ]);
     }
 
@@ -78,14 +96,18 @@ class BatchController extends Controller
 
         try {
             $picksByMaterial = $this->reshapePicks($request->validated()['picks'] ?? []);
-            $this->batchService->startStep($batchStep, $request->user(), $picksByMaterial);
+            $transportUnits = $request->validated()['transport_units'] ?? [];
+            $this->batchService->startStep($batchStep, $request->user(), $picksByMaterial, $transportUnits);
             \Log::debug('startStep succeeded', ['step_id' => $batchStep->id]);
 
             return back()->with('success', __('Step started. Materials have been allocated.'));
         } catch (InsufficientStockException|\DomainException $e) {
             \Log::warning('startStep domain error', ['step_id' => $batchStep->id, 'message' => $e->getMessage()]);
 
-            return back()->withErrors(['picks' => $e->getMessage()])->with('error', $e->getMessage());
+            return back()->withErrors([
+                'picks' => $e->getMessage(),
+                'transport_units' => $e->getMessage(),
+            ])->with('error', $e->getMessage());
         } catch (\Exception $e) {
             \Log::error('startStep exception', ['step_id' => $batchStep->id, 'message' => $e->getMessage(), 'exception' => $e]);
 
