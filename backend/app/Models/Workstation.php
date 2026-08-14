@@ -70,6 +70,11 @@ class Workstation extends Model
         return $this->hasMany(WorkstationMaterialStock::class);
     }
 
+    public function materialPolicies(): HasMany
+    {
+        return $this->hasMany(WorkstationMaterialPolicy::class);
+    }
+
     /**
      * Get the workers assigned to this workstation.
      */

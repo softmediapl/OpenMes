@@ -28,6 +28,7 @@ class SoftDeleteRegistry
         'workstation_types' => Models\WorkstationType::class,
         'transport_unit_types' => Models\TransportUnitType::class,
         'transport_units' => Models\TransportUnit::class,
+        'workstation_material_policies' => Models\WorkstationMaterialPolicy::class,
         'subassemblies' => Models\Subassembly::class,
         'issue_types' => Models\IssueType::class,
         'issue_actions' => Models\IssueAction::class,
