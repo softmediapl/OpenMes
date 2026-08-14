@@ -61,18 +61,29 @@ class TransportUnitLoadService
                 ));
             }
 
-            $activeUnitIds = BatchStepTransportUnit::query()
+            $activeLoads = BatchStepTransportUnit::query()
+                ->with('batchStep')
                 ->whereIn('transport_unit_id', $units->pluck('id'))
                 ->whereNull('released_at')
-                ->pluck('transport_unit_id')
-                ->all();
+                ->orderBy('transport_unit_id')
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('transport_unit_id');
 
             $created = collect();
             foreach ($normalized as $load) {
                 /** @var TransportUnit $unit */
                 $unit = $units->get($load['code']);
+                /** @var BatchStepTransportUnit|null $activeLoad */
+                $activeLoad = $activeLoads->get($unit->id);
 
-                if ($unit->status !== TransportUnit::STATUS_AVAILABLE || in_array($unit->id, $activeUnitIds, true)) {
+                if ($activeLoad && ! $this->canTransferToStep($activeLoad, $step)) {
+                    throw new \DomainException(__(
+                        'Transport unit :code is not available.',
+                        ['code' => $unit->code],
+                    ));
+                }
+                if (! $activeLoad && $unit->status !== TransportUnit::STATUS_AVAILABLE) {
                     throw new \DomainException(__(
                         'Transport unit :code is not available.',
                         ['code' => $unit->code],
@@ -96,6 +107,14 @@ class TransportUnitLoadService
                             'quantity' => $load['quantity'],
                         ],
                     ));
+                }
+
+                if ($activeLoad) {
+                    $activeLoad->update([
+                        'released_at' => now(),
+                        'released_by_id' => $user->id,
+                        'release_reason' => "Transferred to operation {$step->step_number}",
+                    ]);
                 }
 
                 $created->push(BatchStepTransportUnit::create([
@@ -164,6 +183,40 @@ class TransportUnitLoadService
 
             return $loads->count();
         });
+    }
+
+    /**
+     * Keep WIP carriers reserved when the next operation uses the same type.
+     * The receiving scan performs the audited hand-off; otherwise the carrier
+     * is immediately returned to the available pool.
+     */
+    public function releaseCompletedStepLoads(BatchStep $step, User $user): int
+    {
+        $nextStep = $step->batch->steps()
+            ->where('step_number', '>', $step->step_number)
+            ->whereNotIn('status', [BatchStep::STATUS_SKIPPED, BatchStep::STATUS_DONE])
+            ->orderBy('step_number')
+            ->first();
+
+        if (
+            $step->transport_unit_type_id !== null
+            && $nextStep?->transport_unit_type_id !== null
+            && (int) $step->transport_unit_type_id === (int) $nextStep->transport_unit_type_id
+        ) {
+            return 0;
+        }
+
+        return $this->releaseForStep($step, $user, 'Operation completed');
+    }
+
+    private function canTransferToStep(BatchStepTransportUnit $activeLoad, BatchStep $receivingStep): bool
+    {
+        $sourceStep = $activeLoad->batchStep;
+
+        return $sourceStep !== null
+            && (int) $sourceStep->batch_id === (int) $receivingStep->batch_id
+            && (int) $sourceStep->step_number < (int) $receivingStep->step_number
+            && $sourceStep->status === BatchStep::STATUS_DONE;
     }
 
     private function positiveFiniteQuantity(mixed $value): float

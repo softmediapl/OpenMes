@@ -108,6 +108,47 @@ class BatchServiceTest extends TestCase
         $this->assertSame(TransportUnit::STATUS_AVAILABLE, $unit->fresh()->status);
     }
 
+    public function test_transport_unit_is_retained_and_transferred_to_the_next_compatible_operation(): void
+    {
+        $type = TransportUnitType::factory()->create(['default_capacity_quantity' => 50]);
+        $unit = TransportUnit::factory()->create([
+            'transport_unit_type_id' => $type->id,
+            'code' => 'RACK-001',
+        ]);
+        $firstStep = $this->batch->steps()->where('step_number', 1)->firstOrFail();
+        $secondStep = $this->batch->steps()->where('step_number', 2)->firstOrFail();
+        $firstStep->update(['transport_unit_type_id' => $type->id]);
+        $secondStep->update(['transport_unit_type_id' => $type->id]);
+
+        $this->service->startStep(
+            $firstStep,
+            $this->user,
+            [],
+            [['code' => 'RACK-001', 'quantity' => 50]],
+        );
+        $this->service->completeStep($firstStep->fresh(), $this->user);
+
+        $firstLoad = BatchStepTransportUnit::where('batch_step_id', $firstStep->id)->sole();
+        $this->assertNull($firstLoad->released_at);
+        $this->assertSame(TransportUnit::STATUS_IN_USE, $unit->fresh()->status);
+
+        $this->service->startStep(
+            $secondStep->fresh(),
+            $this->user,
+            [],
+            [['code' => 'RACK-001', 'quantity' => 50]],
+        );
+
+        $this->assertNotNull($firstLoad->fresh()->released_at);
+        $this->assertSame('Transferred to operation 2', $firstLoad->fresh()->release_reason);
+        $this->assertDatabaseHas('batch_step_transport_units', [
+            'batch_step_id' => $secondStep->id,
+            'transport_unit_id' => $unit->id,
+            'released_at' => null,
+        ]);
+        $this->assertSame(TransportUnit::STATUS_IN_USE, $unit->fresh()->status);
+    }
+
     public function test_required_transport_unit_cannot_be_bypassed(): void
     {
         $type = TransportUnitType::factory()->create(['default_capacity_quantity' => 50]);

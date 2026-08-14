@@ -190,7 +190,7 @@ class BatchService
                 'actual_run_minutes' => $actualRun,
             ], $quantityPayload, $holdOverridePayload));
 
-            $this->transportUnitLoadService->releaseForStep($step, $user, 'Operation completed');
+            $this->transportUnitLoadService->releaseCompletedStepLoads($step, $user);
 
             if ((float) $step->scrap_quantity > 0) {
                 ScrapEntry::create([
