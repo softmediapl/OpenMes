@@ -79,7 +79,7 @@ export const ADMIN_GROUPS = [
         match: [
             '/admin/product-types', '/admin/product-revisions', '/admin/materials', '/admin/material-lots',
             '/admin/traceability', '/admin/lot-sequences', '/admin/process-segments', '/admin/lines',
-            '/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents',
+            '/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents', '/admin/workstation-materials',
             '/admin/line-statuses', '/admin/view-templates', '/admin/shifts',
             '/admin/issues', '/admin/companies', '/admin/anomaly-reasons', '/admin/scrap-reasons',
         ],
@@ -96,12 +96,13 @@ export const ADMIN_GROUPS = [
             {
                 key: 'warehouseGroup',
                 label: 'Warehouses',
-                match: ['/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents'],
+                match: ['/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents', '/admin/workstation-materials'],
                 tab: 'warehouse',
                 children: [
                     { label: 'All Warehouses', href: '/admin/warehouses', match: ['/admin/warehouses'], tab: 'warehouse' },
                     { label: 'Stock On Hand', href: '/admin/warehouse-stock', match: ['/admin/warehouse-stock'], tab: 'warehouse' },
                     { label: 'Stock Documents', href: '/admin/stock-documents', match: ['/admin/stock-documents'], tab: 'warehouse' },
+                    { label: 'Workstation Materials', href: '/admin/workstation-materials', match: ['/admin/workstation-materials'], tab: 'warehouse' },
                 ],
             },
             { label: 'LOT Sequences', href: '/admin/lot-sequences', match: ['/admin/lot-sequences'] },

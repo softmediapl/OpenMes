@@ -769,6 +769,17 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/warehouse-stock', [\App\Http\Controllers\Web\Admin\WarehouseStockController::class, 'index'])->name('warehouse-stock.index');
 
+        Route::get('/workstation-materials', [\App\Http\Controllers\Web\Admin\WorkstationMaterialController::class, 'index'])->name('workstation-materials.index');
+        Route::post('/workstation-materials/issue', [\App\Http\Controllers\Web\Admin\WorkstationMaterialController::class, 'issue'])->name('workstation-materials.issue');
+        Route::post('/workstation-materials/{workstationMaterialStock}/return', [\App\Http\Controllers\Web\Admin\WorkstationMaterialController::class, 'returnToWarehouse'])->name('workstation-materials.return');
+        Route::post('/workstation-material-policies', [\App\Http\Controllers\Web\Admin\WorkstationMaterialPolicyController::class, 'store'])->name('workstation-material-policies.store');
+        Route::put('/workstation-material-policies/{workstationMaterialPolicy}', [\App\Http\Controllers\Web\Admin\WorkstationMaterialPolicyController::class, 'update'])->name('workstation-material-policies.update');
+        Route::delete('/workstation-material-policies/{workstationMaterialPolicy}', [\App\Http\Controllers\Web\Admin\WorkstationMaterialPolicyController::class, 'destroy'])->name('workstation-material-policies.destroy');
+        Route::post('/material-replenishments', [\App\Http\Controllers\Web\Admin\MaterialReplenishmentController::class, 'store'])->name('material-replenishments.store');
+        Route::post('/material-replenishments/{materialReplenishmentRequest}/assign', [\App\Http\Controllers\Web\Admin\MaterialReplenishmentController::class, 'assign'])->name('material-replenishments.assign');
+        Route::post('/material-replenishments/{materialReplenishmentRequest}/deliver', [\App\Http\Controllers\Web\Admin\MaterialReplenishmentController::class, 'deliver'])->name('material-replenishments.deliver');
+        Route::post('/material-replenishments/{materialReplenishmentRequest}/cancel', [\App\Http\Controllers\Web\Admin\MaterialReplenishmentController::class, 'cancel'])->name('material-replenishments.cancel');
+
         Route::post('/stock-documents/{stockDocument}/post', [\App\Http\Controllers\Web\Admin\StockDocumentController::class, 'post'])->name('stock-documents.post');
         Route::post('/stock-documents/{stockDocument}/cancel', [\App\Http\Controllers\Web\Admin\StockDocumentController::class, 'cancel'])->name('stock-documents.cancel');
         Route::resource('stock-documents', \App\Http\Controllers\Web\Admin\StockDocumentController::class)->except(['edit', 'update']);
