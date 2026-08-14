@@ -387,6 +387,35 @@ export default function System() {
                             />
                             {errors.app_timezone && <p className={ERROR_CLASS}>{errors.app_timezone}</p>}
                         </div>
+
+                        <div className="border-t border-om-line pt-4 mt-4">
+                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Customer tier thresholds')}</h2>
+                            <p className={`${HELP_CLASS} mb-4`}>{__('Minimum completed-order counts required for automatic customer promotion. Values must increase from Silver to VIP.')}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {['silver', 'gold', 'vip'].map((tier) => (
+                                    <div key={tier}>
+                                        <label className={LABEL_CLASS} htmlFor={`tier_${tier}`}>
+                                            {__(tier === 'vip' ? 'VIP' : tier.charAt(0).toUpperCase() + tier.slice(1))}
+                                        </label>
+                                        <input
+                                            id={`tier_${tier}`}
+                                            type="number"
+                                            min={1}
+                                            value={data.tier_promotion_thresholds[tier]}
+                                            onChange={(event) => setData('tier_promotion_thresholds', {
+                                                ...data.tier_promotion_thresholds,
+                                                [tier]: Number(event.target.value),
+                                            })}
+                                            className={`${INPUT_BASE} w-full`}
+                                        />
+                                        {errors[`tier_promotion_thresholds.${tier}`] && (
+                                            <p className={ERROR_CLASS}>{errors[`tier_promotion_thresholds.${tier}`]}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {errors.tier_promotion_thresholds && <p className={ERROR_CLASS}>{errors.tier_promotion_thresholds}</p>}
+                        </div>
                     </div>
                 )}
 
@@ -919,35 +948,6 @@ export default function System() {
 
                 {tab === 'advanced' && (
                     <div className="space-y-6">
-                        <div className={CARD_CLASS}>
-                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Customer tier thresholds')}</h2>
-                            <p className={`${HELP_CLASS} mb-4`}>{__('Minimum completed-order counts required for automatic customer promotion. Values must increase from Silver to VIP.')}</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                {['silver', 'gold', 'vip'].map((tier) => (
-                                    <div key={tier}>
-                                        <label className={LABEL_CLASS} htmlFor={`tier_${tier}`}>
-                                            {__(tier === 'vip' ? 'VIP' : tier.charAt(0).toUpperCase() + tier.slice(1))}
-                                        </label>
-                                        <input
-                                            id={`tier_${tier}`}
-                                            type="number"
-                                            min={1}
-                                            value={data.tier_promotion_thresholds[tier]}
-                                            onChange={(event) => setData('tier_promotion_thresholds', {
-                                                ...data.tier_promotion_thresholds,
-                                                [tier]: Number(event.target.value),
-                                            })}
-                                            className={`${INPUT_BASE} w-full`}
-                                        />
-                                        {errors[`tier_promotion_thresholds.${tier}`] && (
-                                            <p className={ERROR_CLASS}>{errors[`tier_promotion_thresholds.${tier}`]}</p>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                            {errors.tier_promotion_thresholds && <p className={ERROR_CLASS}>{errors.tier_promotion_thresholds}</p>}
-                        </div>
-
                         <div className={CARD_CLASS}>
                             <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Settings catalog')}</h2>
                             <p className={`${HELP_CLASS} mb-4`}>{__('Complete inventory of database-backed system settings. Unregistered values are hidden and read-only until a validated editor is implemented.')}</p>
