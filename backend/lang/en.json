@@ -5316,5 +5316,17 @@
     "An active scrap reason is required when scrap is reported.": "An active scrap reason is required when scrap is reported.",
     ":label must be a number.": ":label must be a number.",
     ":label must be a non-negative finite number.": ":label must be a non-negative finite number.",
-    "WIP quantity": "WIP quantity"
+    "WIP quantity": "WIP quantity",
+    "Execution mode": "Execution mode",
+    "Per unit": "Per unit",
+    "Per batch": "Per batch",
+    "Fixed hold": "Fixed hold",
+    "Setup only": "Setup only",
+    "Transfer": "Transfer",
+    "Controls how operation time scales with quantity.": "Controls how operation time scales with quantity.",
+    "Minimum hold time (minutes)": "Minimum hold time (minutes)",
+    "The operation cannot be released before this time has elapsed.": "The operation cannot be released before this time has elapsed.",
+    "required": "required",
+    "min minimum": "min minimum",
+    "A fixed-hold operation requires a minimum duration of at least one minute.": "A fixed-hold operation requires a minimum duration of at least one minute."
 }

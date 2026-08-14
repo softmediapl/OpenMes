@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Web\Admin;
 
+use App\Enums\OperationExecutionMode;
 use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
+use App\Http\Requests\Concerns\ValidatesTemplateStepTiming;
 use App\Models\TemplateStep;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,6 +16,7 @@ use Illuminate\Validation\Rule;
 abstract class TemplateStepRequest extends FormRequest
 {
     use ValidatesTemplateStepInstruction;
+    use ValidatesTemplateStepTiming;
 
     public function authorize(): bool
     {
@@ -28,6 +31,8 @@ abstract class TemplateStepRequest extends FormRequest
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
             'estimated_duration_minutes' => 'nullable|integer|min:0',
+            'execution_mode' => ['sometimes', Rule::enum(OperationExecutionMode::class)],
+            'min_duration_minutes' => 'nullable|integer|min:0',
             'setup_time_minutes' => 'nullable|integer|min:0',
             'run_time_per_unit_minutes' => 'nullable|numeric|min:0',
             'required_operators' => 'nullable|integer|min:1',
@@ -43,6 +48,7 @@ abstract class TemplateStepRequest extends FormRequest
     public function withValidator($validator): void
     {
         $this->validateConfirmableInstruction($validator, $this->route('step'));
+        $this->validateTemplateStepTiming($validator, $this->route('step'));
 
         $validator->after(function ($v) {
             if ($v->errors()->isNotEmpty()) {

@@ -109,6 +109,8 @@ class ProcessTemplate extends Model
                         && $step->hasConfirmableInstructionContent(),
                     'quantity_reporting_required' => (bool) $step->quantity_reporting_required,
                     'estimated_duration_minutes' => $step->estimated_duration_minutes,
+                    'execution_mode' => $step->execution_mode->value,
+                    'min_duration_minutes' => $step->min_duration_minutes,
                     'setup_time_minutes' => $step->setup_time_minutes,
                     'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,
                     'required_operators' => $step->effectiveRequiredOperators(),

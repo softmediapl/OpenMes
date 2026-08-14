@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OperationExecutionMode;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,7 @@ class TemplateStep extends Model
         'name',
         'instruction',
         'estimated_duration_minutes',
+        'execution_mode',
         'required_operators',
         'min_duration_minutes',
         'requires_confirmation',
@@ -40,6 +42,7 @@ class TemplateStep extends Model
         return [
             'step_number' => 'integer',
             'estimated_duration_minutes' => 'integer',
+            'execution_mode' => OperationExecutionMode::class,
             'setup_time_minutes' => 'integer',
             'run_time_per_unit_minutes' => 'decimal:2',
             'required_operators' => 'integer',

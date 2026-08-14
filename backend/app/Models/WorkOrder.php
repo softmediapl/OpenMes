@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\HasTenant;
 use App\Models\Concerns\SoftDeletesWithAudit;
+use App\Services\Schedule\OperationDurationCalculator;
 use App\Support\SystemSetting;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -219,11 +220,20 @@ class WorkOrder extends Model
 
         // 2. Process-snapshot step estimates captured from the product template.
         $sum = 0;
+        $hasEstimate = false;
         foreach ($this->process_snapshot['steps'] ?? [] as $step) {
-            $sum += (int) ($step['estimated_duration_minutes'] ?? 0);
+            $minutes = OperationDurationCalculator::planningMinutes(
+                $step,
+                (float) ($this->planned_qty ?? 0),
+            );
+            if ($minutes === null) {
+                continue;
+            }
+            $hasEstimate = true;
+            $sum += $minutes;
         }
 
-        return $sum > 0 ? $sum : null;
+        return $hasEstimate ? $sum : null;
     }
 
     /**
@@ -250,13 +260,12 @@ class WorkOrder extends Model
                 continue;
             }
 
-            $setup = $step['setup_time_minutes'] ?? null;
-            $run = $step['run_time_per_unit_minutes'] ?? null;
-            if ($setup === null && $run === null) {
+            $minutes = OperationDurationCalculator::standardMinutes($step, $qty);
+            if ($minutes === null) {
                 continue;
             }
             $hasStandard = true;
-            $total += (float) ($setup ?? 0) + (float) ($run ?? 0) * $qty;
+            $total += $minutes;
         }
 
         return $hasStandard ? (int) round($total) : null;

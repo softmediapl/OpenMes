@@ -5316,5 +5316,17 @@
     "An active scrap reason is required when scrap is reported.": "Przy zgłaszaniu odpadu wymagana jest aktywna przyczyna odpadu.",
     ":label must be a number.": ":label musi być liczbą.",
     ":label must be a non-negative finite number.": ":label musi być nieujemną, skończoną liczbą.",
-    "WIP quantity": "Ilość WIP"
+    "WIP quantity": "Ilość WIP",
+    "Execution mode": "Tryb wykonania",
+    "Per unit": "Na sztukę",
+    "Per batch": "Na partię",
+    "Fixed hold": "Stałe oczekiwanie",
+    "Setup only": "Tylko przygotowanie",
+    "Transfer": "Przekazanie",
+    "Controls how operation time scales with quantity.": "Określa, jak czas operacji zmienia się wraz z ilością.",
+    "Minimum hold time (minutes)": "Minimalny czas oczekiwania (minuty)",
+    "The operation cannot be released before this time has elapsed.": "Operacji nie można zwolnić przed upływem tego czasu.",
+    "required": "wymagane",
+    "min minimum": "min minimum",
+    "A fixed-hold operation requires a minimum duration of at least one minute.": "Operacja ze stałym oczekiwaniem wymaga minimalnego czasu co najmniej jednej minuty."
 }

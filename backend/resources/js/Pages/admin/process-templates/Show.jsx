@@ -89,9 +89,29 @@ function OptionalVariantFields({ data, setData, errors }) {
  * the Level-4 standard times (setup + run-per-unit) that flow down from an ERP
  * BOM. Shared by the add- and edit-step forms.
  */
-function Isa95StepFields({ data, setData, workstationTypes = [] }) {
+function Isa95StepFields({ data, setData, errors = {}, workstationTypes = [] }) {
+    const isFixedHold = data.execution_mode === 'fixed_hold';
+
     return (
-        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-om-panel rounded-om-sm p-3 border border-om-line">
+        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 bg-om-panel rounded-om-sm p-3 border border-om-line">
+            <div>
+                <label className="form-label">{__('Execution mode')}</label>
+                <Dropdown
+                    value={data.execution_mode}
+                    onChange={(value) => setData('execution_mode', value)}
+                    options={[
+                        { value: 'per_unit', label: __('Per unit') },
+                        { value: 'per_batch', label: __('Per batch') },
+                        { value: 'fixed_hold', label: __('Fixed hold') },
+                        { value: 'setup', label: __('Setup only') },
+                        { value: 'transfer', label: __('Transfer') },
+                    ]}
+                    className="w-full"
+                />
+                <p className="text-xs text-om-muted mt-1">
+                    {__('Controls how operation time scales with quantity.')}
+                </p>
+            </div>
             <div>
                 <label className="form-label">{__('Workstation type (ISA-95)')}</label>
                 <Dropdown
@@ -130,6 +150,25 @@ function Isa95StepFields({ data, setData, workstationTypes = [] }) {
                     placeholder={__('× quantity')}
                 />
             </div>
+            {isFixedHold && (
+                <div>
+                    <label className="form-label">{__('Minimum hold time (minutes)')}</label>
+                    <input
+                        type="number"
+                        min="1"
+                        value={data.min_duration_minutes}
+                        onChange={(e) => setData('min_duration_minutes', e.target.value)}
+                        className="form-input w-full"
+                        placeholder={__('required')}
+                    />
+                    <p className="text-xs text-om-muted mt-1">
+                        {__('The operation cannot be released before this time has elapsed.')}
+                    </p>
+                    {errors.min_duration_minutes && (
+                        <p className="text-xs text-om-blocked mt-1">{errors.min_duration_minutes}</p>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -144,6 +183,8 @@ function AddStepForm({ productType, processTemplate, processSegments, workstatio
         requires_confirmation: false,
         quantity_reporting_required: false,
         estimated_duration_minutes: '',
+        execution_mode: 'per_unit',
+        min_duration_minutes: '',
         setup_time_minutes: '',
         run_time_per_unit_minutes: '',
         required_operators: '',
@@ -273,7 +314,7 @@ function AddStepForm({ productType, processTemplate, processSegments, workstatio
                         <p className="text-xs text-om-muted mt-1">People needed to run this step (drives crew labor demand). Blank inherits the linked segment, else 1.</p>
                     </div>
 
-                    <Isa95StepFields data={data} setData={setData} workstationTypes={workstationTypes} />
+                    <Isa95StepFields data={data} setData={setData} errors={errors} workstationTypes={workstationTypes} />
                     <OptionalVariantFields data={data} setData={setData} errors={errors} />
                 </div>
 
@@ -300,6 +341,8 @@ function EditStepForm({ step, productType, processTemplate, processSegments, wor
         requires_confirmation: !!step.requires_confirmation,
         quantity_reporting_required: !!step.quantity_reporting_required,
         estimated_duration_minutes: step.estimated_duration_minutes != null ? String(step.estimated_duration_minutes) : '',
+        execution_mode: step.execution_mode ?? 'per_unit',
+        min_duration_minutes: step.min_duration_minutes != null ? String(step.min_duration_minutes) : '',
         setup_time_minutes: step.setup_time_minutes != null ? String(step.setup_time_minutes) : '',
         run_time_per_unit_minutes: step.run_time_per_unit_minutes != null ? String(step.run_time_per_unit_minutes) : '',
         required_operators: step.required_operators != null ? String(step.required_operators) : '',
@@ -407,7 +450,7 @@ function EditStepForm({ step, productType, processTemplate, processSegments, wor
                     <p className="text-xs text-om-muted mt-1">People needed to run this step (drives crew labor demand). Blank inherits the linked segment, else 1.</p>
                 </div>
 
-                <Isa95StepFields data={data} setData={setData} workstationTypes={workstationTypes} />
+                <Isa95StepFields data={data} setData={setData} errors={errors} workstationTypes={workstationTypes} />
                 <OptionalVariantFields data={data} setData={setData} errors={errors} />
             </div>
 
@@ -731,6 +774,20 @@ function StepCard({
                                             ~{step.estimated_duration_minutes} min
                                         </p>
                                     )}
+                                    <p className="text-xs text-om-muted mt-1">
+                                        {__(
+                                            {
+                                                per_unit: 'Per unit',
+                                                per_batch: 'Per batch',
+                                                fixed_hold: 'Fixed hold',
+                                                setup: 'Setup only',
+                                                transfer: 'Transfer',
+                                            }[step.execution_mode] ?? 'Per unit',
+                                        )}
+                                        {step.min_duration_minutes != null
+                                            ? ` · ${step.min_duration_minutes} ${__('min minimum')}`
+                                            : ''}
+                                    </p>
                                 </div>
 
                                 {/* Actions */}

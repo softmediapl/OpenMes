@@ -109,6 +109,27 @@ class WorkOrderMinutePlanningTest extends TestCase
         $this->assertNull($wo->estimatedStandardProductionMinutes());
     }
 
+    public function test_estimated_standard_production_minutes_does_not_scale_fixed_holds_by_quantity(): void
+    {
+        $wo = new WorkOrder([
+            'planned_qty' => 10000,
+            'process_snapshot' => [
+                'steps' => [
+                    [
+                        'execution_mode' => 'fixed_hold',
+                        'min_duration_minutes' => 30,
+                    ],
+                    [
+                        'execution_mode' => 'per_batch',
+                        'estimated_duration_minutes' => 20,
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(50, $wo->estimatedStandardProductionMinutes());
+    }
+
     public function test_planned_duration_minutes_returns_null_when_not_planned(): void
     {
         $wo = new WorkOrder;

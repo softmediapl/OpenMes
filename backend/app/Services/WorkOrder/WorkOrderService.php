@@ -675,6 +675,8 @@ class WorkOrderService
                 // comparison have their reference data on the batch step.
                 'workstation_type_id' => $stepData['workstation_type_id'] ?? null,
                 'estimated_duration_minutes' => $stepData['estimated_duration_minutes'] ?? null,
+                'execution_mode' => $stepData['execution_mode'] ?? \App\Enums\OperationExecutionMode::PerUnit->value,
+                'min_duration_minutes' => $stepData['min_duration_minutes'] ?? null,
                 'setup_time_minutes' => $stepData['setup_time_minutes'] ?? null,
                 'run_time_per_unit_minutes' => $stepData['run_time_per_unit_minutes'] ?? null,
                 'status' => $status,

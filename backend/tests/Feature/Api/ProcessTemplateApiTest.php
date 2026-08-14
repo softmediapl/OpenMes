@@ -14,8 +14,11 @@ class ProcessTemplateApiTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $operator;
+
     protected string $adminToken;
+
     protected string $operatorToken;
 
     protected function setUp(): void
@@ -32,8 +35,15 @@ class ProcessTemplateApiTest extends TestCase
         $this->operatorToken = $this->operator->createToken('test')->plainTextToken;
     }
 
-    private function authAdmin() { return $this->withHeader('Authorization', "Bearer {$this->adminToken}"); }
-    private function authOperator() { return $this->withHeader('Authorization', "Bearer {$this->operatorToken}"); }
+    private function authAdmin()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->adminToken}");
+    }
+
+    private function authOperator()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->operatorToken}");
+    }
 
     public function test_can_list_templates_for_product_type(): void
     {
@@ -82,6 +92,28 @@ class ProcessTemplateApiTest extends TestCase
         $response->assertStatus(201)
             ->assertJsonPath('data.name', 'Cut metal')
             ->assertJsonPath('data.step_number', 1);
+    }
+
+    public function test_fixed_hold_step_requires_and_persists_minimum_duration(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+
+        $invalid = $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Cooling',
+            'execution_mode' => 'fixed_hold',
+        ]);
+
+        $invalid->assertUnprocessable()->assertJsonValidationErrors('min_duration_minutes');
+
+        $valid = $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Cooling',
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 30,
+        ]);
+
+        $valid->assertCreated()
+            ->assertJsonPath('data.execution_mode', 'fixed_hold')
+            ->assertJsonPath('data.min_duration_minutes', 30);
     }
 
     public function test_step_numbers_auto_increment(): void

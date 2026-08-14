@@ -78,6 +78,8 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('workstation_type_id', $step);
         $this->assertArrayHasKey('setup_time_minutes', $step);
         $this->assertArrayHasKey('run_time_per_unit_minutes', $step);
+        $this->assertArrayHasKey('execution_mode', $step);
+        $this->assertArrayHasKey('min_duration_minutes', $step);
     }
 
     public function test_snapshot_step_carries_isa95_standard_times(): void
@@ -92,6 +94,20 @@ class SnapshotServiceTest extends TestCase
 
         $this->assertSame(15, (int) $step['setup_time_minutes']);
         $this->assertEquals(2.5, (float) $step['run_time_per_unit_minutes']);
+    }
+
+    public function test_snapshot_step_carries_immutable_execution_timing(): void
+    {
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update([
+            'execution_mode' => 'fixed_hold',
+            'min_duration_minutes' => 45,
+        ]);
+
+        $step = $this->service->createSnapshot($template->fresh())['steps'][0];
+
+        $this->assertSame('fixed_hold', $step['execution_mode']);
+        $this->assertSame(45, $step['min_duration_minutes']);
     }
 
     public function test_snapshot_workstation_type_falls_back_to_process_segment(): void

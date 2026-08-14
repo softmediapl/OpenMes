@@ -2,13 +2,16 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Enums\OperationExecutionMode;
 use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
+use App\Http\Requests\Concerns\ValidatesTemplateStepTiming;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreTemplateStepRequest extends FormRequest
 {
     use ValidatesTemplateStepInstruction;
+    use ValidatesTemplateStepTiming;
 
     public function authorize(): bool
     {
@@ -24,6 +27,8 @@ class StoreTemplateStepRequest extends FormRequest
             'requires_confirmation' => ['sometimes', 'boolean'],
             'quantity_reporting_required' => ['sometimes', 'boolean'],
             'estimated_duration_minutes' => ['nullable', 'integer', 'min:0'],
+            'execution_mode' => ['sometimes', Rule::enum(OperationExecutionMode::class)],
+            'min_duration_minutes' => ['nullable', 'integer', 'min:0'],
             'setup_time_minutes' => ['nullable', 'integer', 'min:0'],
             'run_time_per_unit_minutes' => ['nullable', 'numeric', 'min:0'],
             'required_operators' => ['nullable', 'integer', 'min:1'],
@@ -35,5 +40,6 @@ class StoreTemplateStepRequest extends FormRequest
     public function withValidator($validator): void
     {
         $this->validateConfirmableInstruction($validator);
+        $this->validateTemplateStepTiming($validator);
     }
 }

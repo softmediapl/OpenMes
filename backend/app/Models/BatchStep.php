@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OperationExecutionMode;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use App\Support\SystemSetting;
 use App\Traits\Auditable;
@@ -38,6 +39,8 @@ class BatchStep extends Model
         'workstation_id',
         'workstation_type_id',
         'estimated_duration_minutes',
+        'execution_mode',
+        'min_duration_minutes',
         'setup_time_minutes',
         'run_time_per_unit_minutes',
         'input_quantity',
@@ -72,6 +75,8 @@ class BatchStep extends Model
         return [
             'step_number' => 'integer',
             'estimated_duration_minutes' => 'integer',
+            'execution_mode' => OperationExecutionMode::class,
+            'min_duration_minutes' => 'integer',
             'setup_time_minutes' => 'integer',
             'run_time_per_unit_minutes' => 'decimal:2',
             'input_quantity' => 'decimal:4',

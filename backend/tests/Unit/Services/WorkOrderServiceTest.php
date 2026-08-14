@@ -100,6 +100,8 @@ class WorkOrderServiceTest extends TestCase
             $this->assertEquals($snapshotStep['step_number'], $step->step_number);
             $this->assertEquals($snapshotStep['name'], $step->name);
             $this->assertEquals($snapshotStep['instruction'], $step->instruction);
+            $this->assertSame($snapshotStep['execution_mode'], $step->execution_mode->value);
+            $this->assertEquals($snapshotStep['min_duration_minutes'], $step->min_duration_minutes);
             // First step is promoted to READY ("ready to start"); the rest stay
             // PENDING until their predecessor completes.
             $this->assertEquals($index === 0 ? 'READY' : 'PENDING', $step->status);

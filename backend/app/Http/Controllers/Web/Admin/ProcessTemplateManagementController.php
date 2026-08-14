@@ -110,6 +110,8 @@ class ProcessTemplateManagementController extends Controller
                     'requires_confirmation' => (bool) $s->requires_confirmation,
                     'quantity_reporting_required' => (bool) $s->quantity_reporting_required,
                     'estimated_duration_minutes' => $s->estimated_duration_minutes,
+                    'execution_mode' => $s->execution_mode->value,
+                    'min_duration_minutes' => $s->min_duration_minutes,
                     'setup_time_minutes' => $s->setup_time_minutes,
                     'run_time_per_unit_minutes' => $s->run_time_per_unit_minutes,
                     'workstation_id' => $s->workstation_id,
