@@ -1378,7 +1378,7 @@ function LotPickModal({ step, materials, onClose }) {
                                                         type="button"
                                                         onClick={() => removeLine(m.material_id, idx)}
                                                         className="cursor-pointer p-1 text-[18px] leading-none text-om-faint hover:text-om-blocked"
-                                                        title="Remove lot"
+                                                        title={__('Remove lot')}
                                                     >
                                                         ×
                                                     </button>
@@ -1420,7 +1420,7 @@ function LotPickModal({ step, materials, onClose }) {
                 </div>
                 <div className={modalFooterCls}>
                     <Button variant="secondary" type="button" onClick={onClose}>
-                        Cancel
+                        {__('Cancel')}
                     </Button>
                     <Button variant="accent" type="submit" disabled={!allValid || submitting}>
                         {submitting ? '…' : __('Confirm picks & start')}

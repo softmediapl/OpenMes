@@ -2,6 +2,8 @@ import { Head, Link } from '@inertiajs/react';
 import { useMemo } from 'react';
 import { DataTable } from '@openmes/ui/table';
 import AppLayout from '../../../layouts/AppLayout';
+import { __ } from '../../../lib/i18n';
+import { materialLotStatusLabel } from './fields';
 
 const STATUS_COLORS = {
     received:   'bg-om-chip text-om-accent',
@@ -47,13 +49,13 @@ export default function MaterialLotShow({ lot }) {
         {
             id: 'sublot',
             accessorKey: 'sublot_number',
-            header: 'Sublot',
+            header: __('Sublot'),
             cell: ({ row }) => <span className="font-mono">{row.original.sublot_number}</span>,
         },
         {
             id: 'quantity',
             accessorFn: (r) => Number(r.quantity ?? 0),
-            header: 'Quantity',
+            header: __('Quantity'),
             meta: { align: 'right' },
             cell: ({ row }) => (
                 <span className="font-mono">
@@ -65,15 +67,15 @@ export default function MaterialLotShow({ lot }) {
         {
             id: 'status',
             accessorKey: 'status',
-            header: 'Status',
+            header: __('Status'),
             cell: ({ row }) => (
-                <span className="px-2 py-0.5 rounded text-xs bg-om-chip">{ucFirst(row.original.status)}</span>
+                <span className="px-2 py-0.5 rounded text-xs bg-om-chip">{materialLotStatusLabel(row.original.status)}</span>
             ),
         },
         {
             id: 'notes',
             accessorKey: 'notes',
-            header: 'Notes',
+            header: __('Notes'),
             cell: ({ row }) => <span className="text-om-muted">{row.original.notes ?? '—'}</span>,
         },
     ], []);
@@ -82,7 +84,7 @@ export default function MaterialLotShow({ lot }) {
         {
             id: 'when',
             accessorFn: (r) => r.consumed_at,
-            header: 'When',
+            header: __('When'),
             cell: ({ row }) => <span className="text-om-muted">{fmtDateTime(row.original.consumed_at)}</span>,
         },
         {
@@ -91,7 +93,7 @@ export default function MaterialLotShow({ lot }) {
                 const wo = r.batch_step?.batch?.work_order;
                 return wo ? (wo.lot_number ?? `#${wo.id}`) : '—';
             },
-            header: 'Work order',
+            header: __('Work order'),
             cell: ({ row }) => {
                 const wo = row.original.batch_step?.batch?.work_order;
                 return (
@@ -107,7 +109,7 @@ export default function MaterialLotShow({ lot }) {
                 const batch = r.batch_step?.batch;
                 return batch ? (batch.lot_number ?? `#${batch.id}`) : '—';
             },
-            header: 'Batch',
+            header: __('Batch'),
             cell: ({ row }) => {
                 const batch = row.original.batch_step?.batch;
                 return (
@@ -120,13 +122,13 @@ export default function MaterialLotShow({ lot }) {
         {
             id: 'step',
             accessorFn: (r) => r.batch_step?.name ?? '—',
-            header: 'Step',
+            header: __('Step'),
             cell: ({ row }) => row.original.batch_step?.name ?? '—',
         },
         {
             id: 'quantity',
             accessorFn: (r) => Number(r.quantity_consumed ?? 0),
-            header: 'Quantity',
+            header: __('Quantity'),
             meta: { align: 'right' },
             cell: ({ row }) => (
                 <span className="font-mono">
@@ -138,20 +140,20 @@ export default function MaterialLotShow({ lot }) {
         {
             id: 'by',
             accessorFn: (r) => r.recorded_by?.name ?? '—',
-            header: 'By',
+            header: __('By'),
             cell: ({ row }) => <span className="text-om-muted">{row.original.recorded_by?.name ?? '—'}</span>,
         },
     ], [lot.unit_of_measure]);
 
     return (
         <>
-            <Head title={`Material Lot — ${lot.lot_number}`} />
+            <Head title={`${__('Material Lot')} — ${lot.lot_number}`} />
 
             {/* Breadcrumbs */}
             <nav className="text-sm text-om-muted mb-4 flex items-center gap-1">
-                <Link href="/admin/dashboard" className="hover:underline">Dashboard</Link>
+                <Link href="/admin/dashboard" className="hover:underline">{__('Dashboard')}</Link>
                 <span>/</span>
-                <Link href="/admin/material-lots" className="hover:underline">Material Lots</Link>
+                <Link href="/admin/material-lots" className="hover:underline">{__('Material Lots')}</Link>
                 <span>/</span>
                 <span className="text-om-ink">{lot.lot_number}</span>
             </nav>
@@ -162,7 +164,7 @@ export default function MaterialLotShow({ lot }) {
                     <div>
                         <h1 className="text-3xl font-bold text-om-ink font-mono">{lot.lot_number}</h1>
                         <p className="text-om-muted text-sm mt-1">
-                            Received {fmtDateTime(lot.received_at)}
+                            {__('Received')} {fmtDateTime(lot.received_at)}
                             {lot.material && (
                                 <> — <span className="font-medium">{lot.material.name}</span></>
                             )}
@@ -170,18 +172,18 @@ export default function MaterialLotShow({ lot }) {
                     </div>
                     <div className="flex items-center gap-2">
                         <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColor}`}>
-                            {ucFirst(lot.status)}
+                            {materialLotStatusLabel(lot.status)}
                         </span>
-                        <Link href={`/admin/material-lots/${lot.id}/edit`} className="btn-touch btn-secondary">Edit</Link>
-                        <Link href="/admin/material-lots" className="btn-touch btn-ghost">&#8592; Back</Link>
+                        <Link href={`/admin/material-lots/${lot.id}/edit`} className="btn-touch btn-secondary">{__('Edit')}</Link>
+                        <Link href="/admin/material-lots" className="btn-touch btn-ghost">&#8592; {__('Back')}</Link>
                     </div>
                 </div>
 
                 {/* Info card */}
                 <div className="card mb-6">
-                    <h2 className="text-sm font-semibold text-om-muted uppercase tracking-wide mb-4">Info</h2>
+                    <h2 className="text-sm font-semibold text-om-muted uppercase tracking-wide mb-4">{__('Info')}</h2>
                     <dl className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                        <InfoCell label="Material">
+                        <InfoCell label={__('Material')}>
                             {lot.material ? (
                                 <>
                                     <span className="font-medium">{lot.material.name}</span>
@@ -189,13 +191,13 @@ export default function MaterialLotShow({ lot }) {
                                 </>
                             ) : '—'}
                         </InfoCell>
-                        <InfoCell label="Quantity">
+                        <InfoCell label={__('Quantity')}>
                             <span className="font-mono">
                                 {trimQty(lot.quantity_available)} / {trimQty(lot.quantity_received)}{' '}
                                 <span className="text-xs text-om-muted">{lot.unit_of_measure}</span>
                             </span>
                         </InfoCell>
-                        <InfoCell label="Expiry">
+                        <InfoCell label={__('Expiry')}>
                             {lot.expiry_date ? (
                                 <span className={expiryPast ? 'text-om-blocked font-semibold' : 'text-om-ink'}>
                                     {fmtDate(lot.expiry_date)}
@@ -204,12 +206,12 @@ export default function MaterialLotShow({ lot }) {
                                 <span className="text-om-faint">—</span>
                             )}
                         </InfoCell>
-                        <InfoCell label="Manufacturing date">
+                        <InfoCell label={__('Manufacturing date')}>
                             {fmtDate(lot.manufacturing_date) ?? '—'}
                         </InfoCell>
-                        <InfoCell label="Supplier lot">{lot.supplier_lot_no ?? '—'}</InfoCell>
-                        <InfoCell label="Supplier reference">{lot.supplier_reference ?? '—'}</InfoCell>
-                        <InfoCell label="Inspection">
+                        <InfoCell label={__('Supplier lot')}>{lot.supplier_lot_no ?? '—'}</InfoCell>
+                        <InfoCell label={__('Supplier reference')}>{lot.supplier_reference ?? '—'}</InfoCell>
+                        <InfoCell label={__('Inspection')}>
                             {lot.inspection ? (
                                 <Link
                                     href={`/inspections/${lot.inspection.id}`}
@@ -218,11 +220,11 @@ export default function MaterialLotShow({ lot }) {
                                     #{lot.inspection.id} ({lot.inspection.status})
                                 </Link>
                             ) : (
-                                <span className="text-om-faint">Not linked</span>
+                                <span className="text-om-faint">{__('Not linked')}</span>
                             )}
                         </InfoCell>
-                        <InfoCell label="Source">{lot.source?.external_name ?? '—'}</InfoCell>
-                        <InfoCell label="Created by">{lot.created_by?.name ?? '—'}</InfoCell>
+                        <InfoCell label={__('Source')}>{lot.source?.external_name ?? '—'}</InfoCell>
+                        <InfoCell label={__('Created by')}>{lot.created_by?.name ?? '—'}</InfoCell>
                     </dl>
                 </div>
 
@@ -230,7 +232,7 @@ export default function MaterialLotShow({ lot }) {
                 {lot.sublots && lot.sublots.length > 0 && (
                     <div className="card mb-6">
                         <h2 className="text-sm font-semibold text-om-muted uppercase tracking-wide mb-4">
-                            Sublots ({lot.sublots.length})
+                            {__('Sublots')} ({lot.sublots.length})
                         </h2>
                         <DataTable
                             data={lot.sublots}
@@ -245,9 +247,9 @@ export default function MaterialLotShow({ lot }) {
                 {/* Genealogy */}
                 <div className="card">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-sm font-semibold text-om-muted uppercase tracking-wide">Genealogy</h2>
+                        <h2 className="text-sm font-semibold text-om-muted uppercase tracking-wide">{__('Genealogy')}</h2>
                         <span className="text-xs text-om-muted">
-                            Total consumed:{' '}
+                            {__('Total consumed')}:{' '}
                             <span className="font-mono font-medium">
                                 {trimQty(totalConsumed)} {lot.unit_of_measure}
                             </span>
@@ -256,9 +258,9 @@ export default function MaterialLotShow({ lot }) {
 
                     {/* Forward — consumed by */}
                     <div className="mb-6">
-                        <h3 className="text-xs font-semibold text-om-muted uppercase mb-2">Forward — consumed by</h3>
+                        <h3 className="text-xs font-semibold text-om-muted uppercase mb-2">{__('Forward — consumed by')}</h3>
                         {(!lot.consumptions || lot.consumptions.length === 0) ? (
-                            <p className="text-sm text-om-muted italic">No consumption recorded yet.</p>
+                            <p className="text-sm text-om-muted italic">{__('No consumption recorded yet.')}</p>
                         ) : (
                             <DataTable
                                 data={lot.consumptions}
@@ -272,33 +274,33 @@ export default function MaterialLotShow({ lot }) {
 
                     {/* Backward — sourced from */}
                     <div>
-                        <h3 className="text-xs font-semibold text-om-muted uppercase mb-2">Backward — sourced from</h3>
+                        <h3 className="text-xs font-semibold text-om-muted uppercase mb-2">{__('Backward — sourced from')}</h3>
                         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                             <div>
-                                <dt className="text-xs text-om-muted">Inspection</dt>
+                                <dt className="text-xs text-om-muted">{__('Inspection')}</dt>
                                 <dd className="mt-1">
                                     {lot.inspection ? (
                                         <Link
                                             href={`/inspections/${lot.inspection.id}`}
                                             className="text-om-accent hover:underline"
                                         >
-                                            #{lot.inspection.id} — {ucFirst(lot.inspection.status)}
+                                            #{lot.inspection.id} — {materialLotStatusLabel(lot.inspection.status)}
                                         </Link>
                                     ) : (
-                                        <span className="text-om-faint">No inbound inspection</span>
+                                        <span className="text-om-faint">{__('No inbound inspection')}</span>
                                     )}
                                 </dd>
                             </div>
                             <div>
-                                <dt className="text-xs text-om-muted">Supplier reference</dt>
+                                <dt className="text-xs text-om-muted">{__('Supplier reference')}</dt>
                                 <dd className="mt-1 text-om-ink">{lot.supplier_reference ?? lot.supplier_lot_no ?? '—'}</dd>
                             </div>
                         </dl>
                         {sourceBatchId && (
                             <p className="mt-3 text-xs text-om-muted">
-                                Upstream source batch:{' '}
+                                {__('Upstream source batch')}:{' '}
                                 <span className="font-mono">#{sourceBatchId}</span>
-                                {' '}— see backward genealogy API for full chain.
+                                {' '}— {__('see backward genealogy API for full chain.')}
                             </p>
                         )}
                     </div>
