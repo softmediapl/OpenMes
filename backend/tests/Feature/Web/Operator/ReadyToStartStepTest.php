@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\BatchService;
 use App\Services\WorkOrder\WorkOrderService;
+use App\Support\SystemSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -99,7 +100,7 @@ class ReadyToStartStepTest extends TestCase
 
     public function test_non_sequential_mode_marks_all_steps_ready(): void
     {
-        config(['openmmes.force_sequential_steps' => false]);
+        SystemSetting::put('force_sequential_steps', false);
 
         $batch = $this->makeBatch();
 

@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\WorkOrderService;
+use App\Support\SystemSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -14,9 +15,13 @@ class BatchApiTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $operator;
+
     protected WorkOrder $workOrder;
+
     protected string $adminToken;
+
     protected string $operatorToken;
 
     protected function setUp(): void
@@ -96,8 +101,8 @@ class BatchApiTest extends TestCase
 
         $this->assertDatabaseHas('batches', [
             'work_order_id' => $this->workOrder->id,
-            'target_qty'    => 50,
-            'status'        => Batch::STATUS_PENDING,
+            'target_qty' => 50,
+            'status' => Batch::STATUS_PENDING,
         ]);
     }
 
@@ -108,6 +113,29 @@ class BatchApiTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['target_qty']);
+    }
+
+    public function test_database_setting_blocks_batch_overproduction(): void
+    {
+        SystemSetting::put('allow_overproduction', false);
+
+        $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+            ->postJson("/api/v1/work-orders/{$this->workOrder->id}/batches", [
+                'target_qty' => 201,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Total batch quantity would exceed planned quantity');
+    }
+
+    public function test_database_setting_allows_batch_overproduction(): void
+    {
+        SystemSetting::put('allow_overproduction', true);
+
+        $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+            ->postJson("/api/v1/work-orders/{$this->workOrder->id}/batches", [
+                'target_qty' => 201,
+            ])
+            ->assertCreated();
     }
 
     public function test_batch_is_created_with_steps_from_work_order_snapshot(): void

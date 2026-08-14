@@ -4,14 +4,17 @@ namespace App\Http\Controllers\Web;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\UpdateRoleTabAccessRequest;
+use App\Http\Requests\UpdateSystemSettingsRequest;
+use App\Support\SystemSetting;
 use App\Support\TabRegistry;
+use App\Support\TierPromotionRegistry;
+use App\Support\TimezoneRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Sanctum\PersonalAccessToken;
@@ -107,14 +110,28 @@ class SettingsController extends Controller
             'force_sequential_steps' => json_decode($rows['force_sequential_steps']?->value ?? 'true', true) ?? true,
             'workstation_routing_enabled' => json_decode($rows['workstation_routing_enabled']?->value ?? 'false', true) ?? false,
             'backflush_on_pallet_creation' => json_decode($rows['backflush_on_pallet_creation']?->value ?? 'false', true) ?? false,
+            'block_negative_stock' => SystemSetting::boolean('block_negative_stock'),
+            'lot_tracking_enabled' => SystemSetting::boolean('lot_tracking_enabled'),
+            'lot_picking_strategy' => SystemSetting::get('lot_picking_strategy', 'fefo'),
+            'warehouse_auto_documents' => SystemSetting::boolean(
+                'warehouse_auto_documents',
+                config('openmmes.warehouse.auto_documents', true)
+            ),
             'workflow_mode' => json_decode($rows['workflow_mode']?->value ?? '"status"', true) ?? 'status',
             'pin_login_enabled' => json_decode($rows['pin_login_enabled']?->value ?? 'false', true) ?? false,
+            'allow_registration' => SystemSetting::boolean('allow_registration'),
+            'default_token_ttl_minutes' => SystemSetting::integer(
+                'default_token_ttl_minutes',
+                config('openmmes.default_token_ttl_minutes', 15)
+            ),
             'language' => json_decode($rows['language']?->value ?? '"en"', true) ?? 'en',
+            'app_timezone' => TimezoneRegistry::current(),
             'schedule_view_mode' => json_decode($rows['schedule_view_mode']?->value ?? '"weekly"', true) ?? 'weekly',
             'schedule_shifts_per_day' => json_decode($rows['schedule_shifts_per_day']?->value ?? '1', true) ?? 1,
             'schedule_horizon_weeks' => json_decode($rows['schedule_horizon_weeks']?->value ?? '6', true) ?? 6,
             'schedule_show_weekends' => json_decode($rows['schedule_show_weekends']?->value ?? 'true', true) ?? true,
             'schedule_slot_duration_hours' => json_decode($rows['schedule_slot_duration_hours']?->value ?? '8', true) ?? 8,
+            'schedule_slot_minutes' => SystemSetting::integer('schedule_slot_minutes', 15),
             'realtime_mode' => json_decode($rows['realtime_mode']?->value ?? '"polling"', true) ?? 'polling',
             'production_tracking_mode' => json_decode($rows['production_tracking_mode']?->value ?? '"per_operation"', true) ?? 'per_operation',
             'cors_allowed_origins' => json_decode($rows['cors_allowed_origins']?->value ?? '"*"', true) ?? '*',
@@ -125,6 +142,7 @@ class SettingsController extends Controller
             'default_currency' => json_decode($rows['default_currency']?->value ?? '"PLN"', true) ?? 'PLN',
             'default_pay_type' => json_decode($rows['default_pay_type']?->value ?? '"hourly"', true) ?? 'hourly',
             'default_pay_rate' => json_decode($rows['default_pay_rate']?->value ?? 'null', true),
+            'tier_promotion_thresholds' => TierPromotionRegistry::thresholds(),
         ];
 
         // Same source as the validation rule and the language switcher.
@@ -157,8 +175,10 @@ class SettingsController extends Controller
             'settings' => $settings,
             'availableLocales' => $availableLocales,
             'appUrl' => config('app.url'),
+            'timezoneOptions' => TimezoneRegistry::identifiers(),
             'modules' => \App\Support\ModuleRegistry::forForm(),
             'backups' => $backups,
+            'settingsCatalog' => $this->settingsCatalog($rows),
         ]);
     }
 
@@ -322,38 +342,9 @@ class SettingsController extends Controller
     /**
      * Update system settings (admin only).
      */
-    public function updateSystemSettings(Request $request)
+    public function updateSystemSettings(UpdateSystemSettingsRequest $request)
     {
-        $validated = $request->validate([
-            'production_period' => 'required|in:none,weekly,monthly',
-            'allow_overproduction' => 'nullable|boolean',
-            'force_sequential_steps' => 'nullable|boolean',
-            'workstation_routing_enabled' => 'nullable|boolean',
-            'backflush_on_pallet_creation' => 'nullable|boolean',
-            'workflow_mode' => 'required|in:status,board_status',
-            'pin_login_enabled' => 'nullable|boolean',
-            // Single source of truth — the language switcher's configured locales.
-            'language' => ['nullable', Rule::in(array_keys(config('app.available_locales', [])))],
-            'schedule_view_mode' => 'required|in:weekly,daily,monthly',
-            'schedule_shifts_per_day' => 'required|integer|in:1,2,3,4',
-            'schedule_horizon_weeks' => 'required|integer|min:1|max:52',
-            'schedule_show_weekends' => 'nullable|boolean',
-            'realtime_mode' => 'required|in:polling,off',
-            'production_tracking_mode' => 'required|in:per_operation,cumulative,hybrid',
-            'cors_allowed_origins' => 'nullable|string|max:1000',
-            'cors_allowed_methods' => 'nullable|string|max:200',
-            'cors_max_age' => 'nullable|integer|min:0|max:86400',
-            'production_qty_edit_policy' => 'required|in:none,timed,full',
-            'production_qty_edit_window_minutes' => 'required_if:production_qty_edit_policy,timed|integer|min:1|max:60',
-            'scanner_mode' => 'required|in:hid,manual',
-            'standard_weekly_hours' => 'nullable|numeric|min:1|max:168',
-            'default_currency' => 'nullable|string|size:3',
-            'default_pay_type' => 'nullable|in:hourly,weekly,piece_rate',
-            'default_pay_rate' => 'nullable|numeric|min:0',
-            // Optional feature modules (#144).
-            'enabled_modules' => 'nullable|array',
-            'enabled_modules.*' => ['string', Rule::in(\App\Support\ModuleRegistry::optionalKeys())],
-        ]);
+        $validated = $request->validated();
 
         $shiftsPerDay = (int) $validated['schedule_shifts_per_day'];
         $slotDuration = $shiftsPerDay > 0 ? (int) (24 / $shiftsPerDay) : 8;
@@ -364,14 +355,21 @@ class SettingsController extends Controller
             'force_sequential_steps' => (bool) ($validated['force_sequential_steps'] ?? false),
             'workstation_routing_enabled' => (bool) ($validated['workstation_routing_enabled'] ?? false),
             'backflush_on_pallet_creation' => (bool) ($validated['backflush_on_pallet_creation'] ?? false),
+            'block_negative_stock' => (bool) ($validated['block_negative_stock'] ?? false),
+            'lot_tracking_enabled' => (bool) ($validated['lot_tracking_enabled'] ?? false),
+            'lot_picking_strategy' => $validated['lot_picking_strategy'],
+            'warehouse_auto_documents' => (bool) ($validated['warehouse_auto_documents'] ?? false),
             'workflow_mode' => $validated['workflow_mode'],
             'pin_login_enabled' => (bool) ($validated['pin_login_enabled'] ?? false),
+            'allow_registration' => (bool) ($validated['allow_registration'] ?? false),
+            'default_token_ttl_minutes' => (int) $validated['default_token_ttl_minutes'],
             'language' => $validated['language'] ?? 'en',
             'schedule_view_mode' => $validated['schedule_view_mode'],
             'schedule_shifts_per_day' => $shiftsPerDay,
             'schedule_horizon_weeks' => (int) $validated['schedule_horizon_weeks'],
             'schedule_show_weekends' => (bool) ($validated['schedule_show_weekends'] ?? false),
             'schedule_slot_duration_hours' => $slotDuration,
+            'schedule_slot_minutes' => (int) $validated['schedule_slot_minutes'],
             'realtime_mode' => $validated['realtime_mode'],
             'production_tracking_mode' => $validated['production_tracking_mode'],
             'cors_allowed_origins' => trim($validated['cors_allowed_origins'] ?? '') ?: '',
@@ -386,6 +384,7 @@ class SettingsController extends Controller
             'default_pay_rate' => isset($validated['default_pay_rate']) && $validated['default_pay_rate'] !== null
                 ? (float) $validated['default_pay_rate']
                 : null,
+            'tier_promotion_thresholds' => array_map('intval', $validated['tier_promotion_thresholds']),
         ];
 
         $previousLanguage = json_decode(
@@ -393,12 +392,10 @@ class SettingsController extends Controller
             true
         );
 
-        foreach ($map as $key => $value) {
-            DB::table('system_settings')->updateOrInsert(
-                ['key' => $key],
-                ['value' => json_encode($value)]
-            );
-        }
+        DB::transaction(function () use ($map, $validated): void {
+            SystemSetting::putMany($map);
+            TimezoneRegistry::save($validated['app_timezone']);
+        });
 
         // Optional feature modules (#144) — only when the section was submitted,
         // so saving unrelated settings never resets the module selection.
@@ -415,6 +412,64 @@ class SettingsController extends Controller
 
         return redirect()->route('settings.system')
             ->with('success', 'System settings updated.');
+    }
+
+    /**
+     * Build an inventory without exposing values of unregistered settings.
+     * New keys are visible to administrators but remain read-only until they
+     * are intentionally added to the validated settings contract.
+     */
+    private function settingsCatalog(\Illuminate\Support\Collection $rows): array
+    {
+        $managed = [
+            'enabled_modules' => 'Modules tab',
+            'priority_bands' => 'Priority Settings',
+            'tier_promotion_thresholds' => 'Advanced tab',
+            'onboarding_completed' => 'System managed',
+            'sample_data_loaded' => 'System managed',
+            'schedule_slot_duration_hours' => 'Derived from shifts per day',
+            'modules_enabled' => 'Legacy setting',
+        ];
+
+        $editable = [
+            'allow_overproduction', 'allow_registration', 'app_timezone',
+            'backflush_on_pallet_creation', 'block_negative_stock',
+            'cors_allowed_methods', 'cors_allowed_origins', 'cors_max_age',
+            'default_currency', 'default_pay_rate', 'default_pay_type',
+            'default_token_ttl_minutes', 'force_sequential_steps', 'language',
+            'lot_picking_strategy', 'lot_tracking_enabled', 'pin_login_enabled',
+            'production_period', 'production_qty_edit_policy',
+            'production_qty_edit_window_minutes', 'production_tracking_mode',
+            'realtime_mode', 'scanner_mode', 'schedule_horizon_weeks',
+            'schedule_shifts_per_day', 'schedule_show_weekends',
+            'schedule_slot_minutes', 'schedule_view_mode', 'standard_weekly_hours',
+            'warehouse_auto_documents', 'workflow_mode', 'workstation_routing_enabled',
+        ];
+
+        if (! $rows->has(TimezoneRegistry::SETTING_KEY)) {
+            $rows->put(TimezoneRegistry::SETTING_KEY, (object) [
+                'key' => TimezoneRegistry::SETTING_KEY,
+                'value' => TimezoneRegistry::current(),
+            ]);
+        }
+
+        return $rows
+            ->sortKeys()
+            ->map(function ($row, string $key) use ($editable, $managed): array {
+                $isKnown = in_array($key, $editable, true) || isset($managed[$key]);
+
+                return [
+                    'key' => $key,
+                    'value' => $isKnown
+                        ? ($key === TimezoneRegistry::SETTING_KEY ? TimezoneRegistry::current() : SystemSetting::get($key))
+                        : null,
+                    'editable' => in_array($key, $editable, true),
+                    'managedAt' => $managed[$key] ?? ($isKnown ? 'System Settings' : 'Unregistered'),
+                    'valueHidden' => ! $isKnown,
+                ];
+            })
+            ->values()
+            ->all();
     }
 
     /**

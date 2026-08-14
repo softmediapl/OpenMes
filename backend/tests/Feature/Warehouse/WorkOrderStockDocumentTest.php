@@ -12,6 +12,7 @@ use App\Models\Warehouse;
 use App\Models\WorkOrder;
 use App\Services\Warehouse\WorkOrderStockDocumentService;
 use App\Support\ModuleRegistry;
+use App\Support\SystemSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -161,10 +162,10 @@ class WorkOrderStockDocumentTest extends TestCase
         $this->assertSame(0, StockDocument::count());
     }
 
-    public function test_generation_can_be_switched_off_by_config(): void
+    public function test_generation_can_be_switched_off_by_system_setting(): void
     {
         ModuleRegistry::save(array_merge(ModuleRegistry::enabled(), ['warehouse']));
-        config(['openmmes.warehouse.auto_documents' => false]);
+        SystemSetting::put('warehouse_auto_documents', false);
 
         Warehouse::factory()->rawMaterial()->isDefault()->create();
         Warehouse::factory()->finishedGoods()->isDefault()->create();

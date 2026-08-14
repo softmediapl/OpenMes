@@ -44,8 +44,25 @@ function SelectCard({ value, current, onChange, label, desc, disabled }) {
     );
 }
 
+function formatSettingValue(setting) {
+    if (setting.valueHidden) return __('Hidden');
+    if (setting.value === null || setting.value === '') return __('Not set');
+    if (typeof setting.value === 'boolean') return setting.value ? __('Enabled') : __('Disabled');
+    if (typeof setting.value === 'object') return JSON.stringify(setting.value);
+
+    return String(setting.value);
+}
+
 export default function System() {
-    const { settings, availableLocales, appUrl, modules = [], backups } = usePage().props;
+    const {
+        settings,
+        availableLocales,
+        appUrl,
+        modules = [],
+        backups,
+        timezoneOptions = [],
+        settingsCatalog = [],
+    } = usePage().props;
 
     const [tab, setTab] = useState('general');
     const [sampleConfirm, setSampleConfirm] = useState(false);
@@ -67,14 +84,22 @@ export default function System() {
         force_sequential_steps: settings.force_sequential_steps ?? true,
         workstation_routing_enabled: settings.workstation_routing_enabled ?? false,
         backflush_on_pallet_creation: settings.backflush_on_pallet_creation ?? false,
+        block_negative_stock: settings.block_negative_stock ?? false,
+        lot_tracking_enabled: settings.lot_tracking_enabled ?? false,
+        lot_picking_strategy: settings.lot_picking_strategy ?? 'fefo',
+        warehouse_auto_documents: settings.warehouse_auto_documents ?? true,
         scanner_mode: settings.scanner_mode ?? 'hid',
         workflow_mode: settings.workflow_mode ?? 'status',
         pin_login_enabled: settings.pin_login_enabled ?? false,
+        allow_registration: settings.allow_registration ?? false,
+        default_token_ttl_minutes: settings.default_token_ttl_minutes ?? 15,
         language: settings.language ?? 'en',
+        app_timezone: settings.app_timezone ?? 'UTC',
         schedule_view_mode: settings.schedule_view_mode ?? 'weekly',
         schedule_shifts_per_day: settings.schedule_shifts_per_day ?? 1,
         schedule_horizon_weeks: settings.schedule_horizon_weeks ?? 6,
         schedule_show_weekends: settings.schedule_show_weekends ?? true,
+        schedule_slot_minutes: settings.schedule_slot_minutes ?? 15,
         realtime_mode: settings.realtime_mode ?? 'polling',
         production_tracking_mode: settings.production_tracking_mode ?? 'per_operation',
         cors_allowed_origins: settings.cors_allowed_origins ?? '',
@@ -86,6 +111,7 @@ export default function System() {
         default_currency: settings.default_currency ?? 'PLN',
         default_pay_type: settings.default_pay_type ?? 'hourly',
         default_pay_rate: settings.default_pay_rate ?? null,
+        tier_promotion_thresholds: settings.tier_promotion_thresholds ?? { silver: 5, gold: 20, vip: 50 },
         enabled_modules: modules.filter((m) => m.enabled).map((m) => m.key),
     });
 
@@ -283,6 +309,7 @@ export default function System() {
                         { value: 'production', label: __('Production') },
                         { value: 'schedule', label: __('Schedule') },
                         { value: 'security', label: __('Security') },
+                        { value: 'advanced', label: __('Advanced') },
                         { value: 'modules', label: __('Modules') },
                         { value: 'data', label: __('Data') },
                     ]}
@@ -348,6 +375,18 @@ export default function System() {
                             />
                             {errors.default_currency && <p className={ERROR_CLASS}>{errors.default_currency}</p>}
                         </div>
+
+                        <div className="border-t border-om-line pt-4 mt-4">
+                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Plant timezone')}</h2>
+                            <p className={`${HELP_CLASS} mb-2`}>{__('Used for shift boundaries, reports and all displayed production timestamps.')}</p>
+                            <Dropdown
+                                options={timezoneOptions.map((timezone) => ({ value: timezone, label: timezone }))}
+                                value={data.app_timezone}
+                                onChange={(value) => setData('app_timezone', value)}
+                                className="w-full max-w-sm"
+                            />
+                            {errors.app_timezone && <p className={ERROR_CLASS}>{errors.app_timezone}</p>}
+                        </div>
                     </div>
                 )}
 
@@ -377,6 +416,49 @@ export default function System() {
                                     ))}
                                 </div>
                                 {errors.production_period && <p className={ERROR_CLASS}>{errors.production_period}</p>}
+                            </div>
+                        </div>
+
+                        <div className={CARD_CLASS}>
+                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Inventory and traceability')}</h2>
+                            <p className={`${HELP_CLASS} mb-4`}>{__('Control material lot selection and automatic warehouse document generation.')}</p>
+                            <div className="space-y-4">
+                                <div className="flex items-start gap-3">
+                                    <Switch checked={data.lot_tracking_enabled} onChange={(value) => setData('lot_tracking_enabled', value)} />
+                                    <div>
+                                        <p className="text-[13px] font-medium text-om-ink">{__('Enable material lot tracking')}</p>
+                                        <p className={HELP_CLASS}>{__('Require production consumption to reference concrete material lots.')}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={LABEL_CLASS}>{__('Lot picking strategy')}</label>
+                                    <Dropdown
+                                        options={[
+                                            { value: 'fefo', label: __('FEFO - earliest expiry first') },
+                                            { value: 'fifo', label: __('FIFO - oldest receipt first') },
+                                            { value: 'lifo', label: __('LIFO - newest receipt first') },
+                                            { value: 'manual', label: __('Manual selection') },
+                                        ]}
+                                        value={data.lot_picking_strategy}
+                                        onChange={(value) => setData('lot_picking_strategy', value)}
+                                        className="w-full max-w-sm"
+                                    />
+                                    {errors.lot_picking_strategy && <p className={ERROR_CLASS}>{errors.lot_picking_strategy}</p>}
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Switch checked={data.block_negative_stock} onChange={(value) => setData('block_negative_stock', value)} />
+                                    <div>
+                                        <p className="text-[13px] font-medium text-om-ink">{__('Block negative stock')}</p>
+                                        <p className={HELP_CLASS}>{__('Reject consumption that would reduce a material lot below zero.')}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-start gap-3">
+                                    <Switch checked={data.warehouse_auto_documents} onChange={(value) => setData('warehouse_auto_documents', value)} />
+                                    <div>
+                                        <p className="text-[13px] font-medium text-om-ink">{__('Generate warehouse documents automatically')}</p>
+                                        <p className={HELP_CLASS}>{__('Create stock issue and receipt documents from production events.')}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
@@ -677,6 +759,21 @@ export default function System() {
                             {errors.schedule_horizon_weeks && <p className={ERROR_CLASS}>{errors.schedule_horizon_weeks}</p>}
                         </div>
 
+                        <div>
+                            <label className={LABEL_CLASS}>{__('Schedule slot granularity')}</label>
+                            <p className={`${HELP_CLASS} mb-2`}>{__('Smallest time interval used when placing work in the planner.')}</p>
+                            <Dropdown
+                                options={[5, 10, 15, 30, 60].map((minutes) => ({
+                                    value: String(minutes),
+                                    label: __(':minutes minutes', { minutes }),
+                                }))}
+                                value={String(data.schedule_slot_minutes)}
+                                onChange={(value) => setData('schedule_slot_minutes', Number(value))}
+                                className="w-48"
+                            />
+                            {errors.schedule_slot_minutes && <p className={ERROR_CLASS}>{errors.schedule_slot_minutes}</p>}
+                        </div>
+
                         {/* Show weekends */}
                         <div>
                             <div className="flex items-start gap-3">
@@ -736,6 +833,30 @@ export default function System() {
                                         </p>
                                     </div>
                                 </div>
+                                <div className="flex items-start gap-3">
+                                    <Switch checked={data.allow_registration} onChange={(value) => setData('allow_registration', value)} />
+                                    <div>
+                                        <p className="text-[13px] font-medium text-om-ink">{__('Allow public registration')}</p>
+                                        <p className={HELP_CLASS}>{__('Allow unauthenticated visitors to create an account. Keep disabled for managed factory deployments.')}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className={LABEL_CLASS} htmlFor="default_token_ttl_minutes">{__('API token lifetime')}</label>
+                                    <p className={`${HELP_CLASS} mb-2`}>{__('Default lifetime of newly issued API access tokens.')}</p>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            id="default_token_ttl_minutes"
+                                            type="number"
+                                            min={1}
+                                            max={525600}
+                                            value={data.default_token_ttl_minutes}
+                                            onChange={(event) => setData('default_token_ttl_minutes', Number(event.target.value))}
+                                            className={`${INPUT_BASE} w-32`}
+                                        />
+                                        <span className="text-[13px] text-om-muted">{__('minutes')}</span>
+                                    </div>
+                                    {errors.default_token_ttl_minutes && <p className={ERROR_CLASS}>{errors.default_token_ttl_minutes}</p>}
+                                </div>
                             </div>
                         </div>
 
@@ -791,6 +912,66 @@ export default function System() {
                                         {__('How long browsers cache preflight responses. 0 = no caching (strictest).')}
                                     </p>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {tab === 'advanced' && (
+                    <div className="space-y-6">
+                        <div className={CARD_CLASS}>
+                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Customer tier thresholds')}</h2>
+                            <p className={`${HELP_CLASS} mb-4`}>{__('Minimum completed-order counts required for automatic customer promotion. Values must increase from Silver to VIP.')}</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                {['silver', 'gold', 'vip'].map((tier) => (
+                                    <div key={tier}>
+                                        <label className={LABEL_CLASS} htmlFor={`tier_${tier}`}>
+                                            {__(tier === 'vip' ? 'VIP' : tier.charAt(0).toUpperCase() + tier.slice(1))}
+                                        </label>
+                                        <input
+                                            id={`tier_${tier}`}
+                                            type="number"
+                                            min={1}
+                                            value={data.tier_promotion_thresholds[tier]}
+                                            onChange={(event) => setData('tier_promotion_thresholds', {
+                                                ...data.tier_promotion_thresholds,
+                                                [tier]: Number(event.target.value),
+                                            })}
+                                            className={`${INPUT_BASE} w-full`}
+                                        />
+                                        {errors[`tier_promotion_thresholds.${tier}`] && (
+                                            <p className={ERROR_CLASS}>{errors[`tier_promotion_thresholds.${tier}`]}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {errors.tier_promotion_thresholds && <p className={ERROR_CLASS}>{errors.tier_promotion_thresholds}</p>}
+                        </div>
+
+                        <div className={CARD_CLASS}>
+                            <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-om-ink mb-1">{__('Settings catalog')}</h2>
+                            <p className={`${HELP_CLASS} mb-4`}>{__('Complete inventory of database-backed system settings. Unregistered values are hidden and read-only until a validated editor is implemented.')}</p>
+                            <div className="overflow-x-auto border border-om-line rounded-om-sm">
+                                <table className="w-full text-left text-[12px]">
+                                    <thead className="bg-om-bg text-om-faint font-mono uppercase">
+                                        <tr>
+                                            <th className="px-3 py-2 font-medium">{__('Setting')}</th>
+                                            <th className="px-3 py-2 font-medium">{__('Value')}</th>
+                                            <th className="px-3 py-2 font-medium">{__('Managed in')}</th>
+                                            <th className="px-3 py-2 font-medium">{__('Access')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {settingsCatalog.map((setting) => (
+                                            <tr key={setting.key} className="border-t border-om-line align-top">
+                                                <td className="px-3 py-2 font-mono text-om-ink whitespace-nowrap">{setting.key}</td>
+                                                <td className="px-3 py-2 font-mono text-om-muted break-all">{formatSettingValue(setting)}</td>
+                                                <td className="px-3 py-2 text-om-muted whitespace-nowrap">{__(setting.managedAt)}</td>
+                                                <td className="px-3 py-2 text-om-muted whitespace-nowrap">{setting.editable ? __('Editable') : __('Read only')}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

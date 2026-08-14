@@ -5,6 +5,7 @@ namespace App\Listeners;
 use App\Events\WorkOrder\WorkOrderCompleted;
 use App\Services\Warehouse\WorkOrderStockDocumentService;
 use App\Support\ModuleRegistry;
+use App\Support\SystemSetting;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -22,7 +23,10 @@ class GenerateWorkOrderStockDocuments
 
     public function handle(WorkOrderCompleted $event): void
     {
-        if (! config('openmmes.warehouse.auto_documents', true)) {
+        if (! SystemSetting::boolean(
+            'warehouse_auto_documents',
+            config('openmmes.warehouse.auto_documents', true)
+        )) {
             return;
         }
 

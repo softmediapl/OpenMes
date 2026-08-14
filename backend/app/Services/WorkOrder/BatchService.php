@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Workstation;
 use App\Services\Material\MaterialAllocationService;
 use App\Services\Quality\QualityTriggerService;
+use App\Support\SystemSetting;
 use Illuminate\Support\Facades\DB;
 
 class BatchService
@@ -410,7 +411,10 @@ class BatchService
         }
 
         // Check sequential enforcement
-        if (config('openmmes.force_sequential_steps', true) && $step->step_number > 1) {
+        if (SystemSetting::boolean(
+            'force_sequential_steps',
+            config('openmmes.force_sequential_steps', true)
+        ) && $step->step_number > 1) {
             $previousStep = $step->batch->steps()
                 ->where('step_number', $step->step_number - 1)
                 ->first();

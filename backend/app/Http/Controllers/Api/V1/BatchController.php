@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Services\Lot\BatchReleaseService;
 use App\Services\Material\MaterialAllocationService;
 use App\Services\WorkOrder\WorkOrderService;
+use App\Support\SystemSetting;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -71,7 +72,10 @@ class BatchController extends Controller
 
         // Check if adding this batch would exceed planned qty
         $totalTargetQty = $workOrder->batches()->sum('target_qty') + $validated['target_qty'];
-        $allowOverproduction = config('openmmes.allow_overproduction', false);
+        $allowOverproduction = SystemSetting::boolean(
+            'allow_overproduction',
+            config('openmmes.allow_overproduction', false)
+        );
 
         if (! $allowOverproduction && ($totalTargetQty - $workOrder->planned_qty) > 0.001) {
             return response()->json([

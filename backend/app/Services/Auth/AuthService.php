@@ -3,6 +3,7 @@
 namespace App\Services\Auth;
 
 use App\Models\User;
+use App\Support\SystemSetting;
 use App\Support\TabRegistry;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +29,10 @@ class AuthService
         $user->update(['last_login_at' => now()]);
 
         // Generate API token
-        $tokenTtl = config('openmmes.default_token_ttl_minutes', 15);
+        $tokenTtl = SystemSetting::integer(
+            'default_token_ttl_minutes',
+            config('openmmes.default_token_ttl_minutes', 15)
+        );
         $token = $user->createToken(
             'api-token',
             ['*'],

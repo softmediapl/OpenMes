@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\HasCustomFields;
 use App\Models\Concerns\HasTenant;
 use App\Models\Concerns\SoftDeletesWithAudit;
+use App\Support\SystemSetting;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -566,7 +567,10 @@ class WorkOrder extends Model
      */
     public function isComplete(): bool
     {
-        $allowOverproduction = config('openmmes.allow_overproduction', false);
+        $allowOverproduction = SystemSetting::boolean(
+            'allow_overproduction',
+            config('openmmes.allow_overproduction', false)
+        );
 
         if ($allowOverproduction) {
             return $this->produced_qty >= $this->planned_qty;
