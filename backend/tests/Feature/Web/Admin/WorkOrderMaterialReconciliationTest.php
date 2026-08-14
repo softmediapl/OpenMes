@@ -15,7 +15,7 @@ use Tests\TestCase;
 
 /**
  * Materials reconciliation on the admin work-order page (#99): consume, return
- * and reclassify actions redirect back with a flash and move stock correctly.
+ * and reclassify actions redirect back with a flash and reconcile stock correctly.
  */
 class WorkOrderMaterialReconciliationTest extends TestCase
 {
@@ -80,7 +80,8 @@ class WorkOrderMaterialReconciliationTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        $this->assertEqualsWithDelta(425.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(75.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
         $this->assertEqualsWithDelta(75.0, (float) $this->allocation->fresh()->allocated_qty, 0.0001);
     }
 
@@ -101,8 +102,8 @@ class WorkOrderMaterialReconciliationTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('success');
 
-        // Source already at 400 after allocation; reclassify moves 30 more out.
-        $this->assertEqualsWithDelta(370.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        // Reservation does not alter physical stock; reclassification moves 30.
+        $this->assertEqualsWithDelta(470.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(30.0, (float) $target->fresh()->stock_quantity, 0.0001);
     }
 
@@ -139,8 +140,7 @@ class WorkOrderMaterialReconciliationTest extends TestCase
             ->assertRedirect()
             ->assertSessionHas('error');
 
-        // Stock untouched: 500 less the 100 allocated.
-        $this->assertEqualsWithDelta(400.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }
 
     public function test_allocation_from_another_work_order_is_404(): void

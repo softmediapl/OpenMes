@@ -17,7 +17,7 @@ class BatchCancelReturnsStockTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_cancel_returns_allocated_stock(): void
+    public function test_cancel_releases_reserved_stock(): void
     {
         $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
         $admin = User::factory()->create();
@@ -55,7 +55,8 @@ class BatchCancelReturnsStockTest extends TestCase
         ]);
 
         app(MaterialAllocationService::class)->allocateForBatch($batch, $admin);
-        $this->assertEqualsWithDelta(400.0, (float) $material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(100.0, (float) $material->fresh()->reserved_quantity, 0.0001);
 
         $response = $this->withHeader('Authorization', "Bearer {$token}")
             ->postJson("/api/v1/batches/{$batch->id}/cancel");
@@ -63,6 +64,7 @@ class BatchCancelReturnsStockTest extends TestCase
         $response->assertStatus(200);
         $this->assertSame(Batch::STATUS_CANCELLED, $batch->fresh()->status);
         $this->assertEqualsWithDelta(500.0, (float) $material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(0.0, (float) $material->fresh()->reserved_quantity, 0.0001);
         $this->assertSame(
             MaterialAllocation::STATUS_RETURNED,
             MaterialAllocation::firstWhere('batch_id', $batch->id)->status,

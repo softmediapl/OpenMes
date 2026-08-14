@@ -15,8 +15,8 @@ use Tests\TestCase;
 
 /**
  * Partial (actual) consumption against a work-order allocation (#99). Recording
- * consumption is bookkeeping only — stock already left at allocation time — and
- * the over-issued leftover is returned by consumeForBatch at completion.
+ * consumption is bookkeeping only. Physical stock is issued and the reservation
+ * is reconciled by consumeForBatch at completion.
  */
 class RecordConsumptionTest extends TestCase
 {
@@ -66,8 +66,8 @@ class RecordConsumptionTest extends TestCase
 
     public function test_records_partial_consumption_and_returns_leftover_at_completion(): void
     {
-        // Allocation pulled 100 from 500.
-        $this->assertEqualsWithDelta(400.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        // Allocation reserves 100 without changing physical stock.
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
 
         $this->withHeader('Authorization', 'Bearer '.$this->token($this->admin()))
             ->postJson("/api/v1/material-allocations/{$this->allocation->id}/consume", ['consumed_qty' => 60])
@@ -77,9 +77,9 @@ class RecordConsumptionTest extends TestCase
         $this->assertEqualsWithDelta(60.0, (float) $this->allocation->consumed_qty, 0.0001);
         $this->assertSame(MaterialAllocation::STATUS_ALLOCATED, $this->allocation->status);
         // Declaring consumption books no stock delta on its own.
-        $this->assertEqualsWithDelta(400.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
 
-        // Completion reconciler returns the 40 leftover.
+        // Completion issues the 60 actually consumed and releases the remaining reservation.
         app(MaterialAllocationService::class)->consumeForBatch($this->batch);
         $this->assertEqualsWithDelta(440.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }

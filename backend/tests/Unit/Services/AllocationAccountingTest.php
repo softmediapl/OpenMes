@@ -2,11 +2,13 @@
 
 namespace Tests\Unit\Services;
 
+use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\Material;
 use App\Models\MaterialAllocation;
 use App\Models\MaterialType;
 use App\Models\ProductType;
+use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\Material\MaterialAllocationService;
@@ -60,14 +62,15 @@ class AllocationAccountingTest extends TestCase
         ]);
     }
 
-    public function test_allocate_decrements_stock_and_bumps_reserved(): void
+    public function test_allocate_reserves_without_changing_physical_stock(): void
     {
         $this->svc->allocateForBatch($this->batch, $this->user);
 
         $m = $this->material->fresh();
-        $this->assertEqualsWithDelta(400.0, (float) $m->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $m->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(100.0, (float) $m->reserved_quantity, 0.0001);
-        $this->assertEqualsWithDelta(300.0, $m->available_quantity, 0.0001);
+        $this->assertEqualsWithDelta(400.0, $m->available_quantity, 0.0001);
+        $this->assertSame(0, StockMovement::count());
     }
 
     public function test_preview_returns_available_not_raw_stock(): void
@@ -101,15 +104,18 @@ class AllocationAccountingTest extends TestCase
         $this->svc->allocateForBatch($this->batch, $this->user);
         $allocation = MaterialAllocation::first();
 
-        // Operator says we only used 90 and 5 was scrap → 5 should return.
+        // Operator says we only used 90 and 5 was scrap, so 5 should return.
         $this->svc->recordConsumption($allocation, actualConsumed: 90.0, scrap: 5.0);
 
         $this->svc->consumeForBatch($this->batch);
 
         $m = $this->material->fresh();
-        // Started 500, allocated -100 = 400, returned +5 leftover = 405.
+        // Physical issue is 90 consumed + 5 scrapped; unused reservation is released.
         $this->assertEqualsWithDelta(405.0, (float) $m->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $m->reserved_quantity, 0.0001);
+
+        $this->assertEqualsWithDelta(-90.0, (float) StockMovement::where('movement_type', StockMovement::TYPE_CONSUME)->value('quantity'), 0.0001);
+        $this->assertEqualsWithDelta(-5.0, (float) StockMovement::where('movement_type', StockMovement::TYPE_SCRAP)->value('quantity'), 0.0001);
 
         $a = $allocation->fresh();
         $this->assertSame(MaterialAllocation::STATUS_CONSUMED, $a->status);
@@ -141,8 +147,17 @@ class AllocationAccountingTest extends TestCase
         $this->assertEqualsWithDelta(10.0, (float) $fresh->adjustment_qty, 0.0001);
 
         $m = $this->material->fresh();
-        $this->assertEqualsWithDelta(390.0, (float) $m->stock_quantity, 0.0001); // 500-100-10
+        $this->assertEqualsWithDelta(500.0, (float) $m->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(110.0, (float) $m->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(390.0, $m->available_quantity, 0.0001);
+
+        $event = AuditLog::where('entity_type', MaterialAllocation::class)
+            ->where('entity_id', $allocation->id)
+            ->where('action', 'reservation_adjusted')
+            ->firstOrFail();
+        $this->assertSame($this->user->id, $event->user_id);
+        $this->assertSame('Extra dose', $event->after_state['reason']);
+        $this->assertEqualsWithDelta(10.0, (float) $event->after_state['delta_qty'], 0.0001);
     }
 
     public function test_adjust_allocation_can_be_negative(): void
@@ -153,8 +168,9 @@ class AllocationAccountingTest extends TestCase
         $this->svc->adjustAllocation($allocation, -20.0, $this->user, reason: 'Less needed');
 
         $m = $this->material->fresh();
-        $this->assertEqualsWithDelta(420.0, (float) $m->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $m->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(80.0, (float) $m->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(420.0, $m->available_quantity, 0.0001);
     }
 
     public function test_return_releases_reservation(): void
@@ -167,6 +183,7 @@ class AllocationAccountingTest extends TestCase
         $m = $this->material->fresh();
         $this->assertEqualsWithDelta(500.0, (float) $m->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $m->reserved_quantity, 0.0001);
+        $this->assertSame(0, StockMovement::count());
     }
 
     public function test_variance_attribute_reflects_consumed_minus_expected(): void
@@ -174,6 +191,12 @@ class AllocationAccountingTest extends TestCase
         $this->svc->allocateForBatch($this->batch, $this->user);
         $allocation = MaterialAllocation::first();
 
+        $allocation = $this->svc->adjustAllocation(
+            $allocation,
+            10.0,
+            $this->user,
+            reason: 'Additional material issued',
+        );
         $this->svc->recordConsumption($allocation, actualConsumed: 105.0);
 
         $this->assertEqualsWithDelta(5.0, $allocation->fresh()->variance_qty, 0.0001);
@@ -185,5 +208,14 @@ class AllocationAccountingTest extends TestCase
         $allocation = MaterialAllocation::first();
         $this->expectException(\InvalidArgumentException::class);
         $this->svc->adjustAllocation($allocation, -200, $this->user);
+    }
+
+    public function test_record_consumption_rejects_quantities_above_allocation(): void
+    {
+        $this->svc->allocateForBatch($this->batch, $this->user);
+        $allocation = MaterialAllocation::first();
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->svc->recordConsumption($allocation, actualConsumed: 98, scrap: 3);
     }
 }

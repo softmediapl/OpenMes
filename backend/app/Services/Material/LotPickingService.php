@@ -77,6 +77,75 @@ class LotPickingService
     }
 
     /**
+     * Extend an existing allocation using the configured automatic strategy.
+     * Existing allocation/lot rows are incremented instead of duplicated.
+     * Manual picking requires explicit operator input and therefore cannot be
+     * performed by the generic allocation-adjustment endpoint.
+     *
+     * @return array<int, AllocationLotPick>
+     */
+    public function increasePicksForAllocation(
+        MaterialAllocation $allocation,
+        Material $material,
+        float $additionalQty,
+    ): array {
+        if ($additionalQty <= 0 || ! $this->isLotTrackingEnabled()) {
+            return [];
+        }
+
+        $strategy = $this->defaultStrategy();
+        if ($strategy === AllocationLotPick::STRATEGY_MANUAL) {
+            throw new \DomainException(__('Additional lot picks must be selected manually.'));
+        }
+
+        return DB::transaction(function () use ($allocation, $material, $additionalQty, $strategy) {
+            $candidates = $this->orderedAvailableLots($material->id, $strategy);
+            $totalAvailable = (float) $candidates->sum(fn ($lot) => $lot->quantity_available);
+            if ($totalAvailable + self::EPSILON < $additionalQty) {
+                throw new InsufficientStockException($material, $additionalQty, $totalAvailable);
+            }
+
+            $remaining = $additionalQty;
+            $picks = [];
+
+            foreach ($candidates as $lot) {
+                if ($remaining <= self::EPSILON) {
+                    break;
+                }
+
+                $take = min($remaining, (float) $lot->quantity_available);
+                $pick = AllocationLotPick::query()
+                    ->where('material_allocation_id', $allocation->id)
+                    ->where('material_lot_id', $lot->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($pick) {
+                    $pick->increment('picked_qty', $take);
+                    $pick->refresh();
+                } else {
+                    $pick = AllocationLotPick::create([
+                        'tenant_id' => $allocation->tenant_id,
+                        'material_allocation_id' => $allocation->id,
+                        'material_lot_id' => $lot->id,
+                        'picked_qty' => $take,
+                        'picking_strategy' => $strategy,
+                    ]);
+                }
+                $picks[] = $pick;
+
+                $lot->decrement('quantity_available', $take);
+                $lot->refresh()->markConsumedIfEmpty();
+                \App\Sync\CollectionBroadcaster::flush($lot);
+
+                $remaining -= $take;
+            }
+
+            return $picks;
+        });
+    }
+
+    /**
      * Pick the exact lots + quantities the operator chose at WO time
      * (ERP-aligned "suggest + override"). Validates that each lot belongs to
      * the material, is released/available, the per-lot quantity fits, and the
@@ -261,6 +330,10 @@ class LotPickingService
                 }
 
                 $remaining -= $take;
+            }
+
+            if ($remaining > self::EPSILON) {
+                throw new \DomainException('Lot-pick accounting is inconsistent: return exceeds picked quantity.');
             }
         });
     }

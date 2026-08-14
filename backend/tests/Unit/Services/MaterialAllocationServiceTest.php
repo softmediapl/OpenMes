@@ -69,14 +69,15 @@ class MaterialAllocationServiceTest extends TestCase
         ]);
     }
 
-    public function test_allocate_decrements_stock_and_creates_allocation(): void
+    public function test_allocate_reserves_stock_and_creates_allocation(): void
     {
         $allocs = $this->service->allocateForBatch($this->batch, $this->user);
 
         $this->assertCount(1, $allocs);
         // 100 * 2.0 * (1 + 5%) = 210
         $this->assertEqualsWithDelta(210.0, (float) $allocs->first()->allocated_qty, 0.0001);
-        $this->assertEqualsWithDelta(790.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(1000.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(210.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
         $this->assertSame(MaterialAllocation::STATUS_ALLOCATED, $allocs->first()->status);
     }
 
@@ -88,14 +89,15 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertCount(1, $first);
         $this->assertCount(1, $second);
         $this->assertSame($first->first()->id, $second->first()->id);
-        // Stock only decremented once.
-        $this->assertEqualsWithDelta(790.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        // Reservation is created only once and physical stock is unchanged.
+        $this->assertEqualsWithDelta(1000.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(210.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
     }
 
     public function test_return_restores_stock_and_marks_returned(): void
     {
         $this->service->allocateForBatch($this->batch, $this->user);
-        $this->assertEqualsWithDelta(790.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(1000.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
 
         $this->service->returnForBatch($this->batch);
 
@@ -105,7 +107,7 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(210.0, (float) $allocation->returned_qty, 0.0001);
     }
 
-    public function test_consume_marks_consumed_without_touching_stock(): void
+    public function test_consume_marks_consumed_and_issues_physical_stock(): void
     {
         $this->service->allocateForBatch($this->batch, $this->user);
         $this->service->consumeForBatch($this->batch);
@@ -113,8 +115,8 @@ class MaterialAllocationServiceTest extends TestCase
         $allocation = MaterialAllocation::firstWhere('batch_id', $this->batch->id);
         $this->assertSame(MaterialAllocation::STATUS_CONSUMED, $allocation->status);
         $this->assertNotNull($allocation->consumed_at);
-        // Stock already decremented at allocate time; consume must not double-charge.
         $this->assertEqualsWithDelta(790.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(0.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
     }
 
     public function test_resolves_material_by_id_even_when_code_changes(): void
@@ -157,7 +159,7 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertSame(0, MaterialAllocation::count());
     }
 
-    public function test_block_negative_stock_off_allows_negative(): void
+    public function test_block_negative_stock_off_allows_over_reservation(): void
     {
         DB::table('system_settings')
             ->updateOrInsert(['key' => 'block_negative_stock'], ['value' => json_encode(false)]);
@@ -167,7 +169,10 @@ class MaterialAllocationServiceTest extends TestCase
         $allocs = $this->service->allocateForBatch($this->batch, $this->user);
 
         $this->assertCount(1, $allocs);
-        $this->assertEqualsWithDelta(-160.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $material = $this->material->fresh();
+        $this->assertEqualsWithDelta(50.0, (float) $material->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(210.0, (float) $material->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(-160.0, $material->available_quantity, 0.0001);
     }
 
     public function test_preview_returns_planned_required_and_availability(): void
@@ -260,6 +265,22 @@ class MaterialAllocationServiceTest extends TestCase
         // Allocations already CONSUMED → a second pass writes nothing more.
         $this->service->consumeForBatch($this->batch);
         $this->assertSame(1, BatchStepLotConsumption::count());
+    }
+
+    public function test_partial_consumption_restores_unused_lot_quantity_before_genealogy(): void
+    {
+        $this->enableLotTracking();
+        $step = $this->makeStep();
+        $lot = $this->makeLot('LOT-A', 300);
+
+        $this->service->allocateForBatch($this->batch, $this->user, [], attributeStepId: $step->id);
+        $allocation = MaterialAllocation::firstWhere('batch_id', $this->batch->id);
+        $this->service->recordConsumption($allocation, actualConsumed: 190, scrap: 10);
+        $this->service->consumeForBatch($this->batch);
+
+        $this->assertEqualsWithDelta(100.0, (float) $lot->fresh()->quantity_available, 0.0001);
+        $this->assertEqualsWithDelta(200.0, (float) BatchStepLotConsumption::first()->quantity_consumed, 0.0001);
+        $this->assertEqualsWithDelta(800.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }
 
     public function test_pick_preview_for_step_returns_proposal_when_tracking_on(): void

@@ -3,6 +3,7 @@
 namespace App\Services\Material;
 
 use App\Exceptions\InsufficientStockException;
+use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\BatchStepLotConsumption;
@@ -201,11 +202,11 @@ class MaterialAllocationService
     }
 
     /**
-     * Mark allocations as consumed when batch is completed. Reads each
-     * allocation's consumed_qty (set by recordConsumption) and falls back
-     * to allocated_qty for any rows where the operator did not record an
-     * explicit number. Also releases the reservation and applies any
-     * leftover difference (returned + scrap) back to stock.
+     * Finalize material allocations when a batch completes.
+     *
+     * Reservations do not change physical stock. Completion records the
+     * actual warehouse issue, releases the reservation, and restores unused
+     * quantities to the selected material lots.
      */
     public function consumeForBatch(Batch $batch): void
     {
@@ -217,48 +218,56 @@ class MaterialAllocationService
                 ->get();
 
             foreach ($allocations as $allocation) {
-                // Bridge the picked lots into the ISA-95 genealogy table so
-                // forward/backward traceability reflects what was actually
-                // consumed. consumeForBatch runs once per batch (allocations
-                // flip to CONSUMED), so this never double-writes.
-                $this->writeGenealogy($allocation);
-
                 // Use the operator-declared quantity when consumption was recorded —
                 // including an explicit zero (nothing used, return everything). Only
                 // fall back to the planned quantity when nothing was ever declared.
                 $actualConsumed = $allocation->consumption_recorded
                     ? (float) $allocation->consumed_qty
                     : (float) $allocation->allocated_qty;
+                $scrapQty = (float) $allocation->scrap_qty;
+                $allocatedQty = (float) $allocation->allocated_qty;
 
-                $leftoverToReturn = max(0, (float) $allocation->allocated_qty - $actualConsumed - (float) $allocation->scrap_qty);
+                if ($actualConsumed + $scrapQty > $allocatedQty + 1e-9) {
+                    throw new \DomainException('Consumed and scrap quantities exceed the allocated quantity.');
+                }
 
-                $this->releaseReservation($allocation->material, (float) $allocation->allocated_qty);
+                $leftoverToReturn = max(0, $allocatedQty - $actualConsumed - $scrapQty);
 
-                if ($leftoverToReturn > 0 && $allocation->material) {
+                // Keep lot picks aligned with what physically left stock before
+                // writing genealogy. Remaining picks represent consumed + scrap.
+                $this->lotPicking->returnPartialForAllocation($allocation, $leftoverToReturn);
+                $allocation->unsetRelation('lotPicks');
+                $allocation->load('lotPicks');
+                $this->writeGenealogy($allocation);
+
+                if ($actualConsumed > 0 && $allocation->material) {
                     $this->stockMovements->record(
                         $allocation->material,
-                        StockMovement::TYPE_RETURN,
-                        $leftoverToReturn,
+                        StockMovement::TYPE_CONSUME,
+                        -$actualConsumed,
                         sourceType: StockMovement::SOURCE_BATCH,
                         sourceId: $batch->id,
-                        reason: 'Batch #'.$batch->id.' completed — leftover returned to stock',
+                        reason: 'Material consumed by batch #'.$batch->id,
                     );
                 }
 
-                if ((float) $allocation->scrap_qty > 0 && $allocation->material) {
+                if ($scrapQty > 0 && $allocation->material) {
                     $this->stockMovements->record(
                         $allocation->material,
                         StockMovement::TYPE_SCRAP,
-                        0, // scrap is a status change, not a stock delta — already left stock at allocation time
+                        -$scrapQty,
                         sourceType: StockMovement::SOURCE_BATCH,
                         sourceId: $batch->id,
-                        reason: 'Batch #'.$batch->id.' scrap qty recorded',
+                        reason: 'Material scrapped by batch #'.$batch->id,
                     );
                 }
+
+                $this->releaseReservation($allocation->material, $allocatedQty);
 
                 $allocation->update([
                     'status' => MaterialAllocation::STATUS_CONSUMED,
                     'consumed_qty' => $actualConsumed,
+                    'returned_qty' => (float) $allocation->returned_qty + $leftoverToReturn,
                     'consumed_at' => now(),
                     // Snapshot the price so historical cost reports stay stable.
                     'unit_price_snapshot' => $actualConsumed > 0 ? $allocation->material?->unit_price : null,
@@ -279,14 +288,6 @@ class MaterialAllocationService
 
             foreach ($allocations as $allocation) {
                 if ($allocation->material) {
-                    $this->stockMovements->record(
-                        $allocation->material,
-                        StockMovement::TYPE_RETURN,
-                        (float) $allocation->allocated_qty,
-                        sourceType: StockMovement::SOURCE_BATCH,
-                        sourceId: $allocation->batch_id,
-                        reason: 'Batch #'.$allocation->batch_id.' cancelled — return to stock',
-                    );
                     $this->releaseReservation($allocation->material, (float) $allocation->allocated_qty);
                 }
 
@@ -317,6 +318,9 @@ class MaterialAllocationService
         if ($actualConsumed < 0 || $scrap < 0) {
             throw new \InvalidArgumentException('Consumed and scrap quantities must be non-negative.');
         }
+        if ($actualConsumed + $scrap > (float) $allocation->allocated_qty + 1e-9) {
+            throw new \InvalidArgumentException('Consumed and scrap quantities cannot exceed the allocated quantity.');
+        }
 
         $allocation->update([
             'consumed_qty' => $actualConsumed,
@@ -330,10 +334,7 @@ class MaterialAllocationService
         return $allocation->fresh();
     }
 
-    /**
-     * Mid-batch material adjustment (e.g. "operator added 5kg extra").
-     * Decrements stock + reserved by the delta and bumps allocated_qty.
-     */
+    /** Adjust an in-flight reservation without changing physical stock. */
     public function adjustAllocation(
         MaterialAllocation $allocation,
         float $deltaQty,
@@ -347,49 +348,61 @@ class MaterialAllocationService
             return $allocation;
         }
 
-        $newAllocated = (float) $allocation->allocated_qty + $deltaQty;
-        if ($newAllocated < 0) {
-            throw new \InvalidArgumentException('Adjustment would make allocated_qty negative.');
-        }
-
         return DB::transaction(function () use ($allocation, $deltaQty, $user, $reason) {
-            $material = $allocation->material;
+            $allocation = MaterialAllocation::query()->lockForUpdate()->findOrFail($allocation->getKey());
+            if ($allocation->status !== MaterialAllocation::STATUS_ALLOCATED) {
+                throw new \DomainException('Can only adjust allocations in `allocated` status.');
+            }
+
+            $previousAllocated = (float) $allocation->allocated_qty;
+            $newAllocated = $previousAllocated + $deltaQty;
+            $committedQty = (float) $allocation->consumed_qty + (float) $allocation->scrap_qty;
+            if ($newAllocated < $committedQty - 1e-9) {
+                throw new \InvalidArgumentException('Adjustment would reduce the allocation below consumed and scrap quantities.');
+            }
+
+            $material = Material::query()->lockForUpdate()->find($allocation->material_id);
 
             if (! $material) {
                 throw new \DomainException('Allocation has no associated material.');
             }
 
-            $this->stockMovements->record(
-                $material,
-                StockMovement::TYPE_ADJUSTMENT,
-                -$deltaQty,
-                user: $user,
-                sourceType: StockMovement::SOURCE_BATCH,
-                sourceId: $allocation->batch_id,
-                reason: $reason ?? 'Adjustment on batch #'.$allocation->batch_id,
-            );
-
             if ($deltaQty > 0) {
-                $material->increment('reserved_quantity', $deltaQty);
+                if ($this->blockNegativeStockEnabled() && $material->available_quantity < $deltaQty) {
+                    throw new InsufficientStockException($material, $deltaQty, $material->available_quantity);
+                }
+
+                $this->reserve($material, $deltaQty);
+                $this->lotPicking->increasePicksForAllocation($allocation, $material, $deltaQty);
             } else {
-                $material->decrement('reserved_quantity', abs($deltaQty));
+                $releaseQty = abs($deltaQty);
+                $this->lotPicking->returnPartialForAllocation($allocation, $releaseQty);
+                $this->releaseReservation($material, $releaseQty);
             }
-            \App\Sync\CollectionBroadcaster::flush($material); // increment/decrement bypass model events
 
             $allocation->update([
-                'allocated_qty' => (float) $allocation->allocated_qty + $deltaQty,
+                'allocated_qty' => $newAllocated,
                 'adjustment_qty' => (float) $allocation->adjustment_qty + $deltaQty,
             ]);
+
+            $this->recordReservationEvent(
+                $allocation,
+                $user,
+                'reservation_adjusted',
+                $previousAllocated,
+                $newAllocated,
+                $deltaQty,
+                $reason,
+            );
 
             return $allocation->fresh();
         });
     }
 
     /**
-     * Return a leftover quantity from an in-flight allocation to stock (#99) —
-     * e.g. the operator over-issued and hands the surplus back before the batch
-     * completes. Books TYPE_RETURN, releases the reservation and restores the
-     * picked lots for the returned quantity.
+     * Release an unused quantity from an in-flight allocation and restore the
+     * corresponding lot availability. Physical stock does not change because
+     * the allocation was only a reservation.
      *
      * Crucially it DECREMENTS allocated_qty by the returned amount so the
      * completion reconciler (consumeForBatch: leftover = allocated − consumed −
@@ -416,7 +429,8 @@ class MaterialAllocationService
                 throw new \DomainException('Can only return material from an `allocated` allocation.');
             }
 
-            $returnable = (float) $allocation->allocated_qty
+            $previousAllocated = (float) $allocation->allocated_qty;
+            $returnable = $previousAllocated
                 - (float) $allocation->consumed_qty
                 - (float) $allocation->scrap_qty;
             if ($qty > $returnable + 1e-9) {
@@ -429,16 +443,6 @@ class MaterialAllocationService
                 throw new \DomainException('Allocation has no associated material.');
             }
 
-            $this->stockMovements->record(
-                $material,
-                StockMovement::TYPE_RETURN,
-                $qty,
-                user: $user,
-                sourceType: StockMovement::SOURCE_BATCH,
-                sourceId: $allocation->batch_id,
-                reason: $reason ?? 'Batch #'.$allocation->batch_id.' — unused material returned to stock',
-            );
-
             $this->releaseReservation($material, $qty);
 
             // Lot tracking: hand the returned quantity back to the picked lots.
@@ -446,9 +450,19 @@ class MaterialAllocationService
 
             $allocation->update([
                 // Shrink the allocation so consumeForBatch's leftover calc excludes what we just returned.
-                'allocated_qty' => (float) $allocation->allocated_qty - $qty,
+                'allocated_qty' => $previousAllocated - $qty,
                 'returned_qty' => (float) $allocation->returned_qty + $qty,
             ]);
+
+            $this->recordReservationEvent(
+                $allocation,
+                $user,
+                'reservation_released',
+                $previousAllocated,
+                $previousAllocated - $qty,
+                -$qty,
+                $reason,
+            );
 
             return $allocation->fresh();
         });
@@ -479,7 +493,7 @@ class MaterialAllocationService
         $blockNegative = $this->blockNegativeStockEnabled();
         $genealogyStepId = $stepId ?? $attributeStepId;
 
-        return DB::transaction(function () use ($batch, $user, $bom, $filter, $stepId, $genealogyStepId, $picksByMaterial, $blockNegative) {
+        return DB::transaction(function () use ($batch, $user, $bom, $filter, $genealogyStepId, $picksByMaterial, $blockNegative) {
             $allocations = collect();
 
             foreach ($bom as $bomItem) {
@@ -487,17 +501,23 @@ class MaterialAllocationService
                     continue;
                 }
 
+                $resolvedMaterial = $this->resolveMaterial($bomItem);
+                if (! $resolvedMaterial) {
+                    continue;
+                }
+
+                // Serialize availability checks and reservation updates for a
+                // material so concurrent batch starts cannot over-reserve it.
+                $material = Material::query()
+                    ->lockForUpdate()
+                    ->findOrFail($resolvedMaterial->id);
+
                 $existing = MaterialAllocation::where('batch_id', $batch->id)
-                    ->where('material_id', $bomItem['material_id'] ?? null)
+                    ->where('material_id', $material->id)
                     ->first();
                 if ($existing) {
                     $allocations->push($existing);
 
-                    continue;
-                }
-
-                $material = $this->resolveMaterial($bomItem);
-                if (! $material) {
                     continue;
                 }
 
@@ -511,18 +531,7 @@ class MaterialAllocationService
                     );
                 }
 
-                // Stock leaves the warehouse + reservation increases.
-                $this->stockMovements->record(
-                    $material,
-                    StockMovement::TYPE_ALLOCATION,
-                    -$requiredQty,
-                    user: $user,
-                    sourceType: $stepId ? StockMovement::SOURCE_BATCH_STEP : StockMovement::SOURCE_BATCH,
-                    sourceId: $stepId ?: $batch->id,
-                    reason: 'Allocated to batch #'.$batch->id.($stepId ? ' (step '.$stepId.')' : ''),
-                );
-                $material->increment('reserved_quantity', $requiredQty);
-                \App\Sync\CollectionBroadcaster::flush($material); // increment bypasses model events
+                $this->reserve($material, $requiredQty);
 
                 $newAllocation = MaterialAllocation::create([
                     'batch_id' => $batch->id,
@@ -537,7 +546,7 @@ class MaterialAllocationService
                 ]);
 
                 // Lot picking (opt-in via setting). Errors here roll back
-                // the surrounding transaction so stock/reserved stay consistent.
+                // the surrounding transaction so reservations stay consistent.
                 // When the operator supplied an explicit pick for this material
                 // (WO-time "suggest + override"), honour it; otherwise auto-pick.
                 if ($this->lotPicking->isLotTrackingEnabled()) {
@@ -584,8 +593,49 @@ class MaterialAllocationService
         if (! $material || $qty <= 0) {
             return;
         }
-        $material->decrement('reserved_quantity', $qty);
-        \App\Sync\CollectionBroadcaster::flush($material); // decrement bypasses model events
+
+        $locked = Material::query()->lockForUpdate()->findOrFail($material->getKey());
+        if ((float) $locked->reserved_quantity + 1e-9 < $qty) {
+            throw new \DomainException('Reservation accounting is inconsistent: release exceeds reserved quantity.');
+        }
+
+        $locked->decrement('reserved_quantity', $qty);
+        \App\Sync\CollectionBroadcaster::flush($locked);
+    }
+
+    private function reserve(Material $material, float $qty): void
+    {
+        if ($qty <= 0) {
+            return;
+        }
+
+        $material->increment('reserved_quantity', $qty);
+        \App\Sync\CollectionBroadcaster::flush($material);
+    }
+
+    private function recordReservationEvent(
+        MaterialAllocation $allocation,
+        User $user,
+        string $action,
+        float $beforeQty,
+        float $afterQty,
+        float $deltaQty,
+        ?string $reason,
+    ): void {
+        AuditLog::create([
+            'user_id' => $user->id,
+            'entity_type' => MaterialAllocation::class,
+            'entity_id' => $allocation->id,
+            'action' => $action,
+            'before_state' => ['allocated_qty' => $beforeQty],
+            'after_state' => [
+                'allocated_qty' => $afterQty,
+                'delta_qty' => $deltaQty,
+                'reason' => $reason,
+            ],
+            'ip_address' => app()->runningInConsole() ? null : request()->ip(),
+            'user_agent' => app()->runningInConsole() ? null : request()->userAgent(),
+        ]);
     }
 
     private function isStartItem(array $bomItem): bool

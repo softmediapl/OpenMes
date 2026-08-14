@@ -105,7 +105,8 @@ class AllocationConsumedAtTimingTest extends TestCase
 
         $this->assertSame(1, MaterialAllocation::count());
         $this->assertSame($this->matStart->id, MaterialAllocation::first()->material_id);
-        $this->assertEqualsWithDelta(900.0, (float) $this->matStart->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(1000.0, (float) $this->matStart->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(100.0, (float) $this->matStart->fresh()->reserved_quantity, 0.0001);
         $this->assertEqualsWithDelta(1000.0, (float) $this->matDuring->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(1000.0, (float) $this->matEnd->fresh()->stock_quantity, 0.0001);
     }
@@ -124,7 +125,8 @@ class AllocationConsumedAtTimingTest extends TestCase
         $this->assertCount(1, $allocs);
         $this->assertSame($this->matDuring->id, $allocs->first()->material_id);
         $this->assertSame($step->id, $allocs->first()->batch_step_id);
-        $this->assertEqualsWithDelta(950.0, (float) $this->matDuring->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(1000.0, (float) $this->matDuring->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(50.0, (float) $this->matDuring->fresh()->reserved_quantity, 0.0001);
         $this->assertEqualsWithDelta(1000.0, (float) $this->matStart->fresh()->stock_quantity, 0.0001);
     }
 
@@ -148,32 +150,24 @@ class AllocationConsumedAtTimingTest extends TestCase
 
         $this->assertCount(1, $allocs);
         $this->assertSame($this->matEnd->id, $allocs->first()->material_id);
-        $this->assertEqualsWithDelta(800.0, (float) $this->matEnd->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(1000.0, (float) $this->matEnd->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(200.0, (float) $this->matEnd->fresh()->reserved_quantity, 0.0001);
     }
 
-    public function test_each_allocation_creates_a_stock_movement(): void
+    public function test_allocation_does_not_create_a_physical_stock_movement(): void
     {
         $this->svc->allocateForBatch($this->batch, $this->user);
 
-        $mv = StockMovement::where('material_id', $this->matStart->id)->first();
-        $this->assertNotNull($mv);
-        $this->assertSame(StockMovement::TYPE_ALLOCATION, $mv->movement_type);
-        $this->assertEqualsWithDelta(-100.0, (float) $mv->quantity, 0.0001);
-        $this->assertEqualsWithDelta(900.0, (float) $mv->balance_after, 0.0001);
-        $this->assertSame(StockMovement::SOURCE_BATCH, $mv->source_type);
-        $this->assertSame($this->batch->id, $mv->source_id);
+        $this->assertSame(0, StockMovement::where('material_id', $this->matStart->id)->count());
     }
 
-    public function test_return_creates_a_stock_movement(): void
+    public function test_return_releases_reservation_without_stock_movement(): void
     {
         $this->svc->allocateForBatch($this->batch, $this->user);
         $this->svc->returnForBatch($this->batch);
 
-        $this->assertSame(2, StockMovement::where('material_id', $this->matStart->id)->count());
-        $latest = StockMovement::where('material_id', $this->matStart->id)
-            ->orderByDesc('id')->first();
-        $this->assertSame(StockMovement::TYPE_RETURN, $latest->movement_type);
-        $this->assertEqualsWithDelta(100.0, (float) $latest->quantity, 0.0001);
-        $this->assertEqualsWithDelta(1000.0, (float) $latest->balance_after, 0.0001);
+        $this->assertSame(0, StockMovement::where('material_id', $this->matStart->id)->count());
+        $this->assertEqualsWithDelta(1000.0, (float) $this->matStart->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(0.0, (float) $this->matStart->fresh()->reserved_quantity, 0.0001);
     }
 }

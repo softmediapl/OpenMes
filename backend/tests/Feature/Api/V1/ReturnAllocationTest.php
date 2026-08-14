@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api\V1;
 
+use App\Models\AuditLog;
 use App\Models\Batch;
 use App\Models\Material;
 use App\Models\MaterialAllocation;
@@ -53,8 +54,8 @@ class ReturnAllocationTest extends TestCase
 
         app(MaterialAllocationService::class)->allocateForBatch($this->batch, $this->admin());
         $this->allocation = MaterialAllocation::firstWhere('batch_id', $this->batch->id);
-        // Allocation pulled 100 from 500 and reserved 100.
-        $this->assertEqualsWithDelta(400.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        // Allocation reserves 100 without changing the physical balance.
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(100.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
     }
 
@@ -69,12 +70,15 @@ class ReturnAllocationTest extends TestCase
             ->postJson($path, $body);
     }
 
-    public function test_partial_return_adjusts_stock_reserved_allocated_and_ledger(): void
+    public function test_partial_return_releases_reservation_without_stock_movement(): void
     {
-        $this->submit("/api/v1/material-allocations/{$this->allocation->id}/return", ['qty' => 30])
+        $this->submit("/api/v1/material-allocations/{$this->allocation->id}/return", [
+            'qty' => 30,
+            'reason' => 'Unused after setup',
+        ])
             ->assertOk();
 
-        $this->assertEqualsWithDelta(430.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(70.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
 
         $this->allocation->refresh();
@@ -82,10 +86,14 @@ class ReturnAllocationTest extends TestCase
         $this->assertEqualsWithDelta(30.0, (float) $this->allocation->returned_qty, 0.0001);
         $this->assertSame(MaterialAllocation::STATUS_ALLOCATED, $this->allocation->status);
 
-        $returns = StockMovement::forMaterial($this->material->id)
-            ->where('movement_type', StockMovement::TYPE_RETURN)->get();
-        $this->assertCount(1, $returns);
-        $this->assertEqualsWithDelta(30.0, (float) $returns->first()->quantity, 0.0001);
+        $this->assertSame(0, StockMovement::forMaterial($this->material->id)->count());
+
+        $event = AuditLog::where('entity_type', MaterialAllocation::class)
+            ->where('entity_id', $this->allocation->id)
+            ->where('action', 'reservation_released')
+            ->firstOrFail();
+        $this->assertSame('Unused after setup', $event->after_state['reason']);
+        $this->assertEqualsWithDelta(-30.0, (float) $event->after_state['delta_qty'], 0.0001);
     }
 
     public function test_return_then_completion_does_not_double_return(): void
@@ -95,8 +103,8 @@ class ReturnAllocationTest extends TestCase
         $svc->recordConsumption($this->allocation, 50);
         $this->submit("/api/v1/material-allocations/{$this->allocation->id}/return", ['qty' => 50])->assertOk();
 
-        // After the return: stock 400→450, allocated 100→50, reserved 100→50.
-        $this->assertEqualsWithDelta(450.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        // Releasing unused reservation does not change physical stock.
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
 
         // Completion must NOT return the 50 again (allocated is now 50 == consumed).
         $svc->consumeForBatch($this->batch);
@@ -104,10 +112,8 @@ class ReturnAllocationTest extends TestCase
         $this->assertEqualsWithDelta(450.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
 
-        // Exactly one return of 50 across both events — no double count, reserved never negative.
-        $totalReturned = (float) StockMovement::forMaterial($this->material->id)
-            ->where('movement_type', StockMovement::TYPE_RETURN)->sum('quantity');
-        $this->assertEqualsWithDelta(50.0, $totalReturned, 0.0001);
+        $this->assertSame(0, StockMovement::forMaterial($this->material->id)
+            ->where('movement_type', StockMovement::TYPE_RETURN)->count());
     }
 
     public function test_full_return_leaves_no_leftover_at_completion(): void
@@ -116,9 +122,7 @@ class ReturnAllocationTest extends TestCase
         $this->assertEqualsWithDelta(0.0, (float) $this->allocation->fresh()->allocated_qty, 0.0001);
 
         app(MaterialAllocationService::class)->consumeForBatch($this->batch);
-        // Exactly one return movement (the explicit 100); completion adds none.
-        $this->assertCount(1, StockMovement::forMaterial($this->material->id)
-            ->where('movement_type', StockMovement::TYPE_RETURN)->get());
+        $this->assertSame(0, StockMovement::forMaterial($this->material->id)->count());
         $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }
 
@@ -127,7 +131,7 @@ class ReturnAllocationTest extends TestCase
         $this->submit("/api/v1/material-allocations/{$this->allocation->id}/return", ['qty' => 150])
             ->assertStatus(422)
             ->assertJsonValidationErrors('qty');
-        $this->assertEqualsWithDelta(400.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(500.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }
 
     public function test_zero_quantity_is_rejected(): void
