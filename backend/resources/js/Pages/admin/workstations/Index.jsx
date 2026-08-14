@@ -75,7 +75,7 @@ export default function WorkstationsIndex() {
                                 </div>
                             </div>
 
-                            <div className="mb-4 p-3 bg-om-panel rounded-om-sm grid grid-cols-2 gap-3">
+                            <div className="mb-4 p-3 bg-om-panel rounded-om-sm grid grid-cols-3 gap-3">
                                 <div className="text-center">
                                     <p className="text-2xl font-bold text-om-ink">{ws.template_steps_count}</p>
                                     <p className="text-xs text-om-muted">{__('Template Steps')}</p>
@@ -83,6 +83,12 @@ export default function WorkstationsIndex() {
                                 <div className="text-center">
                                     <p className="text-2xl font-bold text-om-accent">{ws.workers_count}</p>
                                     <p className="text-xs text-om-muted">{__('Workers')}</p>
+                                </div>
+                                <div className="text-center">
+                                    <p className="text-2xl font-bold text-om-ink">
+                                        {ws.active_steps_count}/{ws.capacity_slots}
+                                    </p>
+                                    <p className="text-xs text-om-muted">{__('Occupied capacity')}</p>
                                 </div>
                             </div>
 

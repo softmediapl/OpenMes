@@ -5336,5 +5336,9 @@
     "Earliest release: :time": "Najwcześniejsze zwolnienie: :time",
     "Ready for release": "Gotowe do zwolnienia",
     "Early-release reason": "Powód wcześniejszego zwolnienia",
-    "Required supervisor justification (minimum 10 characters)": "Wymagane uzasadnienie supervisora (minimum 10 znaków)"
+    "Required supervisor justification (minimum 10 characters)": "Wymagane uzasadnienie supervisora (minimum 10 znaków)",
+    "Concurrent operation capacity": "Pojemność operacji równoległych",
+    "Maximum number of operations that may occupy this workstation at the same time.": "Maksymalna liczba operacji, które mogą jednocześnie zajmować to stanowisko.",
+    "Occupied capacity": "Zajęta pojemność",
+    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Stanowisko :station osiągnęło limit pojemności (:occupied/:capacity aktywnych operacji)."
 }

@@ -14,10 +14,15 @@ class LineWorkstationApiTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $supervisor;
+
     protected User $operator;
+
     protected string $adminToken;
+
     protected string $supervisorToken;
+
     protected string $operatorToken;
 
     protected function setUp(): void
@@ -38,9 +43,20 @@ class LineWorkstationApiTest extends TestCase
         $this->operatorToken = $this->operator->createToken('test')->plainTextToken;
     }
 
-    private function authAdmin() { return $this->withHeader('Authorization', "Bearer {$this->adminToken}"); }
-    private function authOperator() { return $this->withHeader('Authorization', "Bearer {$this->operatorToken}"); }
-    private function authSupervisor() { return $this->withHeader('Authorization', "Bearer {$this->supervisorToken}"); }
+    private function authAdmin()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->adminToken}");
+    }
+
+    private function authOperator()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->operatorToken}");
+    }
+
+    private function authSupervisor()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->supervisorToken}");
+    }
 
     // ── GET /api/v1/lines ────────────────────────────────────────────────────
 
@@ -212,11 +228,18 @@ class LineWorkstationApiTest extends TestCase
         $response = $this->authAdmin()->postJson("/api/v1/lines/{$line->id}/workstations", [
             'code' => 'WS-1',
             'name' => 'Station 1',
+            'capacity_slots' => 4,
             'is_active' => true,
         ]);
 
-        $response->assertStatus(201)->assertJsonPath('data.code', 'WS-1');
-        $this->assertDatabaseHas('workstations', ['code' => 'WS-1', 'line_id' => $line->id]);
+        $response->assertStatus(201)
+            ->assertJsonPath('data.code', 'WS-1')
+            ->assertJsonPath('data.capacity_slots', 4);
+        $this->assertDatabaseHas('workstations', [
+            'code' => 'WS-1',
+            'line_id' => $line->id,
+            'capacity_slots' => 4,
+        ]);
     }
 
     public function test_workstation_create_requires_unique_code(): void
@@ -229,14 +252,30 @@ class LineWorkstationApiTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors(['code']);
     }
 
+    public function test_workstation_capacity_must_be_a_positive_integer(): void
+    {
+        $line = Line::factory()->create();
+
+        $this->authAdmin()->postJson("/api/v1/lines/{$line->id}/workstations", [
+            'code' => 'WS-CAP',
+            'name' => 'Capacity test',
+            'capacity_slots' => 0,
+        ])->assertStatus(422)->assertJsonValidationErrors(['capacity_slots']);
+    }
+
     public function test_admin_can_update_workstation(): void
     {
         $line = Line::factory()->create();
         $ws = Workstation::factory()->create(['line_id' => $line->id, 'name' => 'Old']);
         $this->authAdmin()->patchJson("/api/v1/workstations/{$ws->id}", [
             'name' => 'New',
+            'capacity_slots' => 3,
         ])->assertStatus(200);
-        $this->assertDatabaseHas('workstations', ['id' => $ws->id, 'name' => 'New']);
+        $this->assertDatabaseHas('workstations', [
+            'id' => $ws->id,
+            'name' => 'New',
+            'capacity_slots' => 3,
+        ]);
     }
 
     public function test_admin_can_delete_workstation(): void

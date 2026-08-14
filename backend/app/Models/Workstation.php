@@ -20,12 +20,14 @@ class Workstation extends Model
         'code',
         'name',
         'workstation_type',
+        'capacity_slots',
         'is_active',
     ];
 
     protected function casts(): array
     {
         return [
+            'capacity_slots' => 'integer',
             'is_active' => 'boolean',
         ];
     }
@@ -52,6 +54,15 @@ class Workstation extends Model
     public function templateSteps(): HasMany
     {
         return $this->hasMany(TemplateStep::class);
+    }
+
+    /**
+     * Get operations that currently occupy this workstation.
+     */
+    public function activeSteps(): HasMany
+    {
+        return $this->hasMany(BatchStep::class)
+            ->where('status', BatchStep::STATUS_IN_PROGRESS);
     }
 
     /**

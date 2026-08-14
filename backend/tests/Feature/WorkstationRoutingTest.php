@@ -184,4 +184,43 @@ class WorkstationRoutingTest extends TestCase
         $result = app(BatchService::class)->startStep($step, $human);
         $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
     }
+
+    public function test_start_is_rejected_when_workstation_capacity_is_full(): void
+    {
+        $this->setRouting(true);
+        $this->stationA->update(['capacity_slots' => 1]);
+        $this->makeStep($this->stationA->id, BatchStep::STATUS_IN_PROGRESS);
+        $waitingStep = $this->makeStep($this->stationA->id);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Station A is at capacity (1/1 active operations)');
+
+        app(BatchService::class)->startStep($waitingStep, $this->operatorA);
+    }
+
+    public function test_start_reserves_an_available_parallel_capacity_slot(): void
+    {
+        $this->setRouting(true);
+        $this->stationA->update(['capacity_slots' => 2]);
+        $this->makeStep($this->stationA->id, BatchStep::STATUS_IN_PROGRESS);
+        $waitingStep = $this->makeStep($this->stationA->id);
+
+        $result = app(BatchService::class)->startStep($waitingStep, $this->operatorA);
+
+        $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
+        $this->assertSame(2, $this->stationA->activeSteps()->count());
+    }
+
+    public function test_capacity_occupancy_is_isolated_by_workstation(): void
+    {
+        $this->setRouting(true);
+        $this->stationA->update(['capacity_slots' => 1]);
+        $this->stationB->update(['capacity_slots' => 1]);
+        $this->makeStep($this->stationA->id, BatchStep::STATUS_IN_PROGRESS);
+        $waitingStep = $this->makeStep($this->stationB->id);
+
+        $result = app(BatchService::class)->startStep($waitingStep, $this->operatorB);
+
+        $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
+    }
 }

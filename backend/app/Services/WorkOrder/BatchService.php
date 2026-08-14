@@ -50,6 +50,8 @@ class BatchService
                 $this->throwValidationError($step);
             }
 
+            $this->guardWorkstationCapacity($step);
+
             $batch = $step->batch;
             $wasPending = $batch->status === Batch::STATUS_PENDING;
 
@@ -546,6 +548,39 @@ class BatchService
             throw new \Exception(
                 __('This step is assigned to :station and will appear in that workstation\'s queue.', ['station' => $stationName])
             );
+        }
+    }
+
+    /**
+     * Serialize starts at a concrete workstation and reserve one operation slot.
+     * The workstation row lock prevents concurrent requests from overbooking it.
+     *
+     * @throws \Exception
+     */
+    protected function guardWorkstationCapacity(BatchStep $step): void
+    {
+        if (! $step->workstation_id) {
+            return;
+        }
+
+        $workstation = Workstation::query()
+            ->lockForUpdate()
+            ->findOrFail($step->workstation_id);
+
+        $occupied = BatchStep::query()
+            ->where('workstation_id', $workstation->id)
+            ->where('status', BatchStep::STATUS_IN_PROGRESS)
+            ->count();
+
+        if ($occupied >= $workstation->capacity_slots) {
+            throw new \Exception(__(
+                'Workstation :station is at capacity (:occupied/:capacity active operations).',
+                [
+                    'station' => $workstation->name,
+                    'occupied' => $occupied,
+                    'capacity' => $workstation->capacity_slots,
+                ],
+            ));
         }
     }
 

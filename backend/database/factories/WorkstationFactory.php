@@ -17,8 +17,9 @@ class WorkstationFactory extends Factory
     public function definition(): array
     {
         return [
-            'code'      => strtoupper($this->faker->lexify('WS-???')),
-            'name'      => $this->faker->words(2, true),
+            'code' => strtoupper($this->faker->lexify('WS-???')),
+            'name' => $this->faker->words(2, true),
+            'capacity_slots' => 1,
             'is_active' => true,
         ];
     }

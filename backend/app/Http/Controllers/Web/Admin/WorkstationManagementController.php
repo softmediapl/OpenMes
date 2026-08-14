@@ -18,17 +18,18 @@ class WorkstationManagementController extends Controller
     public function index(Line $line)
     {
         $workstations = $line->workstations()
-            ->withCount(['templateSteps', 'workers'])
+            ->withCount(['templateSteps', 'workers', 'activeSteps'])
             ->orderBy('code')
             ->get();
 
         return Inertia::render('admin/workstations/Index', [
             'line' => $line->only('id', 'name', 'code'),
             'workstations' => $workstations->map(fn ($ws) => array_merge(
-                $ws->only('id', 'code', 'name', 'workstation_type', 'is_active'),
+                $ws->only('id', 'code', 'name', 'workstation_type', 'capacity_slots', 'is_active'),
                 [
                     'template_steps_count' => $ws->template_steps_count,
                     'workers_count' => $ws->workers_count,
+                    'active_steps_count' => $ws->active_steps_count,
                 ]
             ))->values(),
         ]);
@@ -54,10 +55,12 @@ class WorkstationManagementController extends Controller
             'code' => 'required|string|max:50|unique:workstations,code',
             'name' => 'required|string|max:255',
             'workstation_type' => 'nullable|string|max:100',
+            'capacity_slots' => 'nullable|integer|min:1|max:10000',
             'is_active' => 'boolean',
         ], $cf->rules('workstation')), [], $cf->attributeNames('workstation'));
 
         $validated['line_id'] = $line->id;
+        $validated['capacity_slots'] = $validated['capacity_slots'] ?? 1;
         $validated['is_active'] = $request->boolean('is_active', true);
         unset($validated['custom_field_files']);
         if ($cf->touched($request)) {
@@ -82,14 +85,14 @@ class WorkstationManagementController extends Controller
         $workers = Worker::active()->orderBy('name')->with(['workstation', 'crew'])->get();
 
         return Inertia::render('admin/workstations/Edit', [
-            'line'        => $line->only('id', 'name', 'code'),
-            'workstation' => $workstation->only('id', 'code', 'name', 'workstation_type', 'is_active', 'custom_fields'),
+            'line' => $line->only('id', 'name', 'code'),
+            'workstation' => $workstation->only('id', 'code', 'name', 'workstation_type', 'capacity_slots', 'is_active', 'custom_fields'),
             'customFields' => $cf->clientConfig('workstation'),
-            'workers'     => $workers->map(fn ($w) => [
-                'id'               => $w->id,
-                'name'             => $w->name,
-                'code'             => $w->code,
-                'workstation_id'   => $w->workstation_id,
+            'workers' => $workers->map(fn ($w) => [
+                'id' => $w->id,
+                'name' => $w->name,
+                'code' => $w->code,
+                'workstation_id' => $w->workstation_id,
                 'workstation_name' => $w->workstation?->name,
                 'crew_name' => $w->crew?->name,
             ])->values(),
@@ -107,12 +110,13 @@ class WorkstationManagementController extends Controller
         }
 
         $validated = $request->validate(array_merge([
-            'code'             => 'required|string|max:50|unique:workstations,code,' . $workstation->id,
-            'name'             => 'required|string|max:255',
+            'code' => 'required|string|max:50|unique:workstations,code,'.$workstation->id,
+            'name' => 'required|string|max:255',
             'workstation_type' => 'nullable|string|max:100',
-            'is_active'        => 'boolean',
-            'worker_ids'       => 'nullable|array',
-            'worker_ids.*'     => 'exists:workers,id',
+            'capacity_slots' => 'sometimes|integer|min:1|max:10000',
+            'is_active' => 'boolean',
+            'worker_ids' => 'nullable|array',
+            'worker_ids.*' => 'exists:workers,id',
         ], $cf->rules('workstation')), [], $cf->attributeNames('workstation'));
 
         $validated['is_active'] = $request->boolean('is_active');

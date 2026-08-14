@@ -11,6 +11,7 @@ export default function WorkstationCreate() {
         code: '',
         name: '',
         workstation_type: '',
+        capacity_slots: 1,
         is_active: true,
         ...customFieldInitial(),
     });
@@ -86,6 +87,26 @@ export default function WorkstationCreate() {
                     />
                     <p className="text-sm text-om-muted mt-1">{__('Optional classification for this workstation')}</p>
                     {form.errors.workstation_type && <p className="mt-1 text-xs text-om-blocked">{form.errors.workstation_type}</p>}
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-om-muted mb-1">
+                        {__('Concurrent operation capacity')} <span className="text-om-blocked">*</span>
+                    </label>
+                    <input
+                        type="number"
+                        min="1"
+                        max="10000"
+                        step="1"
+                        value={form.data.capacity_slots}
+                        onChange={(e) => form.setData('capacity_slots', e.target.value)}
+                        className="form-input w-full"
+                        required
+                    />
+                    <p className="text-sm text-om-muted mt-1">
+                        {__('Maximum number of operations that may occupy this workstation at the same time.')}
+                    </p>
+                    {form.errors.capacity_slots && <p className="mt-1 text-xs text-om-blocked">{form.errors.capacity_slots}</p>}
                 </div>
 
                 <Checkbox

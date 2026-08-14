@@ -5336,5 +5336,9 @@
     "Earliest release: :time": "Earliest release: :time",
     "Ready for release": "Ready for release",
     "Early-release reason": "Early-release reason",
-    "Required supervisor justification (minimum 10 characters)": "Required supervisor justification (minimum 10 characters)"
+    "Required supervisor justification (minimum 10 characters)": "Required supervisor justification (minimum 10 characters)",
+    "Concurrent operation capacity": "Concurrent operation capacity",
+    "Maximum number of operations that may occupy this workstation at the same time.": "Maximum number of operations that may occupy this workstation at the same time.",
+    "Occupied capacity": "Occupied capacity",
+    "Workstation :station is at capacity (:occupied/:capacity active operations).": "Workstation :station is at capacity (:occupied/:capacity active operations)."
 }
