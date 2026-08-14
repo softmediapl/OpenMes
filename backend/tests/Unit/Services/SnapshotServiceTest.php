@@ -48,6 +48,26 @@ class SnapshotServiceTest extends TestCase
         $this->assertEquals($template->product_type_id, $snapshot['product_type_id']);
     }
 
+    public function test_model_and_import_service_use_the_same_snapshot_contract(): void
+    {
+        $template = ProcessTemplate::factory()->withSteps(2)->create();
+        $template->steps()->first()->update([
+            'is_optional' => true,
+            'variant_group' => 'finish',
+            'is_default_variant' => true,
+        ]);
+
+        $fromService = $this->service->createSnapshot($template->fresh());
+        $fromModel = $template->fresh()->toSnapshot();
+
+        unset($fromService['snapshot_created_at'], $fromModel['snapshot_created_at']);
+
+        $this->assertSame($fromService, $fromModel);
+        $this->assertTrue($fromModel['steps'][0]['is_optional']);
+        $this->assertSame('finish', $fromModel['steps'][0]['variant_group']);
+        $this->assertTrue($fromModel['steps'][0]['is_default_variant']);
+    }
+
     public function test_snapshot_steps_are_ordered_by_step_number(): void
     {
         $template = ProcessTemplate::factory()->withSteps(4)->create();

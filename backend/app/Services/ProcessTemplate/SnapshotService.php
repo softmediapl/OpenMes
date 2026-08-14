@@ -21,6 +21,7 @@ class SnapshotService
             'steps.processSegment',
             'steps.media',
             'steps.photos',
+            'steps.workstation',
             'bomItems.material.materialType',
             'bomItems.templateStep',
         ]);
@@ -45,8 +46,12 @@ class SnapshotService
                     'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,
                     'required_operators' => $step->effectiveRequiredOperators(),
                     'workstation_id' => $step->workstation_id,
+                    'workstation_name' => $step->workstation?->name,
                     'workstation_type_id' => $step->effectiveWorkstationType(),
                     'transport_unit_type_id' => $step->transport_unit_type_id,
+                    'is_optional' => (bool) $step->is_optional,
+                    'variant_group' => $step->variant_group,
+                    'is_default_variant' => (bool) $step->is_default_variant,
                 ];
             })->toArray(),
             'bom' => $template->bomItems->map(function ($item) {
@@ -54,7 +59,7 @@ class SnapshotService
                     'material_id' => $item->material_id,
                     'material_code' => $item->material->code,
                     'material_name' => $item->material->name,
-                    'material_type' => $item->material->materialType->code,
+                    'material_type' => $item->material->materialType?->code,
                     'tracking_type' => $item->material->tracking_type,
                     'unit_of_measure' => $item->material->unit_of_measure,
                     'quantity_per_unit' => (float) $item->quantity_per_unit,

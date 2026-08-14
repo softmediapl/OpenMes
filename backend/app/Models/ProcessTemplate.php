@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\HasTenant;
 use App\Models\Concerns\SoftDeletesWithAudit;
+use App\Services\ProcessTemplate\SnapshotService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -87,58 +88,7 @@ class ProcessTemplate extends Model
      */
     public function toSnapshot(): array
     {
-        $this->loadMissing([
-            'steps.processSegment',
-            'steps.media',
-            'steps.photos',
-            'steps.workstation',
-            'bomItems.material.materialType',
-            'bomItems.templateStep',
-        ]);
-
-        return [
-            'template_id' => $this->id,
-            'template_name' => $this->name,
-            'template_version' => $this->version,
-            'steps' => $this->steps->map(function ($step) {
-                return [
-                    'step_number' => $step->step_number,
-                    'name' => $step->name,
-                    'instruction' => $step->effectiveInstruction(),
-                    'requires_confirmation' => (bool) $step->requires_confirmation
-                        && $step->hasConfirmableInstructionContent(),
-                    'quantity_reporting_required' => (bool) $step->quantity_reporting_required,
-                    'estimated_duration_minutes' => $step->estimated_duration_minutes,
-                    'execution_mode' => $step->execution_mode->value,
-                    'min_duration_minutes' => $step->min_duration_minutes,
-                    'setup_time_minutes' => $step->setup_time_minutes,
-                    'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,
-                    'required_operators' => $step->effectiveRequiredOperators(),
-                    'workstation_id' => $step->workstation_id,
-                    'workstation_name' => $step->workstation?->name,
-                    'workstation_type_id' => $step->effectiveWorkstationType(),
-                    'is_optional' => (bool) $step->is_optional,
-                    'variant_group' => $step->variant_group,
-                    'is_default_variant' => (bool) $step->is_default_variant,
-                ];
-            })->toArray(),
-            'bom' => $this->bomItems->map(function ($item) {
-                return [
-                    'material_id' => $item->material_id,
-                    'material_code' => $item->material->code,
-                    'material_name' => $item->material->name,
-                    'material_type' => $item->material->materialType?->code,
-                    'tracking_type' => $item->material->tracking_type,
-                    'unit_of_measure' => $item->material->unit_of_measure,
-                    'quantity_per_unit' => (float) $item->quantity_per_unit,
-                    'scrap_percentage' => (float) $item->scrap_percentage,
-                    'consumed_at' => $item->consumed_at,
-                    'step_number' => $item->templateStep?->step_number,
-                    'external_code' => $item->material->external_code,
-                    'external_system' => $item->material->external_system,
-                ];
-            })->toArray(),
-        ];
+        return app(SnapshotService::class)->createSnapshot($this);
     }
 
     /**
