@@ -643,6 +643,7 @@
     "Deployment audit log is not available on this build.": "Dziennik audytu wdrożeń nie jest dostępny w tej kompilacji.",
     "Confirm PIN": "Potwierdź PIN",
     "Default pay rate": "Domyślna stawka",
+    "Inherited from the selected material.": "Dziedziczona z wybranego materiału.",
     "Inspection": "Przegląd",
     "Just scan the code with the scanner - data is entered automatically, no need to click anywhere.": "Po prostu zeskanuj kod skanerem - dane wejdą automatycznie, nie klikaj nigdzie.",
     "Country (2-letter)": "Kraj (2 litery)",

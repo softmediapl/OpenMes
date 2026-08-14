@@ -13,6 +13,10 @@ export function materialLotStatusLabel(status) {
     return labels[status] ?? status;
 }
 
+export function materialUnitFor(materials, materialId) {
+    return materials.find((material) => String(material.id) === String(materialId))?.unit_of_measure ?? '';
+}
+
 export function materialLotFields(materials, sources, statuses) {
     return [
         { name: 'lot_number', label: __('Lot Number'), required: true, placeholder: __('e.g. ACME-STEEL-2026-W24-001'), help: __('Required. A unique identifier for this lot/batch.') },
@@ -37,7 +41,15 @@ export function materialLotFields(materials, sources, statuses) {
         },
         { name: 'quantity_received', label: __('Qty Received'), type: 'number', required: true },
         { name: 'quantity_available', label: __('Qty Available'), type: 'number', help: __('Defaults to the received quantity if left blank.') },
-        { name: 'unit_of_measure', label: __('Unit'), required: true, placeholder: __('e.g. pcs, kg, l'), help: __('Required.') },
+        {
+            name: 'unit_of_measure',
+            label: __('Unit'),
+            required: true,
+            readOnly: true,
+            deriveFromField: 'material_id',
+            deriveValue: (data) => materialUnitFor(materials, data.material_id),
+            help: __('Inherited from the selected material.'),
+        },
         { name: 'received_at', label: __('Received'), type: 'date', required: true },
         { name: 'manufacturing_date', label: __('Mfg Date'), type: 'date' },
         { name: 'expiry_date', label: __('Expiry'), type: 'date' },

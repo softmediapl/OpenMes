@@ -153,7 +153,7 @@ export default function ResourceForm({
 }
 
 function Field({ field, value, error, setData, data }) {
-    const { name, label, type = 'text', required, placeholder, help, options, filterByField } = field;
+    const { name, label, type = 'text', required, placeholder, help, options, filterByField, deriveFromField, deriveValue, readOnly = false } = field;
     const set = (v) => setData(name, v);
 
     // Dependent select: options carrying a `group` are scoped to the current
@@ -171,6 +171,14 @@ function Field({ field, value, error, setData, data }) {
         if (!stillValid) set('');
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filterVal]);
+
+    const derivedValue = deriveValue ? deriveValue(data) : undefined;
+    useEffect(() => {
+        if (!deriveValue || derivedValue === undefined || derivedValue === value) return;
+        set(derivedValue);
+        // Recalculate only when the declared source field changes.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [deriveFromField ? data?.[deriveFromField] : derivedValue]);
 
     if (type === 'checkbox') {
         return (
@@ -230,7 +238,8 @@ function Field({ field, value, error, setData, data }) {
                     value={value ?? ''}
                     onChange={(e) => set(e.target.value)}
                     placeholder={placeholder ? __(placeholder) : undefined}
-                    className={INPUT_CLASS}
+                    readOnly={readOnly}
+                    className={`${INPUT_CLASS} ${readOnly ? 'bg-om-panel text-om-muted cursor-not-allowed' : ''}`}
                 />
             )}
 

@@ -20,7 +20,7 @@ export default function MaterialLotCreate() {
                     source_id: '',
                     quantity_received: '',
                     quantity_available: '',
-                    unit_of_measure: 'pcs',
+                    unit_of_measure: '',
                     received_at: '',
                     manufacturing_date: '',
                     expiry_date: '',

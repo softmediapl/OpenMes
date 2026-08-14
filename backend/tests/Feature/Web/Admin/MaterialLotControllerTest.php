@@ -84,6 +84,24 @@ class MaterialLotControllerTest extends TestCase
         $this->assertEqualsWithDelta(250.0, (float) $lot->quantity_available, 0.0001);
     }
 
+    public function test_store_derives_unit_from_material_master_data(): void
+    {
+        $material = Material::factory()->create(['unit_of_measure' => 'kg']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.material-lots.store'), $this->validPayload([
+                'material_id' => $material->id,
+                'lot_number' => 'WEIGHT-LOT-001',
+                'unit_of_measure' => 'pcs',
+            ]))
+            ->assertRedirect(route('admin.material-lots.index'));
+
+        $this->assertDatabaseHas('material_lots', [
+            'lot_number' => 'WEIGHT-LOT-001',
+            'unit_of_measure' => 'kg',
+        ]);
+    }
+
     public function test_store_persists_source_container_no(): void
     {
         $material = Material::factory()->create();
@@ -106,7 +124,7 @@ class MaterialLotControllerTest extends TestCase
     {
         $this->actingAs($this->admin)
             ->post(route('admin.material-lots.store'), [])
-            ->assertSessionHasErrors(['lot_number', 'material_id', 'quantity_received', 'unit_of_measure', 'received_at', 'status']);
+            ->assertSessionHasErrors(['lot_number', 'material_id', 'quantity_received', 'received_at', 'status']);
     }
 
     public function test_store_rejects_invalid_status(): void
@@ -147,6 +165,22 @@ class MaterialLotControllerTest extends TestCase
             ->assertRedirect(route('admin.material-lots.index'));
 
         $this->assertSame(MaterialLot::STATUS_RELEASED, $lot->fresh()->status);
+    }
+
+    public function test_update_realigns_unit_with_selected_material(): void
+    {
+        $material = Material::factory()->create(['unit_of_measure' => 'l']);
+        $lot = MaterialLot::factory()->create(['tenant_id' => $this->admin->tenant_id]);
+
+        $this->actingAs($this->admin)
+            ->put(route('admin.material-lots.update', $lot), $this->validPayload([
+                'lot_number' => $lot->lot_number,
+                'material_id' => $material->id,
+                'unit_of_measure' => 'pcs',
+            ]))
+            ->assertRedirect(route('admin.material-lots.index'));
+
+        $this->assertSame('l', $lot->fresh()->unit_of_measure);
     }
 
     public function test_show_loads_genealogy_relations(): void

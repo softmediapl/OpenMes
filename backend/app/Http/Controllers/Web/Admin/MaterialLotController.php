@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\HoldMaterialLotRequest;
+use App\Http\Requests\Web\Admin\UpsertMaterialLotRequest;
 use App\Models\Issue;
 use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\MaterialSource;
 use App\Services\Quality\MaterialHoldService;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class MaterialLotController extends Controller
@@ -107,15 +107,15 @@ class MaterialLotController extends Controller
     public function create()
     {
         return Inertia::render('admin/material-lots/Create', [
-            'materials' => Material::orderBy('name')->get(['id', 'name']),
+            'materials' => Material::orderBy('name')->get(['id', 'name', 'unit_of_measure']),
             'sources' => MaterialSource::orderBy('external_name')->get(['id', 'external_name']),
             'statuses' => MaterialLot::STATUSES,
         ]);
     }
 
-    public function store(Request $request)
+    public function store(UpsertMaterialLotRequest $request)
     {
-        $data = $this->validateLot($request);
+        $data = $request->lotData();
         // On creation, available defaults to received unless explicitly given.
         $data['quantity_available'] = $data['quantity_available'] ?? $data['quantity_received'];
         $data['created_by_id'] = $request->user()?->id;
@@ -144,15 +144,15 @@ class MaterialLotController extends Controller
                 'supplier_lot_no' => $materialLot->supplier_lot_no,
                 'supplier_reference' => $materialLot->supplier_reference,
             ],
-            'materials' => Material::orderBy('name')->get(['id', 'name']),
+            'materials' => Material::orderBy('name')->get(['id', 'name', 'unit_of_measure']),
             'sources' => MaterialSource::orderBy('external_name')->get(['id', 'external_name']),
             'statuses' => MaterialLot::STATUSES,
         ]);
     }
 
-    public function update(Request $request, MaterialLot $materialLot)
+    public function update(UpsertMaterialLotRequest $request, MaterialLot $materialLot)
     {
-        $data = $this->validateLot($request, $materialLot);
+        $data = $request->lotData();
         $materialLot->update($data);
 
         return redirect()->route('admin.material-lots.index')
@@ -211,36 +211,4 @@ class MaterialLotController extends Controller
         return redirect()->back()->with('success', __('Lot released.'));
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function validateLot(Request $request, ?MaterialLot $existing = null): array
-    {
-        $lotNumberRule = ['required', 'string', 'max:100'];
-        // Uniqueness scoped to the current tenant. On update we exclude the row itself.
-        $tenantId = $request->user()?->tenant_id;
-        $unique = Rule::unique('material_lots', 'lot_number')
-            ->where(fn ($q) => $tenantId ? $q->where('tenant_id', $tenantId) : $q);
-        if ($existing) {
-            $unique = $unique->ignore($existing->id);
-        }
-        $lotNumberRule[] = $unique;
-
-        return $request->validate([
-            'lot_number' => $lotNumberRule,
-            'material_id' => ['required', 'integer', 'exists:materials,id'],
-            'source_id' => ['nullable', 'integer', 'exists:material_sources,id'],
-            'quantity_received' => ['required', 'numeric', 'min:0'],
-            'quantity_available' => ['nullable', 'numeric', 'min:0'],
-            'unit_of_measure' => ['required', 'string', 'max:20'],
-            'received_at' => ['required', 'date'],
-            'manufacturing_date' => ['nullable', 'date'],
-            'expiry_date' => ['nullable', 'date', 'after_or_equal:manufacturing_date'],
-            'status' => ['required', Rule::in(MaterialLot::STATUSES)],
-            'supplier_lot_no' => ['nullable', 'string', 'max:100'],
-            'supplier_reference' => ['nullable', 'string', 'max:255'],
-            'source_container_no' => ['nullable', 'string', 'max:100'],
-            'inspection_id' => ['nullable', 'integer', 'exists:inspections,id'],
-        ]);
-    }
 }
