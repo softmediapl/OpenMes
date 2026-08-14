@@ -191,6 +191,51 @@ class WorkstationAccountIsolationTest extends TestCase
         $this->assertSame(BatchStep::STATUS_READY, $step->fresh()->status);
     }
 
+    public function test_terminal_returns_to_its_queue_after_transferring_work_to_another_station(): void
+    {
+        [$workOrder, $batch, $step] = $this->workAt($this->assignedStation);
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'started_at' => now()->subMinute(),
+        ]);
+        BatchStep::factory()->create([
+            'batch_id' => $batch->id,
+            'step_number' => 2,
+            'workstation_id' => $this->otherStation->id,
+            'status' => BatchStep::STATUS_PENDING,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->post(route('operator.batch-step.complete', $step))
+            ->assertRedirect(route('operator.queue'))
+            ->assertSessionHas('success');
+
+        $this->assertSame(BatchStep::STATUS_DONE, $step->fresh()->status);
+        $this->assertSame(BatchStep::STATUS_READY, $batch->steps()->where('step_number', 2)->firstOrFail()->status);
+    }
+
+    public function test_terminal_keeps_the_work_order_open_for_the_next_step_at_the_same_station(): void
+    {
+        [$workOrder, $batch, $step] = $this->workAt($this->assignedStation);
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'started_at' => now()->subMinute(),
+        ]);
+        BatchStep::factory()->create([
+            'batch_id' => $batch->id,
+            'step_number' => 2,
+            'workstation_id' => $this->assignedStation->id,
+            'status' => BatchStep::STATUS_PENDING,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->post(route('operator.batch-step.complete', $step))
+            ->assertRedirect(route('operator.work-order.detail', $workOrder))
+            ->assertSessionHas('success');
+
+        $this->assertSame(BatchStep::STATUS_READY, $batch->steps()->where('step_number', 2)->firstOrFail()->status);
+    }
+
     public function test_terminal_cannot_change_assignment_through_line_selection(): void
     {
         $otherLine = Line::factory()->create();

@@ -133,7 +133,19 @@ class BatchController extends Controller
         try {
             $this->batchService->completeStep($batchStep, $request->user(), $request->validated());
 
-            return back()->with('success', 'Step completed.');
+            if ($this->workstationContext->isLocked($request->user())) {
+                $workOrder = $batchStep->batch->workOrder->fresh();
+
+                if ($this->workstationContext->canAccessWorkOrder($request, $workOrder)) {
+                    return redirect()->route('operator.work-order.detail', $workOrder)
+                        ->with('success', __('Step completed.'));
+                }
+
+                return redirect()->route('operator.queue')
+                    ->with('success', __('Step completed and the batch was transferred to the next operation.'));
+            }
+
+            return back()->with('success', __('Step completed.'));
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
         }

@@ -5295,5 +5295,6 @@
     "⚠ Blocking": "⚠ Blokujące",
     "Read-confirmation requires an instruction, photo, or media attachment.": "Potwierdzenie przeczytania wymaga instrukcji, zdjęcia lub załącznika multimedialnego.",
     "This step has no instruction content to acknowledge.": "Ten krok nie zawiera instrukcji, którą można potwierdzić.",
-    "Work instruction": "Instrukcja robocza"
+    "Work instruction": "Instrukcja robocza",
+    "Step completed and the batch was transferred to the next operation.": "Krok zakończony, a partia została przekazana do kolejnej operacji."
 }
