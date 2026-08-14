@@ -108,6 +108,7 @@ class ProcessTemplateManagementController extends Controller
                     'name' => $s->name,
                     'instruction' => $s->instruction,
                     'requires_confirmation' => (bool) $s->requires_confirmation,
+                    'quantity_reporting_required' => (bool) $s->quantity_reporting_required,
                     'estimated_duration_minutes' => $s->estimated_duration_minutes,
                     'setup_time_minutes' => $s->setup_time_minutes,
                     'run_time_per_unit_minutes' => $s->run_time_per_unit_minutes,
@@ -305,6 +306,7 @@ class ProcessTemplateManagementController extends Controller
     {
         $data = $request->validated();
         $data['requires_confirmation'] = $request->boolean('requires_confirmation');
+        $data['quantity_reporting_required'] = $request->boolean('quantity_reporting_required');
         $data['is_optional'] = $request->boolean('is_optional');
         $data['variant_group'] = $request->filled('variant_group') ? $request->input('variant_group') : null;
         $data['is_default_variant'] = $data['variant_group'] !== null && $request->boolean('is_default_variant');

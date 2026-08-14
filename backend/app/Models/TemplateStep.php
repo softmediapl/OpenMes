@@ -25,6 +25,7 @@ class TemplateStep extends Model
         'required_operators',
         'min_duration_minutes',
         'requires_confirmation',
+        'quantity_reporting_required',
         'workstation_id',
         'workstation_type_id',
         'setup_time_minutes',
@@ -44,6 +45,7 @@ class TemplateStep extends Model
             'required_operators' => 'integer',
             'min_duration_minutes' => 'integer',
             'requires_confirmation' => 'boolean',
+            'quantity_reporting_required' => 'boolean',
             'is_optional' => 'boolean',
             'is_default_variant' => 'boolean',
         ];

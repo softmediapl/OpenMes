@@ -167,7 +167,10 @@ class Batch extends Model
             ->get()
             ->each(function (BatchStep $step) {
                 if ($step->prerequisitesMet()) {
-                    $step->update(['status' => BatchStep::STATUS_READY]);
+                    $step->update([
+                        'status' => BatchStep::STATUS_READY,
+                        'input_quantity' => $step->expectedInputQuantity(),
+                    ]);
                 }
             });
     }

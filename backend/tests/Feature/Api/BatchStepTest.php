@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\Batch;
 use App\Models\BatchStep;
+use App\Models\ScrapReason;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\WorkOrder\WorkOrderService;
@@ -135,6 +136,48 @@ class BatchStepTest extends TestCase
         $this->assertNotNull($firstStep->completed_at);
         $this->assertEquals($user->id, $firstStep->completed_by_id);
         $this->assertNotNull($firstStep->duration_minutes);
+    }
+
+    public function test_quantity_reporting_step_requires_and_persists_a_balanced_api_payload(): void
+    {
+        $user = $this->authenticatedUser('Operator');
+        [$workOrder, $batch] = $this->createWorkOrderWithBatch();
+        $user->lines()->attach($workOrder->line_id);
+
+        $step = $batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update(['quantity_reporting_required' => true]);
+        app(\App\Services\WorkOrder\BatchService::class)->startStep($step->fresh(), $user);
+
+        $token = $user->createToken('quantity-balance')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/v1/batch-steps/{$step->id}/complete")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['good_quantity', 'rework_quantity', 'scrap_quantity']);
+
+        $reason = ScrapReason::factory()->create();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/v1/batch-steps/{$step->id}/complete", [
+                'good_quantity' => 45,
+                'rework_quantity' => 2,
+                'scrap_quantity' => 3,
+                'scrap_reason_id' => $reason->id,
+                'quantity_notes' => 'Three pieces cracked during forming.',
+            ])
+            ->assertOk();
+
+        $step->refresh();
+        $this->assertEquals(50, $step->input_quantity);
+        $this->assertEquals(45, $step->released_quantity);
+        $this->assertEquals(2, $step->rework_quantity);
+        $this->assertEquals(3, $step->scrap_quantity);
+        $this->assertSame($reason->id, $step->scrap_reason_id);
+        $this->assertDatabaseHas('scrap_entries', [
+            'batch_step_id' => $step->id,
+            'scrap_reason_id' => $reason->id,
+            'quantity' => 3,
+        ]);
     }
 
     public function test_cannot_complete_step_that_is_not_in_progress(): void

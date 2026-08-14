@@ -34,11 +34,21 @@ class BatchStep extends Model
         'name',
         'instruction',
         'requires_confirmation',
+        'quantity_reporting_required',
         'workstation_id',
         'workstation_type_id',
         'estimated_duration_minutes',
         'setup_time_minutes',
         'run_time_per_unit_minutes',
+        'input_quantity',
+        'good_quantity',
+        'rework_quantity',
+        'scrap_quantity',
+        'released_quantity',
+        'scrap_reason_id',
+        'quantity_notes',
+        'quantity_reported_at',
+        'quantity_reported_by_id',
         'status',
         'is_optional',
         'variant_group',
@@ -64,8 +74,14 @@ class BatchStep extends Model
             'estimated_duration_minutes' => 'integer',
             'setup_time_minutes' => 'integer',
             'run_time_per_unit_minutes' => 'decimal:2',
+            'input_quantity' => 'decimal:4',
+            'good_quantity' => 'decimal:4',
+            'rework_quantity' => 'decimal:4',
+            'scrap_quantity' => 'decimal:4',
+            'released_quantity' => 'decimal:4',
             'is_optional' => 'boolean',
             'requires_confirmation' => 'boolean',
+            'quantity_reporting_required' => 'boolean',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'confirmed_at' => 'datetime',
@@ -74,6 +90,7 @@ class BatchStep extends Model
             'actual_elapsed_minutes' => 'integer',
             'actual_setup_minutes' => 'integer',
             'actual_run_minutes' => 'integer',
+            'quantity_reported_at' => 'datetime',
         ];
     }
 
@@ -122,6 +139,16 @@ class BatchStep extends Model
     public function completedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'completed_by_id');
+    }
+
+    public function quantityReportedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'quantity_reported_by_id');
+    }
+
+    public function scrapReason(): BelongsTo
+    {
+        return $this->belongsTo(ScrapReason::class);
     }
 
     /**
@@ -324,6 +351,32 @@ class BatchStep extends Model
     public function canComplete(): bool
     {
         return $this->status === self::STATUS_IN_PROGRESS;
+    }
+
+    /**
+     * Quantity expected at this operation. Completed predecessors release only
+     * accepted output; skipped alternatives do not create or consume WIP.
+     */
+    public function expectedInputQuantity(): float
+    {
+        if ($this->input_quantity !== null) {
+            return (float) $this->input_quantity;
+        }
+
+        $previous = $this->batch->steps()
+            ->where('step_number', '<', $this->step_number)
+            ->where('status', self::STATUS_DONE)
+            ->orderByDesc('step_number')
+            ->first();
+
+        if ($previous) {
+            return (float) ($previous->released_quantity
+                ?? $previous->good_quantity
+                ?? $previous->input_quantity
+                ?? $this->batch->target_qty);
+        }
+
+        return (float) $this->batch->target_qty;
     }
 
     /**

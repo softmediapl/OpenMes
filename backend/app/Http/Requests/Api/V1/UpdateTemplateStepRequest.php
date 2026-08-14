@@ -22,6 +22,7 @@ class UpdateTemplateStepRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'instruction' => ['sometimes', 'nullable', 'string'],
             'requires_confirmation' => ['sometimes', 'boolean'],
+            'quantity_reporting_required' => ['sometimes', 'boolean'],
             'estimated_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'setup_time_minutes' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'run_time_per_unit_minutes' => ['sometimes', 'nullable', 'numeric', 'min:0'],

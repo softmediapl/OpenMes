@@ -617,7 +617,9 @@ class WorkOrderService
             $allocatedQuery->where('id', '!=', $exceptBatchId);
         }
 
-        $allocated = (float) $allocatedQuery->sum('target_qty');
+        $allocated = (float) $allocatedQuery
+            ->selectRaw('COALESCE(SUM(CASE WHEN status = ? THEN produced_qty ELSE target_qty END), 0) AS allocated', [Batch::STATUS_DONE])
+            ->value('allocated');
         $planned = (float) $workOrder->planned_qty;
 
         if (($allocated + $targetQty - $planned) > 0.001) {
@@ -666,6 +668,7 @@ class WorkOrderService
                 'name' => $stepData['name'],
                 'instruction' => $stepData['instruction'] ?? null,
                 'requires_confirmation' => $stepData['requires_confirmation'] ?? false,
+                'quantity_reporting_required' => $stepData['quantity_reporting_required'] ?? false,
                 'workstation_id' => $stepData['workstation_id'] ?? null,
                 // ISA-95 (#52): carry the required Equipment Class + planning times
                 // down from the snapshot so pool dispatch and the actual-vs-standard

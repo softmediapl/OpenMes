@@ -37,6 +37,7 @@ class SnapshotService
                     'instruction' => $step->effectiveInstruction(),
                     'requires_confirmation' => (bool) $step->requires_confirmation
                         && $step->hasConfirmableInstructionContent(),
+                    'quantity_reporting_required' => (bool) $step->quantity_reporting_required,
                     'estimated_duration_minutes' => $step->estimated_duration_minutes,
                     'setup_time_minutes' => $step->setup_time_minutes,
                     'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,

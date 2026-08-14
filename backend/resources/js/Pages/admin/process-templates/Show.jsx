@@ -69,6 +69,17 @@ function OptionalVariantFields({ data, setData, errors }) {
             <p className="md:col-span-3 -mt-2 text-xs text-om-muted">
                 {__('When on, the operator must acknowledge the instructions before this step can be completed.')}
             </p>
+
+            <div className="md:col-span-3 flex items-center border-t border-om-line pt-3">
+                <Checkbox
+                    checked={!!data.quantity_reporting_required}
+                    onChange={(next) => setData('quantity_reporting_required', next)}
+                    label={__('Require an operation quantity balance')}
+                />
+            </div>
+            <p className="md:col-span-3 -mt-2 text-xs text-om-muted">
+                {__('The operator must account for the complete input as good, rework or scrap before completing this step.')}
+            </p>
         </div>
     );
 }
@@ -131,6 +142,7 @@ function AddStepForm({ productType, processTemplate, processSegments, workstatio
         name: '',
         instruction: '',
         requires_confirmation: false,
+        quantity_reporting_required: false,
         estimated_duration_minutes: '',
         setup_time_minutes: '',
         run_time_per_unit_minutes: '',
@@ -286,6 +298,7 @@ function EditStepForm({ step, productType, processTemplate, processSegments, wor
         name: step.name ?? '',
         instruction: step.instruction ?? '',
         requires_confirmation: !!step.requires_confirmation,
+        quantity_reporting_required: !!step.quantity_reporting_required,
         estimated_duration_minutes: step.estimated_duration_minutes != null ? String(step.estimated_duration_minutes) : '',
         setup_time_minutes: step.setup_time_minutes != null ? String(step.setup_time_minutes) : '',
         run_time_per_unit_minutes: step.run_time_per_unit_minutes != null ? String(step.run_time_per_unit_minutes) : '',
@@ -674,6 +687,11 @@ function StepCard({
                                         {step.requires_confirmation && (
                                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-blocked-bg text-om-blocked">
                                                 {__('Read-confirmation')}
+                                            </span>
+                                        )}
+                                        {step.quantity_reporting_required && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-done-bg text-om-done">
+                                                {__('Quantity balance')}
                                             </span>
                                         )}
                                     </h3>

@@ -5,6 +5,8 @@ namespace App\Services\WorkOrder;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\QualityControlTask;
+use App\Models\ScrapEntry;
+use App\Models\ScrapReason;
 use App\Models\User;
 use App\Models\Workstation;
 use App\Services\Material\MaterialAllocationService;
@@ -32,6 +34,8 @@ class BatchService
     public function startStep(BatchStep $step, User $user, array $picksByMaterial = []): BatchStep
     {
         return DB::transaction(function () use ($step, $user, $picksByMaterial) {
+            $step = BatchStep::query()->lockForUpdate()->findOrFail($step->getKey());
+
             // Enforce workstation routing (if enabled)
             $this->guardWorkstationRouting($step, $user);
 
@@ -52,6 +56,7 @@ class BatchService
             // Start the step
             $step->update([
                 'status' => BatchStep::STATUS_IN_PROGRESS,
+                'input_quantity' => $step->expectedInputQuantity(),
                 'started_at' => now(),
                 'started_by_id' => $user->id,
             ]);
@@ -89,6 +94,8 @@ class BatchService
     public function completeStep(BatchStep $step, User $user, array $data = []): BatchStep
     {
         return DB::transaction(function () use ($step, $user, $data) {
+            $step = BatchStep::query()->lockForUpdate()->findOrFail($step->getKey());
+
             // Enforce workstation routing (if enabled)
             $this->guardWorkstationRouting($step, $user);
 
@@ -148,8 +155,10 @@ class BatchService
                 throw new \Exception(__('Actual setup + run time cannot exceed the actual elapsed time.'));
             }
 
+            $quantityPayload = $this->completionQuantityPayload($step, $user, $data);
+
             // Complete the step
-            $step->update([
+            $step->update(array_merge([
                 'status' => BatchStep::STATUS_DONE,
                 'completed_at' => now(),
                 'completed_by_id' => $user->id,
@@ -157,10 +166,25 @@ class BatchService
                 'actual_elapsed_minutes' => $actualElapsed,
                 'actual_setup_minutes' => $actualSetup,
                 'actual_run_minutes' => $actualRun,
-            ]);
+            ], $quantityPayload));
+
+            if ((float) $step->scrap_quantity > 0) {
+                ScrapEntry::create([
+                    'work_order_id' => $step->batch->work_order_id,
+                    'scrap_reason_id' => $step->scrap_reason_id,
+                    'quantity' => $step->scrap_quantity,
+                    'batch_step_id' => $step->id,
+                    'notes' => $step->quantity_notes,
+                    'reported_by' => $user->id,
+                    'reported_at' => now(),
+                ]);
+            }
 
             // Update batch status
             $batch = $step->batch;
+            $batch->update([
+                'scrap_qty' => $batch->steps()->sum('scrap_quantity'),
+            ]);
             $this->updateBatchStatus($batch);
 
             // The next step (prerequisites now met) becomes READY.
@@ -171,8 +195,13 @@ class BatchService
                 // End-of-batch BOM rows (consumed_at='end') get allocated now,
                 // immediately before everything is marked consumed. Attribute to
                 // the completing step so the genealogy bridge has a step to record.
-                $this->allocationService->allocateForBatchEnd($batch, $user, attributeStepId: $step->id);
-                $this->completeBatch($batch, $data['produced_qty'] ?? $batch->target_qty);
+                $this->allocationService->allocateForBatchEnd(
+                    $batch,
+                    $user,
+                    attributeStepId: $step->id,
+                    productionQuantity: (float) $step->released_quantity,
+                );
+                $this->completeBatch($batch, (float) $step->released_quantity);
                 $this->allocationService->consumeForBatch($batch);
 
                 // Quality-control triggers: every-N-units checks (#105).
@@ -352,6 +381,84 @@ class BatchService
         $workOrder->update([
             'produced_qty' => $totalProduced,
         ]);
+    }
+
+    /**
+     * Build the immutable quantity balance recorded when an operation completes.
+     * Reporting steps require an exact input = good + rework + scrap equation;
+     * legacy/pass-through steps release their complete input automatically.
+     *
+     * @return array<string, mixed>
+     */
+    private function completionQuantityPayload(BatchStep $step, User $user, array $data): array
+    {
+        $input = $step->expectedInputQuantity();
+
+        if (! $step->quantity_reporting_required) {
+            $good = array_key_exists('produced_qty', $data)
+                ? $this->nonNegativeFiniteQuantity($data['produced_qty'], 'Produced quantity')
+                : $input;
+
+            return [
+                'input_quantity' => $input,
+                'good_quantity' => $good,
+                'rework_quantity' => 0,
+                'scrap_quantity' => 0,
+                'released_quantity' => $good,
+                'scrap_reason_id' => null,
+                'quantity_notes' => $data['quantity_notes'] ?? null,
+                'quantity_reported_at' => now(),
+                'quantity_reported_by_id' => $user->id,
+            ];
+        }
+
+        foreach (['good_quantity', 'rework_quantity', 'scrap_quantity'] as $field) {
+            if (! array_key_exists($field, $data)) {
+                throw new \DomainException(__('Good, rework and scrap quantities are required to complete this operation.'));
+            }
+        }
+
+        $good = $this->nonNegativeFiniteQuantity($data['good_quantity'], 'Good quantity');
+        $rework = $this->nonNegativeFiniteQuantity($data['rework_quantity'], 'Rework quantity');
+        $scrap = $this->nonNegativeFiniteQuantity($data['scrap_quantity'], 'Scrap quantity');
+
+        if (abs($input - $good - $rework - $scrap) > 0.0001) {
+            throw new \DomainException(__(
+                'Quantity balance is invalid: input (:input) must equal good + rework + scrap (:output).',
+                ['input' => $input, 'output' => $good + $rework + $scrap],
+            ));
+        }
+
+        $scrapReasonId = $data['scrap_reason_id'] ?? null;
+        if ($scrap > 0 && (! $scrapReasonId || ! ScrapReason::active()->whereKey($scrapReasonId)->exists())) {
+            throw new \DomainException(__('An active scrap reason is required when scrap is reported.'));
+        }
+
+        return [
+            'input_quantity' => $input,
+            'good_quantity' => $good,
+            'rework_quantity' => $rework,
+            'scrap_quantity' => $scrap,
+            'released_quantity' => $good,
+            'scrap_reason_id' => $scrap > 0 ? $scrapReasonId : null,
+            'quantity_notes' => $data['quantity_notes'] ?? null,
+            'quantity_reported_at' => now(),
+            'quantity_reported_by_id' => $user->id,
+        ];
+    }
+
+    private function nonNegativeFiniteQuantity(mixed $value, string $label): float
+    {
+        if (! is_numeric($value)) {
+            throw new \DomainException(__(':label must be a number.', ['label' => $label]));
+        }
+
+        $quantity = (float) $value;
+        if (! is_finite($quantity) || $quantity < 0) {
+            throw new \DomainException(__(':label must be a non-negative finite number.', ['label' => $label]));
+        }
+
+        return round($quantity, 4);
     }
 
     /**

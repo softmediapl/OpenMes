@@ -22,6 +22,7 @@ class StoreTemplateStepRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'instruction' => ['nullable', 'string'],
             'requires_confirmation' => ['sometimes', 'boolean'],
+            'quantity_reporting_required' => ['sometimes', 'boolean'],
             'estimated_duration_minutes' => ['nullable', 'integer', 'min:0'],
             'setup_time_minutes' => ['nullable', 'integer', 'min:0'],
             'run_time_per_unit_minutes' => ['nullable', 'numeric', 'min:0'],
