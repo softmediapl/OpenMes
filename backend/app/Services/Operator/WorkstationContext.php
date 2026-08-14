@@ -79,6 +79,36 @@ class WorkstationContext
             : $this->assignedWorkstation($request->user());
     }
 
+    /**
+     * Resolve the workstation currently selected for an operator request.
+     *
+     * Fixed terminals always use their configured assignment. Human operators
+     * use the workstation already validated and stored by the line-selection
+     * flow; request input is intentionally ignored here.
+     */
+    public function currentWorkstation(Request $request): ?Workstation
+    {
+        $locked = $this->workstation($request);
+        if ($locked) {
+            return $locked;
+        }
+
+        $workstationId = $request->hasSession()
+            ? $request->session()->get('selected_workstation_id')
+            : null;
+
+        if (! $workstationId) {
+            return null;
+        }
+
+        return Workstation::query()
+            ->whereKey($workstationId)
+            ->where('is_active', true)
+            ->whereHas('line', fn ($query) => $query->where('is_active', true))
+            ->with('line')
+            ->first();
+    }
+
     public function canAccessStep(Request $request, BatchStep $step): bool
     {
         $step->loadMissing('batch.workOrder');

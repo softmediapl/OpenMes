@@ -65,6 +65,7 @@ use App\Http\Controllers\Web\Operator\ProductionCorrectionController;
 use App\Http\Controllers\Web\Operator\ScrapController as OperatorScrapController;
 use App\Http\Controllers\Web\Operator\WorkOrderController as OperatorWorkOrderController;
 use App\Http\Controllers\Web\Operator\WorkstationController as OperatorWorkstationController;
+use App\Http\Controllers\Web\Operator\WorkstationMaterialController as OperatorWorkstationMaterialController;
 use App\Http\Controllers\Web\Packaging\LabelPrintController;
 use App\Http\Controllers\Web\Packaging\LabelTemplateController;
 use App\Http\Controllers\Web\Packaging\PackagingController;
@@ -250,6 +251,9 @@ Route::middleware('auth')->group(function () {
         Route::post('/select-line', [OperatorLineController::class, 'select'])->name('select-line.post');
         Route::get('/queue', [OperatorWorkOrderController::class, 'queue'])->name('queue');
         Route::get('/queue/check', [OperatorWorkOrderController::class, 'check'])->name('queue.check');
+        Route::get('/materials', [OperatorWorkstationMaterialController::class, 'index'])->name('materials.index');
+        Route::post('/materials/replenishments', [OperatorWorkstationMaterialController::class, 'store'])->name('materials.replenishments.store');
+        Route::post('/materials/replenishments/{materialReplenishmentRequest}/cancel', [OperatorWorkstationMaterialController::class, 'cancel'])->name('materials.replenishments.cancel');
         Route::post('/work-order/{workOrder}/line-status', [OperatorWorkOrderController::class, 'updateLineStatus'])->name('work-order.line-status');
         Route::get('/work-order/{workOrder}', [OperatorWorkOrderController::class, 'show'])->name('work-order.detail');
         Route::post('/batch', [OperatorBatchController::class, 'store'])->name('batch.store');

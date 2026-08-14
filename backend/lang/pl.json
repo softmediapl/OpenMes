@@ -5470,5 +5470,17 @@
     "Material replenishment cancelled.": "Anulowano uzupełnienie materiału.",
     "Deliver": "Dostarcz",
     "Delivered": "Dostarczono",
-    "Mode": "Tryb"
+    "Mode": "Tryb",
+    "Lots at workstation": "Partie na stanowisku",
+    "Supply": "Zaopatrzenie",
+    "Refill required": "Wymaga uzupełnienia",
+    "Refill requested": "Uzupełnienie zamówione",
+    "Open requests": "Otwarte zgłoszenia",
+    "No materials are configured for this workstation.": "Dla tego stanowiska nie skonfigurowano materiałów.",
+    "No local stock": "Brak lokalnego zapasu",
+    "Bulk": "Bez partii",
+    "Target": "Poziom docelowy",
+    "Requested": "Zamówiono",
+    "Request refill": "Zamów uzupełnienie",
+    "Cancel this replenishment request?": "Anulować to zgłoszenie uzupełnienia?"
 }

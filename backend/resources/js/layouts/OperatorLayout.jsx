@@ -48,6 +48,11 @@ export default function OperatorLayout({ children }) {
                             <TopLink href="/operator/workstation" active={isActive('/operator/workstation')}>
                                 {__('Workstation')}
                             </TopLink>
+                            {selectedWorkstation && (
+                                <TopLink href="/operator/materials" active={isActive('/operator/materials')}>
+                                    {__('Materials')}
+                                </TopLink>
+                            )}
                             {!workstationLocked && (
                                 <Link
                                     href="/operator/select-line"

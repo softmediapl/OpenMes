@@ -4339,5 +4339,17 @@
     "Material replenishment cancelled.": "Material replenishment cancelled.",
     "Deliver": "Deliver",
     "Delivered": "Delivered",
-    "Mode": "Mode"
+    "Mode": "Mode",
+    "Lots at workstation": "Lots at workstation",
+    "Supply": "Supply",
+    "Refill required": "Refill required",
+    "Refill requested": "Refill requested",
+    "Open requests": "Open requests",
+    "No materials are configured for this workstation.": "No materials are configured for this workstation.",
+    "No local stock": "No local stock",
+    "Bulk": "Bulk",
+    "Target": "Target",
+    "Requested": "Requested",
+    "Request refill": "Request refill",
+    "Cancel this replenishment request?": "Cancel this replenishment request?"
 }
