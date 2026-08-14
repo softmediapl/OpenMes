@@ -6,6 +6,7 @@ import { DataTable } from '@openmes/ui/table';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import LineSync from '../../components/LineSync';
 import { formatDate, formatNumber, formatTime } from '../../lib/i18n';
+import { workForStation } from '../../lib/workstationQueue';
 
 // Geist White restyle: light-only v1 — former `dark:` classes removed.
 
@@ -864,17 +865,12 @@ export default function Queue() {
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                             {workstationQueue.map((wo) => {
-                                // Find the batch whose current step is at this workstation
-                                const currentBatch = (wo.batches ?? []).find((b) =>
-                                    b.steps && b.steps.some((s) => s.workstation_id != null &&
-                                        String(s.workstation_id) === String(selectedWorkstation.id) &&
-                                        (s.status === 'PENDING' || s.status === 'IN_PROGRESS'))
-                                ) ?? null;
-                                const currentStep = currentBatch
-                                    ? (currentBatch.steps ?? []).find((s) =>
-                                        String(s.workstation_id) === String(selectedWorkstation.id) &&
-                                        (s.status === 'PENDING' || s.status === 'IN_PROGRESS'))
-                                    : null;
+                                const { batch: currentBatch, step: currentStep } = workForStation(
+                                    wo,
+                                    selectedWorkstation.id,
+                                );
+                                const operationQuantity = currentStep?.input_quantity ?? currentBatch?.target_qty ?? wo.planned_qty;
+                                const batchReference = currentBatch?.lot_number || (currentBatch ? `#${currentBatch.batch_number}` : '—');
 
                                 return (
                                     <Link key={wo.id}
@@ -898,7 +894,7 @@ export default function Queue() {
                                             </div>
                                         )}
                                         <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-om-faint">
-                                            {__("Qty")}: {wo.planned_qty} &middot; {__("Batch")} #{currentBatch?.batch_number}
+                                            {__("WIP quantity")}: {fmtQty(operationQuantity, 4)} &middot; {__("Batch")}: {batchReference}
                                         </div>
                                     </Link>
                                 );
