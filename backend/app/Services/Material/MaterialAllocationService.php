@@ -33,6 +33,7 @@ class MaterialAllocationService
             $batch,
             $user,
             fn ($bom) => $this->isStartItem($bom),
+            productionQuantity: (float) $batch->target_qty,
             picksByMaterial: $picksByMaterial,
             attributeStepId: $attributeStepId,
         );
@@ -50,6 +51,7 @@ class MaterialAllocationService
             $batch,
             $user,
             fn ($bom) => $this->isDuringItem($bom) && (int) ($bom['step_number'] ?? 0) === $stepNumber,
+            productionQuantity: $step->expectedInputQuantity(),
             stepId: $step->id,
             picksByMaterial: $picksByMaterial,
         );
@@ -58,12 +60,18 @@ class MaterialAllocationService
     /**
      * @param  array<int, array<int, array{material_lot_id: int|string, picked_qty: int|float|string}>>  $picksByMaterial
      */
-    public function allocateForBatchEnd(Batch $batch, User $user, array $picksByMaterial = [], ?int $attributeStepId = null): Collection
-    {
+    public function allocateForBatchEnd(
+        Batch $batch,
+        User $user,
+        array $picksByMaterial = [],
+        ?int $attributeStepId = null,
+        ?float $productionQuantity = null,
+    ): Collection {
         return $this->allocateMatching(
             $batch,
             $user,
             fn ($bom) => $this->isEndItem($bom),
+            productionQuantity: $productionQuantity ?? (float) $batch->target_qty,
             picksByMaterial: $picksByMaterial,
             attributeStepId: $attributeStepId,
         );
@@ -183,7 +191,10 @@ class MaterialAllocationService
                 continue;
             }
 
-            $requiredQty = $this->calculateRequiredQty($bomItem, (float) $batch->target_qty);
+            $productionQuantity = $isDuringThisStep
+                ? $step->expectedInputQuantity()
+                : (float) $batch->target_qty;
+            $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
             $proposal = $this->lotPicking->proposePicks($material, $requiredQty);
 
             $out[] = [
@@ -480,6 +491,7 @@ class MaterialAllocationService
         Batch $batch,
         User $user,
         \Closure $filter,
+        float $productionQuantity,
         ?int $stepId = null,
         array $picksByMaterial = [],
         ?int $attributeStepId = null,
@@ -493,7 +505,7 @@ class MaterialAllocationService
         $blockNegative = $this->blockNegativeStockEnabled();
         $genealogyStepId = $stepId ?? $attributeStepId;
 
-        return DB::transaction(function () use ($batch, $user, $bom, $filter, $genealogyStepId, $picksByMaterial, $blockNegative) {
+        return DB::transaction(function () use ($batch, $user, $bom, $filter, $productionQuantity, $genealogyStepId, $picksByMaterial, $blockNegative) {
             $allocations = collect();
 
             foreach ($bom as $bomItem) {
@@ -521,7 +533,7 @@ class MaterialAllocationService
                     continue;
                 }
 
-                $requiredQty = $this->calculateRequiredQty($bomItem, (float) $batch->target_qty);
+                $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
 
                 if ($blockNegative && $material->available_quantity < $requiredQty) {
                     throw new InsufficientStockException(

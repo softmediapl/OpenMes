@@ -315,4 +315,27 @@ class MaterialAllocationServiceTest extends TestCase
 
         $this->assertSame([], $this->service->pickPreviewForStep($step));
     }
+
+    public function test_during_step_materials_scale_to_released_wip_instead_of_batch_target(): void
+    {
+        $workOrder = $this->batch->workOrder;
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['bom'][0]['consumed_at'] = 'during';
+        $snapshot['bom'][0]['step_number'] = 2;
+        $workOrder->update(['process_snapshot' => $snapshot]);
+
+        $this->makeStep(1)->update([
+            'status' => BatchStep::STATUS_DONE,
+            'input_quantity' => 100,
+            'good_quantity' => 80,
+            'released_quantity' => 80,
+        ]);
+        $second = $this->makeStep(2);
+
+        $allocations = $this->service->allocateForStep($second, $this->user);
+
+        $this->assertCount(1, $allocations);
+        // 80 released units * 2.0 pcs * (1 + 5% scrap allowance) = 168.
+        $this->assertEqualsWithDelta(168.0, (float) $allocations->first()->allocated_qty, 0.0001);
+    }
 }
