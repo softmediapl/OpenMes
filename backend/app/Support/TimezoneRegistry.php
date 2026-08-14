@@ -2,8 +2,6 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\DB;
-
 /**
  * The plant timezone, chosen during installation and stored in the database.
  *
@@ -42,19 +40,13 @@ class TimezoneRegistry
             return self::$cached;
         }
 
-        try {
-            $row = DB::table('system_settings')->where('key', self::SETTING_KEY)->first();
-        } catch (\Throwable) {
-            // No database yet (installer) or it is mid-migration. The env value
-            // stands; this is not an error worth surfacing.
+        $timezone = SystemSetting::get(self::SETTING_KEY);
+
+        if (! is_string($timezone) || ! self::isValid($timezone)) {
             return null;
         }
 
-        if (! $row || ! self::isValid((string) $row->value)) {
-            return null;
-        }
-
-        return self::$cached = (string) $row->value;
+        return self::$cached = $timezone;
     }
 
     /**
@@ -83,10 +75,7 @@ class TimezoneRegistry
             throw new \InvalidArgumentException("Unknown timezone identifier: {$timezone}");
         }
 
-        DB::table('system_settings')->updateOrInsert(
-            ['key' => self::SETTING_KEY],
-            ['value' => $timezone, 'updated_at' => now()],
-        );
+        SystemSetting::put(self::SETTING_KEY, $timezone);
 
         self::$cached = $timezone;
     }

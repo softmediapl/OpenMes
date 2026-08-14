@@ -98,11 +98,15 @@ class SystemSettingsLanguageTest extends TestCase
             ->post('/settings/system', $this->payload([
                 'standard_weekly_hours' => 38,
                 'default_currency' => 'eur',
+                'default_pay_type' => 'hourly',
+                'default_pay_rate' => 38,
             ]))
             ->assertSessionHasNoErrors();
 
         $this->assertDatabaseHas('system_settings', ['key' => 'standard_weekly_hours', 'value' => json_encode(38.0)]);
         $this->assertDatabaseHas('system_settings', ['key' => 'default_currency', 'value' => json_encode('EUR')]);
+        $this->assertDatabaseHas('system_settings', ['key' => 'default_pay_type', 'value' => json_encode('hourly')]);
+        $this->assertDatabaseHas('system_settings', ['key' => 'default_pay_rate', 'value' => json_encode(38.0)]);
     }
 
     public function test_invalid_currency_length_is_rejected(): void

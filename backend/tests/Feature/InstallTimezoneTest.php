@@ -129,6 +129,16 @@ class InstallTimezoneTest extends TestCase
         date_default_timezone_set('UTC');
     }
 
+    public function test_a_saved_timezone_is_stored_as_valid_json(): void
+    {
+        TimezoneRegistry::save('Europe/Warsaw');
+
+        $this->assertDatabaseHas('system_settings', [
+            'key' => TimezoneRegistry::SETTING_KEY,
+            'value' => json_encode('Europe/Warsaw'),
+        ]);
+    }
+
     public function test_without_a_stored_setting_the_env_value_stands(): void
     {
         config(['app.timezone' => 'Europe/Warsaw']);
@@ -145,7 +155,7 @@ class InstallTimezoneTest extends TestCase
         // hand-edited row must not be able to take the application down.
         DB::table('system_settings')->updateOrInsert(
             ['key' => TimezoneRegistry::SETTING_KEY],
-            ['value' => 'Mars/Olympus_Mons', 'updated_at' => now()],
+            ['value' => json_encode('Mars/Olympus_Mons'), 'updated_at' => now()],
         );
         TimezoneRegistry::flush();
 
