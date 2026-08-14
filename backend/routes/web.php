@@ -245,7 +245,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Operator routes (Operator, Supervisor, Admin)
-    Route::prefix('operator')->name('operator.')->middleware('role:Operator|Supervisor|Admin')->group(function () {
+    Route::prefix('operator')->name('operator.')->middleware(['role:Operator|Supervisor|Admin', 'operator.workstation'])->group(function () {
         Route::get('/select-line', [OperatorLineController::class, 'index'])->name('select-line');
         Route::post('/select-line', [OperatorLineController::class, 'select'])->name('select-line.post');
         Route::get('/queue', [OperatorWorkOrderController::class, 'queue'])->name('queue');

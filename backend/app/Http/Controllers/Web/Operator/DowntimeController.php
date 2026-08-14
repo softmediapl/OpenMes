@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Operator;
 use App\Http\Controllers\Controller;
 use App\Models\Line;
 use App\Models\ProductionDowntime;
+use App\Services\Operator\WorkstationContext;
 use App\Services\Production\DowntimeService;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,10 @@ use Illuminate\Http\Request;
  */
 class DowntimeController extends Controller
 {
-    public function __construct(protected DowntimeService $downtimeService) {}
+    public function __construct(
+        protected DowntimeService $downtimeService,
+        private readonly WorkstationContext $workstationContext,
+    ) {}
 
     public function start(Request $request)
     {
@@ -52,6 +56,12 @@ class DowntimeController extends Controller
     public function stop(Request $request, ProductionDowntime $downtime)
     {
         $lineId = $request->session()->get('selected_line_id');
+
+        if ($this->workstationContext->isLocked($request->user())
+            && (int) $downtime->workstation_id !== (int) $this->workstationContext->workstation($request)?->id) {
+            abort(403);
+        }
+
         if (! $lineId || $downtime->line_id != $lineId) {
             return back()->with('error', 'This downtime does not belong to the selected line.');
         }

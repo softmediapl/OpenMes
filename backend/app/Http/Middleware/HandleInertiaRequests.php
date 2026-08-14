@@ -22,7 +22,7 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $user ? [
-                    ...$user->only('id', 'name', 'username', 'email', 'tenant_id'),
+                    ...$user->only('id', 'name', 'username', 'email', 'tenant_id', 'account_type', 'workstation_id'),
                     'roles' => $user->getRoleNames(),
                     'initial' => mb_strtoupper(mb_substr($user->name, 0, 1)),
                     // Admin-panel tabs this user may access — drives nav filtering.

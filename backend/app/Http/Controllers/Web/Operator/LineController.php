@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Web\Operator;
 
 use App\Http\Controllers\Controller;
 use App\Models\Line;
+use App\Services\Operator\WorkstationContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class LineController extends Controller
 {
+    public function __construct(private readonly WorkstationContext $workstationContext) {}
+
     /**
      * Show line selection page.
      */
@@ -16,7 +19,15 @@ class LineController extends Controller
     {
         $user = $request->user();
 
-        // Users with a default workstation auto-redirect (both workstation accounts and operators with assigned workstation)
+        if ($this->workstationContext->isLocked($user)) {
+            $workstation = $this->workstationContext->workstation($request);
+            $defaultView = $workstation->line?->default_operator_view ?? 'queue';
+
+            return redirect()->route($defaultView === 'workstation' ? 'operator.workstation' : 'operator.queue');
+        }
+
+        // A human operator may still have a preferred workstation. This is a
+        // convenience default, not the immutable terminal assignment above.
         if ($user->workstation_id) {
             $workstation = $user->workstation;
             $lineId = $workstation?->line_id;
@@ -51,6 +62,13 @@ class LineController extends Controller
      */
     public function select(Request $request)
     {
+        if ($this->workstationContext->isLocked($request->user())) {
+            $workstation = $this->workstationContext->workstation($request);
+            $defaultView = $workstation->line?->default_operator_view ?? 'queue';
+
+            return redirect()->route($defaultView === 'workstation' ? 'operator.workstation' : 'operator.queue');
+        }
+
         $request->validate([
             'line_id' => 'required|exists:lines,id',
             'workstation_id' => 'nullable|exists:workstations,id',

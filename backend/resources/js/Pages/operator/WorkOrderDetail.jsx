@@ -650,7 +650,7 @@ function ProductionControls({ batch }) {
 // Single Batch card
 // ---------------------------------------------------------------------------
 
-function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {} }) {
+function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, workstationLocked = false }) {
     const [expanded, setExpanded] = useState(defaultOpen);
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
 
@@ -723,7 +723,7 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
                     <BatchStepList steps={batch.steps ?? []} labelTemplates={labelTemplates} stepPhotos={stepPhotos} stepMedia={stepMedia} stepChecklists={stepChecklists} />
 
                     {/* Production controls */}
-                    {showControls && <ProductionControls batch={batch} />}
+                    {showControls && !workstationLocked && <ProductionControls batch={batch} />}
                 </div>
             )}
         </div>
@@ -1820,7 +1820,7 @@ function EngineeringDocsSection({ docs = [], onView }) {
 // ---------------------------------------------------------------------------
 
 export default function WorkOrderDetail() {
-    const { workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [] } = usePage().props;
+    const { workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false } = usePage().props;
 
     const [engViewer, setEngViewer] = useState(null); // { url, title } for the sandboxed viewer
 
@@ -1844,7 +1844,7 @@ export default function WorkOrderDetail() {
     const remaining = Math.max(plannedQty - producedQty, 0);
     const pct = plannedQty > 0 ? Math.min((producedQty / plannedQty) * 100, 100) : 0;
 
-    const canCreateBatch = !['DONE', 'CANCELLED', 'BLOCKED'].includes(workOrder.status);
+    const canCreateBatch = !workstationLocked && !['DONE', 'CANCELLED', 'BLOCKED'].includes(workOrder.status);
     const canReportIssue = !['DONE', 'CANCELLED'].includes(workOrder.status);
     const canReportScrap = scrapReasons.length > 0 && !['DONE', 'CANCELLED'].includes(workOrder.status);
 
@@ -1997,6 +1997,7 @@ export default function WorkOrderDetail() {
                                             stepPhotos={stepPhotos}
                                             stepMedia={stepMedia}
                                             stepChecklists={stepChecklists}
+                                            workstationLocked={workstationLocked}
                                         />
                                     ))}
                                 </div>

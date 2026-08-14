@@ -10,6 +10,7 @@ use App\Models\TemplateStepChecklistItem;
 use App\Models\TemplateStepMedia;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
+use App\Services\Operator\WorkstationContext;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,8 @@ use Inertia\Inertia;
 class WorkOrderController extends Controller
 {
     public function __construct(
-        protected WorkOrderService $workOrderService
+        protected WorkOrderService $workOrderService,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     /**
@@ -26,13 +28,11 @@ class WorkOrderController extends Controller
      */
     public function queue(Request $request)
     {
-        $lineId = $request->session()->get('selected_line_id')
+        $lockedWorkstation = $this->workstationContext->workstation($request);
+        $workstationLocked = $lockedWorkstation !== null;
+        $lineId = $lockedWorkstation?->line_id
+            ?? $request->session()->get('selected_line_id')
             ?? $request->query('line');
-
-        // Workstation accounts auto-select their assigned line
-        if (! $lineId && auth()->user()->account_type === 'workstation') {
-            $lineId = auth()->user()->workstation?->line_id;
-        }
 
         if (! $lineId) {
             return redirect()->route('operator.select-line');
@@ -63,21 +63,21 @@ class WorkOrderController extends Controller
         $trackingMode = json_decode($settingRows['production_tracking_mode']->value ?? '"per_operation"', true) ?? 'per_operation';
         $routingEnabled = json_decode($settingRows['workstation_routing_enabled']->value ?? 'false', true) ?? false;
 
-        // Workstation filter: from query param, session, or workstation account.
-        // Workstation accounts default to their own assigned workstation.
-        $selectedWorkstationId = $request->query('workstation')
-            ?? $request->session()->get('selected_workstation_id')
-            ?? (auth()->user()->account_type === 'workstation' ? auth()->user()->workstation_id : null);
-        if ($request->has('workstation')) {
+        // Human operators may select a workstation. A workstation terminal is
+        // always pinned to its configured workstation, regardless of URL input.
+        $selectedWorkstationId = $lockedWorkstation?->id
+            ?? $request->query('workstation')
+            ?? $request->session()->get('selected_workstation_id');
+        if (! $workstationLocked && $request->has('workstation')) {
             $request->session()->put('selected_workstation_id', $selectedWorkstationId);
         }
         // A workstation may belong to another line when routing spans lines, so
         // only constrain to the current line when routing is disabled.
-        $selectedWorkstation = $selectedWorkstationId
+        $selectedWorkstation = $lockedWorkstation ?? ($selectedWorkstationId
             ? ($routingEnabled
                 ? Workstation::find($selectedWorkstationId)
                 : Workstation::where('id', $selectedWorkstationId)->where('line_id', $lineId)->first())
-            : null;
+            : null);
 
         $lineStatuses = LineStatus::forLine($lineId)->get();
 
@@ -87,10 +87,10 @@ class WorkOrderController extends Controller
 
         // In per_operation/hybrid mode with selected workstation: filter to WOs with current step on this workstation
         $workstationQueue = collect();
-        if (in_array($trackingMode, ['per_operation', 'hybrid']) && $selectedWorkstation) {
+        if (($workstationLocked || in_array($trackingMode, ['per_operation', 'hybrid'])) && $selectedWorkstation) {
             // When routing is enabled, scan all active work orders (steps may route
             // across lines, e.g. a shared packing station); otherwise stay on this line.
-            $queueSource = $routingEnabled
+            $queueSource = ($workstationLocked || $routingEnabled)
                 ? WorkOrder::whereIn('status', WorkOrder::ACTIVE_STATUSES)
                     ->with(['productType', 'batches.steps.workstation'])
                     ->get()
@@ -109,15 +109,27 @@ class WorkOrderController extends Controller
         }
 
         // Load available workstations for this line (for the workstation filter dropdown)
-        $lineWorkstations = \App\Models\Workstation::where('line_id', $lineId)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        $lineWorkstations = $workstationLocked
+            ? collect([$lockedWorkstation])
+            : \App\Models\Workstation::where('line_id', $lineId)
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
+
+        // A fixed terminal receives only actionable work for its own station.
+        // Do not serialize unrelated active or historical orders to the browser.
+        if ($workstationLocked) {
+            $activeWorkOrders = $workstationQueue;
+            $completedWorkOrders = collect();
+        }
 
         // Downtime reporter data (React replacement for the Livewire DowntimeReporter).
         $downtimeReasons = \App\Models\DowntimeReason::active()->orderBy('name')->get(['id', 'name']);
         $activeDowntime = \App\Models\ProductionDowntime::with('reason:id,name')
             ->where('line_id', $lineId)
+            ->when($workstationLocked, fn ($query) => $query->where(function ($scope) use ($lockedWorkstation) {
+                $scope->whereNull('workstation_id')->orWhere('workstation_id', $lockedWorkstation->id);
+            }))
             ->whereNull('ended_at')
             ->latest('started_at')
             ->first();
@@ -126,7 +138,7 @@ class WorkOrderController extends Controller
             'activeWorkOrders', 'completedWorkOrders', 'line', 'selectedWorkstation',
             'lineStatuses', 'issueTypes', 'workflowMode', 'doneStatusIds',
             'trackingMode', 'workstationQueue', 'lineWorkstations',
-            'downtimeReasons', 'activeDowntime'
+            'downtimeReasons', 'activeDowntime', 'workstationLocked'
         ));
     }
 
@@ -135,6 +147,8 @@ class WorkOrderController extends Controller
      */
     public function updateLineStatus(Request $request, WorkOrder $workOrder)
     {
+        abort_if($this->workstationContext->isLocked($request->user()), 403);
+
         $lineId = $request->session()->get('selected_line_id');
 
         if ($workOrder->line_id != $lineId) {
@@ -189,10 +203,16 @@ class WorkOrderController extends Controller
         $settingRows = DB::table('system_settings')->get()->keyBy('key');
         $trackingMode = json_decode($settingRows['production_tracking_mode']->value ?? '"per_operation"', true) ?? 'per_operation';
 
-        if ($wsId && in_array($trackingMode, ['per_operation', 'hybrid'])) {
-            $workstationCount = WorkOrder::where('line_id', $lineId)
+        if ($wsId && ($this->workstationContext->isLocked($request->user()) || in_array($trackingMode, ['per_operation', 'hybrid']))) {
+            $query = WorkOrder::query()
                 ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
-                ->with('batches.steps')
+                ->with('batches.steps');
+
+            if (! $this->workstationContext->isLocked($request->user())) {
+                $query->where('line_id', $lineId);
+            }
+
+            $workstationCount = $query
                 ->get()
                 ->filter(function ($wo) use ($wsId) {
                     foreach ($wo->batches as $batch) {
@@ -204,6 +224,10 @@ class WorkOrderController extends Controller
 
                     return false;
                 })->count();
+        }
+
+        if ($this->workstationContext->isLocked($request->user())) {
+            $activeCount = $workstationCount;
         }
 
         return response()->json([
@@ -218,12 +242,12 @@ class WorkOrderController extends Controller
      */
     public function show(Request $request, WorkOrder $workOrder)
     {
-        $lineId = $request->session()->get('selected_line_id');
+        $lockedWorkstation = $this->workstationContext->workstation($request);
+        $workstationLocked = $lockedWorkstation !== null;
 
-        // Verify work order belongs to selected line
-        if ($workOrder->line_id != $lineId) {
+        if (! $this->workstationContext->canAccessWorkOrder($request, $workOrder)) {
             return redirect()->route('operator.queue')
-                ->with('error', 'This work order does not belong to the selected line.');
+                ->with('error', 'This work order has no actionable step for this workstation.');
         }
 
         $workOrder->load([
@@ -249,10 +273,28 @@ class WorkOrderController extends Controller
 
         $scrapReasons = ScrapReason::active()->ordered()->get();
 
-        // Only show workstations from this line (not all system workstations)
-        $workstations = $workOrder->line
+        if ($workstationLocked) {
+            $visibleBatches = $workOrder->batches
+                ->filter(function ($batch) use ($lockedWorkstation) {
+                    $step = $batch->currentStep();
+
+                    return $step && (int) $step->workstation_id === (int) $lockedWorkstation->id;
+                })
+                ->map(function ($batch) {
+                    $currentStep = $batch->currentStep();
+                    $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
+
+                    return $batch;
+                })
+                ->values();
+            $workOrder->setRelation('batches', $visibleBatches);
+        }
+
+        $workstations = $workstationLocked
+            ? collect([$lockedWorkstation])
+            : ($workOrder->line
             ? Workstation::where('line_id', $workOrder->line_id)->where('is_active', true)->orderBy('name')->get()
-            : collect();
+            : collect());
 
         // Auto-select workstation if operator is a workstation account
         $defaultWorkstationId = auth()->user()->workstation_id;
@@ -341,6 +383,18 @@ class WorkOrderController extends Controller
             }
         }
 
+        if ($workstationLocked) {
+            $visibleStepNumbers = $workOrder->batches
+                ->flatMap->steps
+                ->pluck('step_number')
+                ->map(fn ($number) => (int) $number)
+                ->unique()
+                ->all();
+            $stepPhotos = collect($stepPhotos)->only($visibleStepNumbers)->all();
+            $stepMedia = collect($stepMedia)->only($visibleStepNumbers)->all();
+            $stepChecklists = collect($stepChecklists)->only($visibleStepNumbers)->all();
+        }
+
         $issueCustomFields = app(\App\Services\CustomFieldService::class)->clientConfig('issue');
 
         // Engineering documents (#179) frozen onto this order at release — read-only
@@ -348,6 +402,6 @@ class WorkOrderController extends Controller
         // documents` on the client (Operator has it; see the seeder).
         $engineeringDocuments = $workOrder->frozenEngineeringDocuments();
 
-        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments'));
+        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked'));
     }
 }

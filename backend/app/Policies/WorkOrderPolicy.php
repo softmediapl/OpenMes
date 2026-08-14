@@ -4,7 +4,6 @@ namespace App\Policies;
 
 use App\Models\User;
 use App\Models\WorkOrder;
-use Illuminate\Auth\Access\Response;
 
 class WorkOrderPolicy
 {
@@ -32,8 +31,23 @@ class WorkOrderPolicy
     public function view(User $user, WorkOrder $workOrder): bool
     {
         // Check permission
-        if (!$user->can('view work orders')) {
+        if (! $user->can('view work orders')) {
             return false;
+        }
+
+        if ($user->isWorkstationAccount()) {
+            if (! $user->workstation_id) {
+                return false;
+            }
+
+            $workOrder->loadMissing('batches.steps');
+
+            return $workOrder->batches->contains(function ($batch) use ($user) {
+                $currentStep = $batch->currentStep();
+
+                return $currentStep
+                    && (int) $currentStep->workstation_id === (int) $user->workstation_id;
+            });
         }
 
         // Admin and Supervisor can view all work orders
@@ -50,7 +64,7 @@ class WorkOrderPolicy
      */
     public function create(User $user): bool
     {
-        return $user->can('create work orders');
+        return ! $user->isWorkstationAccount() && $user->can('create work orders');
     }
 
     /**
@@ -58,7 +72,7 @@ class WorkOrderPolicy
      */
     public function update(User $user, WorkOrder $workOrder): bool
     {
-        if (!$user->can('edit work orders')) {
+        if ($user->isWorkstationAccount() || ! $user->can('edit work orders')) {
             return false;
         }
 
@@ -76,7 +90,7 @@ class WorkOrderPolicy
      */
     public function delete(User $user, WorkOrder $workOrder): bool
     {
-        return $user->can('delete work orders');
+        return ! $user->isWorkstationAccount() && $user->can('delete work orders');
     }
 
     /**
@@ -84,7 +98,7 @@ class WorkOrderPolicy
      */
     public function restore(User $user, WorkOrder $workOrder): bool
     {
-        return $user->can('delete work orders');
+        return ! $user->isWorkstationAccount() && $user->can('delete work orders');
     }
 
     /**
@@ -92,6 +106,6 @@ class WorkOrderPolicy
      */
     public function forceDelete(User $user, WorkOrder $workOrder): bool
     {
-        return $user->can('delete work orders');
+        return ! $user->isWorkstationAccount() && $user->can('delete work orders');
     }
 }

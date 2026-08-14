@@ -7,7 +7,9 @@ use App\Http\Requests\Api\V1\RecordConsumptionRequest;
 use App\Http\Requests\Api\V1\ReturnAllocationRequest;
 use App\Models\MaterialAllocation;
 use App\Services\Material\MaterialAllocationService;
+use App\Services\Operator\WorkstationContext;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 /**
  * Work-order material reconciliation (#99): declare actual (partial) consumption
@@ -18,10 +20,13 @@ class MaterialAllocationController extends Controller
 {
     public function __construct(
         protected MaterialAllocationService $allocations,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     public function consume(RecordConsumptionRequest $request, MaterialAllocation $allocation): JsonResponse
     {
+        $this->authorizeTerminalAllocation($request, $allocation);
+
         try {
             $updated = $this->allocations->recordConsumption(
                 $allocation,
@@ -44,6 +49,8 @@ class MaterialAllocationController extends Controller
 
     public function return(ReturnAllocationRequest $request, MaterialAllocation $allocation): JsonResponse
     {
+        $this->authorizeTerminalAllocation($request, $allocation);
+
         try {
             $updated = $this->allocations->returnQuantity(
                 $allocation,
@@ -62,5 +69,19 @@ class MaterialAllocationController extends Controller
                 'errors' => ['qty' => [$e->getMessage()]],
             ], 422);
         }
+    }
+
+    private function authorizeTerminalAllocation(Request $request, MaterialAllocation $allocation): void
+    {
+        if (! $this->workstationContext->isLocked($request->user())) {
+            return;
+        }
+
+        $allocation->loadMissing('batch');
+        abort_unless(
+            $allocation->batch
+                && $this->workstationContext->canAccessBatch($request, $allocation->batch),
+            403
+        );
     }
 }

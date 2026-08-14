@@ -5,16 +5,22 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
 use App\Models\QualityCheckTemplate;
+use App\Services\Operator\WorkstationContext;
 use App\Services\Production\QualityCheckService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class QualityCheckController extends Controller
 {
-    public function __construct(private QualityCheckService $service) {}
+    public function __construct(
+        private QualityCheckService $service,
+        private WorkstationContext $workstationContext,
+    ) {}
 
-    public function index(Batch $batch): JsonResponse
+    public function index(Request $request, Batch $batch): JsonResponse
     {
+        $this->authorizeBatch($request, $batch);
+
         $checks = $batch->qualityChecks()->with(['samples', 'checkedBy'])->get();
 
         return response()->json(['data' => $checks]);
@@ -22,6 +28,8 @@ class QualityCheckController extends Controller
 
     public function store(Request $request, Batch $batch): JsonResponse
     {
+        $this->authorizeBatch($request, $batch);
+
         $validated = $request->validate([
             'production_quantity' => 'nullable|numeric|min:0',
             'quality_check_template_id' => 'nullable|exists:quality_check_templates,id',
@@ -65,8 +73,10 @@ class QualityCheckController extends Controller
         ], 201);
     }
 
-    public function status(Batch $batch): JsonResponse
+    public function status(Request $request, Batch $batch): JsonResponse
     {
+        $this->authorizeBatch($request, $batch);
+
         $template = null;
         $workOrder = $batch->workOrder;
         if ($workOrder->process_snapshot) {
@@ -152,5 +162,12 @@ class QualityCheckController extends Controller
         $qualityCheckTemplate->delete();
 
         return response()->json(['message' => 'QC template deleted']);
+    }
+
+    private function authorizeBatch(Request $request, Batch $batch): void
+    {
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless($this->workstationContext->canAccessBatch($request, $batch), 403);
+        }
     }
 }

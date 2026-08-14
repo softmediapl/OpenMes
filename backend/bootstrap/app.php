@@ -59,6 +59,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'scope' => \App\Http\Middleware\EnsureApiScope::class,
             // Gate a route on an optional feature module (ModuleRegistry) being on.
             'module' => \App\Http\Middleware\EnsureModuleEnabled::class,
+            'operator.workstation' => \App\Http\Middleware\BindOperatorWorkstation::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

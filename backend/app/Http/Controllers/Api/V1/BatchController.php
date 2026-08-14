@@ -8,6 +8,7 @@ use App\Models\Batch;
 use App\Models\WorkOrder;
 use App\Services\Lot\BatchReleaseService;
 use App\Services\Material\MaterialAllocationService;
+use App\Services\Operator\WorkstationContext;
 use App\Services\WorkOrder\WorkOrderService;
 use App\Support\SystemSetting;
 use Illuminate\Http\JsonResponse;
@@ -19,12 +20,13 @@ class BatchController extends Controller
         protected WorkOrderService $workOrderService,
         protected BatchReleaseService $releaseService,
         protected MaterialAllocationService $allocationService,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     /**
      * Get batches for a work order.
      */
-    public function index(WorkOrder $workOrder): JsonResponse
+    public function index(Request $request, WorkOrder $workOrder): JsonResponse
     {
         $this->authorize('view', $workOrder);
 
@@ -32,6 +34,16 @@ class BatchController extends Controller
             ->with(['steps'])
             ->orderBy('batch_number')
             ->get();
+
+        if ($this->workstationContext->isLocked($request->user())) {
+            $batches = $batches
+                ->filter(fn (Batch $batch) => $this->workstationContext->canAccessBatch($request, $batch))
+                ->each(function (Batch $batch) {
+                    $currentStep = $batch->currentStep();
+                    $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
+                })
+                ->values();
+        }
 
         return response()->json([
             'data' => $batches,
@@ -41,9 +53,10 @@ class BatchController extends Controller
     /**
      * Get a specific batch with steps.
      */
-    public function show(Batch $batch): JsonResponse
+    public function show(Request $request, Batch $batch): JsonResponse
     {
         $this->authorize('view', $batch->workOrder);
+        $this->authorizeTerminalBatch($request, $batch);
 
         $batch->load([
             'workOrder.line',
@@ -51,6 +64,11 @@ class BatchController extends Controller
             'steps.startedBy',
             'steps.completedBy',
         ]);
+
+        if ($this->workstationContext->isLocked($request->user())) {
+            $currentStep = $batch->currentStep();
+            $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
+        }
 
         return response()->json([
             'data' => $batch,
@@ -188,9 +206,10 @@ class BatchController extends Controller
     /**
      * Preview material allocation for a batch (before starting).
      */
-    public function allocationPreview(Batch $batch): JsonResponse
+    public function allocationPreview(Request $request, Batch $batch): JsonResponse
     {
         $this->authorize('view', $batch->workOrder);
+        $this->authorizeTerminalBatch($request, $batch);
 
         $preview = $this->allocationService->previewForBatch($batch);
 
@@ -208,6 +227,10 @@ class BatchController extends Controller
      */
     public function release(ReleaseBatchRequest $request, Batch $batch): JsonResponse
     {
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless($this->workstationContext->canReleaseBatch($request, $batch), 403);
+        }
+
         try {
             $batch = $this->releaseService->release(
                 $batch,
@@ -221,6 +244,13 @@ class BatchController extends Controller
             ]);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
+        }
+    }
+
+    private function authorizeTerminalBatch(Request $request, Batch $batch): void
+    {
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless($this->workstationContext->canAccessBatch($request, $batch), 403);
         }
     }
 }

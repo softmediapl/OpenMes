@@ -664,6 +664,7 @@ export default function Queue() {
         lineWorkstations = [],
         downtimeReasons = [],
         activeDowntime = null,
+        workstationLocked = false,
     } = usePage().props;
 
     // Persist view preference in localStorage
@@ -693,11 +694,11 @@ export default function Queue() {
     const closeDoneQty = () => setDoneQtyModal((s) => ({ ...s, open: false }));
 
     const showWorkstationFilter =
-        trackingMode !== 'cumulative' && lineWorkstations.length > 0;
+        !workstationLocked && trackingMode !== 'cumulative' && lineWorkstations.length > 0;
 
     const showWorkstationQueue =
         selectedWorkstation &&
-        ['per_operation', 'hybrid'].includes(trackingMode);
+        (workstationLocked || ['per_operation', 'hybrid'].includes(trackingMode));
 
     const trackingBadgeClass =
         trackingMode === 'per_operation' ? 'text-om-running bg-om-running-bg' :
@@ -741,7 +742,7 @@ export default function Queue() {
                         </div>
 
                         {/* View toggle: table / cards */}
-                        <div className="flex items-center gap-[3px] rounded-om-sm border border-om-line bg-om-bg p-[3px]">
+                        {!workstationLocked && <div className="flex items-center gap-[3px] rounded-om-sm border border-om-line bg-om-bg p-[3px]">
                             <button type="button" onClick={() => setView('table')}
                                     className={`flex items-center gap-1.5 px-4 py-2 rounded-[6px] text-sm font-medium transition-colors cursor-pointer ${
                                         view === 'table' ? 'bg-om-ink text-om-on-ink' : 'text-om-muted hover:text-om-ink'
@@ -760,12 +761,14 @@ export default function Queue() {
                                 </svg>
                                 {__("Cards")}
                             </button>
-                        </div>
+                        </div>}
 
-                        <Link href="/operator/select-line"
-                              className="px-4 py-2.5 rounded-om-sm text-sm font-medium text-om-ink bg-om-card border border-om-line hover:bg-om-chip transition-colors">
-                            {__("Change Line")}
-                        </Link>
+                        {!workstationLocked && (
+                            <Link href="/operator/select-line"
+                                  className="px-4 py-2.5 rounded-om-sm text-sm font-medium text-om-ink bg-om-card border border-om-line hover:bg-om-chip transition-colors">
+                                {__("Change Line")}
+                            </Link>
+                        )}
                     </div>
                 </div>
 
@@ -913,7 +916,7 @@ export default function Queue() {
                 )}
 
                 {/* ── Active Work Orders ── */}
-                <div className="mb-8">
+                {!workstationLocked && <div className="mb-8">
                     <h2 className="text-lg font-semibold tracking-[-0.01em] text-om-ink mb-3">{__("Active Work Orders")}<span className="font-mono text-[12px] font-normal text-om-faint ml-2">({activeWorkOrders.length})</span>
                     </h2>
 
@@ -981,10 +984,10 @@ export default function Queue() {
                             )}
                         </>
                     )}
-                </div>
+                </div>}
 
                 {/* ── Recently Completed ── */}
-                <div>
+                {!workstationLocked && <div>
                     <h2 className="text-lg font-semibold tracking-[-0.01em] text-om-ink mb-3">
                         {__("Recently Completed")}
                         <span className="font-mono text-[12px] font-normal text-om-faint ml-2">({completedWorkOrders.length})</span>
@@ -1038,7 +1041,7 @@ export default function Queue() {
                             )}
                         </>
                     )}
-                </div>
+                </div>}
             </div>
 
             {/* ── Modals ── */}

@@ -227,6 +227,8 @@ class BatchService
     public function chooseVariant(BatchStep $step, User $user): BatchStep
     {
         return DB::transaction(function () use ($step, $user) {
+            $this->guardWorkstationRouting($step, $user);
+
             if ($step->variant_group === null) {
                 throw new \Exception('This step is not part of a variant group.');
             }
@@ -353,18 +355,31 @@ class BatchService
     }
 
     /**
-     * Enforce workstation routing: when enabled, a workstation-bound operator
-     * may only start/complete steps assigned to their own workstation.
+     * Enforce an immutable assignment for terminal accounts and optional
+     * workstation routing for human operators.
      *
-     * Bypassed for Admins/Supervisors and for line-level operators (users with
-     * no workstation assigned). Steps without an assigned workstation are open
-     * to anyone. This is the single server-side chokepoint covering both the
-     * Livewire UI and the REST API, since both route through BatchService.
+     * Human Admins/Supervisors and line-level operators may bypass optional
+     * routing. A workstation account never bypasses its terminal assignment.
+     * This is the single server-side chokepoint covering web and API execution.
      *
      * @throws \Exception
      */
     protected function guardWorkstationRouting(BatchStep $step, User $user): void
     {
+        // Workstation accounts represent a fixed terminal, not a person who may
+        // roam between stations. Their assignment is therefore enforced even
+        // when optional workstation routing is disabled for human operators.
+        if ($user->isWorkstationAccount()) {
+            if (! $user->workstation_id || (int) $step->workstation_id !== (int) $user->workstation_id) {
+                $stationName = $step->workstation?->name ?? __('unknown workstation');
+                throw new \Exception(
+                    __('This terminal cannot operate this step. The step is assigned to :station.', ['station' => $stationName])
+                );
+            }
+
+            return;
+        }
+
         $enabled = json_decode(
             DB::table('system_settings')->where('key', 'workstation_routing_enabled')->value('value') ?? 'false',
             true

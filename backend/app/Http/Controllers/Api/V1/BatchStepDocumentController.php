@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\BatchStepDocument\StoreBatchStepDocumentRequest;
 use App\Models\BatchStep;
 use App\Models\BatchStepDocument;
+use App\Services\Operator\WorkstationContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,6 +17,8 @@ use Illuminate\Http\Request;
  */
 class BatchStepDocumentController extends Controller
 {
+    public function __construct(private WorkstationContext $workstationContext) {}
+
     /**
      * Attach a document to a step and mark it mandatory / validatable.
      * Supervisor/Admin only (gated by the request + route role middleware).
@@ -58,6 +61,12 @@ class BatchStepDocumentController extends Controller
         // batch-step API actions) so a document can't be validated by id alone.
         $batchStepDocument->loadMissing('batchStep.batch.workOrder');
         $this->authorize('view', $batchStepDocument->batchStep->batch->workOrder);
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless(
+                $this->workstationContext->canAccessStep($request, $batchStepDocument->batchStep),
+                403
+            );
+        }
 
         $batchStepDocument->markValidated($request->user());
 

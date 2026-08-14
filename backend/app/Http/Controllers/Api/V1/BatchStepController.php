@@ -7,6 +7,7 @@ use App\Http\Requests\Api\V1\AssignBatchStepWorkstationRequest;
 use App\Http\Requests\Api\V1\CompleteBatchStepRequest;
 use App\Models\BatchStep;
 use App\Services\IssueService;
+use App\Services\Operator\WorkstationContext;
 use App\Services\WorkOrder\BatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,8 @@ class BatchStepController extends Controller
 {
     public function __construct(
         protected BatchService $batchService,
-        protected IssueService $issueService
+        protected IssueService $issueService,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     /**
@@ -24,6 +26,7 @@ class BatchStepController extends Controller
     public function start(Request $request, BatchStep $batchStep): JsonResponse
     {
         $this->authorize('view', $batchStep->batch->workOrder);
+        $this->authorizeTerminalStep($request, $batchStep);
 
         try {
             $step = $this->batchService->startStep($batchStep, $request->user());
@@ -47,6 +50,8 @@ class BatchStepController extends Controller
      */
     public function complete(CompleteBatchStepRequest $request, BatchStep $batchStep): JsonResponse
     {
+        $this->authorizeTerminalStep($request, $batchStep);
+
         try {
             $step = $this->batchService->completeStep(
                 $batchStep,
@@ -98,6 +103,7 @@ class BatchStepController extends Controller
     public function confirmInstructions(Request $request, BatchStep $batchStep): JsonResponse
     {
         $this->authorize('view', $batchStep->batch->workOrder);
+        $this->authorizeTerminalStep($request, $batchStep);
 
         if (! $batchStep->requires_confirmation) {
             return response()->json([
@@ -122,6 +128,7 @@ class BatchStepController extends Controller
     public function problem(Request $request, BatchStep $batchStep): JsonResponse
     {
         $this->authorize('view', $batchStep->batch->workOrder);
+        $this->authorizeTerminalStep($request, $batchStep);
 
         $validated = $request->validate([
             'issue_type_id' => 'required|integer|exists:issue_types,id',
@@ -156,6 +163,13 @@ class BatchStepController extends Controller
                     'issue' => [$e->getMessage()],
                 ],
             ], 422);
+        }
+    }
+
+    private function authorizeTerminalStep(Request $request, BatchStep $batchStep): void
+    {
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless($this->workstationContext->canAccessStep($request, $batchStep), 403);
         }
     }
 }

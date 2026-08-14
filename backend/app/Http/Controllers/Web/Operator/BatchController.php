@@ -15,6 +15,7 @@ use App\Models\WorkOrder;
 use App\Services\Lot\BatchReleaseService;
 use App\Services\Lot\LotService;
 use App\Services\Material\MaterialAllocationService;
+use App\Services\Operator\WorkstationContext;
 use App\Services\Production\PackagingChecklistService;
 use App\Services\Production\ProcessConfirmationService;
 use App\Services\Production\QualityCheckService;
@@ -33,6 +34,7 @@ class BatchController extends Controller
         protected PackagingChecklistService $checklistService,
         protected BatchService $batchService,
         protected MaterialAllocationService $allocationService,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     /**
@@ -284,17 +286,16 @@ class BatchController extends Controller
         }
     }
 
-    /** Guard: the step's work order must be on the operator's selected line. */
+    /** Guard the selected line, or the immutable station assignment for a terminal account. */
     private function stepBelongsToSelectedLine(Request $request, BatchStep $batchStep): bool
     {
-        $lineId = $request->session()->get('selected_line_id');
-        $batchStep->loadMissing('batch.workOrder');
-
-        return $lineId && $batchStep->batch?->workOrder?->line_id == $lineId;
+        return $this->workstationContext->canAccessStep($request, $batchStep);
     }
 
     public function store(Request $request)
     {
+        abort_if($this->workstationContext->isLocked($request->user()), 403);
+
         $request->validate([
             'work_order_id' => 'required|exists:work_orders,id',
             'target_qty' => 'required|numeric|min:0.01',
@@ -332,6 +333,8 @@ class BatchController extends Controller
 
     public function confirmParameters(Request $request, Batch $batch)
     {
+        abort_unless($this->workstationContext->canAccessBatch($request, $batch), 403);
+
         $request->validate([
             'confirmation_type' => 'required|in:parameters,drying,custom',
             'value' => 'nullable|string|max:100',
@@ -353,6 +356,8 @@ class BatchController extends Controller
 
     public function qualityCheck(Request $request, Batch $batch)
     {
+        abort_unless($this->workstationContext->canAccessBatch($request, $batch), 403);
+
         $request->validate([
             'production_quantity' => 'nullable|numeric|min:0',
             'pallet_id' => 'nullable|integer|exists:pallets,id',
@@ -391,6 +396,8 @@ class BatchController extends Controller
 
     public function packagingChecklist(Request $request, Batch $batch)
     {
+        abort_unless($this->workstationContext->canAccessBatch($request, $batch), 403);
+
         $request->validate([
             'udi_readable' => 'required',
             'packaging_condition' => 'required',
@@ -417,6 +424,8 @@ class BatchController extends Controller
 
     public function release(Request $request, Batch $batch)
     {
+        abort_unless($this->workstationContext->canReleaseBatch($request, $batch), 403);
+
         $request->validate([
             'release_type' => 'required|in:for_production,for_sale',
             'scrap_qty' => 'nullable|numeric|min:0',

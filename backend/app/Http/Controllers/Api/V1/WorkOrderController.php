@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\WorkOrder\ResumeWorkOrderRequest;
+use App\Models\BatchStep;
 use App\Models\WorkOrder;
+use App\Services\Operator\WorkstationContext;
 use App\Services\WorkOrder\WorkOrderService;
 use App\Services\WorkOrder\WorkOrderStopService;
 use Illuminate\Http\JsonResponse;
@@ -13,7 +15,8 @@ use Illuminate\Http\Request;
 class WorkOrderController extends Controller
 {
     public function __construct(
-        protected WorkOrderService $workOrderService
+        protected WorkOrderService $workOrderService,
+        protected WorkstationContext $workstationContext,
     ) {}
 
     /**
@@ -28,7 +31,30 @@ class WorkOrderController extends Controller
         // Get filters from request
         $filters = $request->only(['status', 'line_id']);
 
-        $workOrders = $this->workOrderService->getWorkOrdersForUser($user, $filters);
+        if ($this->workstationContext->isLocked($user)) {
+            $workOrders = WorkOrder::query()
+                ->with(['line', 'productType', 'batches.steps'])
+                ->whereHas('batches.steps', fn ($query) => $query
+                    ->where('workstation_id', $user->workstation_id)
+                    ->whereIn('status', [
+                        BatchStep::STATUS_READY,
+                        BatchStep::STATUS_IN_PROGRESS,
+                        BatchStep::STATUS_PENDING,
+                    ]))
+                ->when(isset($filters['status']), fn ($query) => $query->status($filters['status']))
+                ->byPriority()
+                ->get();
+
+            $workOrders = $workOrders
+                ->filter(fn (WorkOrder $workOrder) => $this->workstationContext->canAccessWorkOrder($request, $workOrder))
+                ->each(fn (WorkOrder $workOrder) => $this->limitTerminalRelations(
+                    $workOrder,
+                    (int) $user->workstation_id
+                ))
+                ->values();
+        } else {
+            $workOrders = $this->workOrderService->getWorkOrdersForUser($user, $filters);
+        }
 
         return response()->json([
             'data' => $workOrders,
@@ -38,9 +64,12 @@ class WorkOrderController extends Controller
     /**
      * Get a specific work order.
      */
-    public function show(WorkOrder $workOrder): JsonResponse
+    public function show(Request $request, WorkOrder $workOrder): JsonResponse
     {
         $this->authorize('view', $workOrder);
+        if ($this->workstationContext->isLocked($request->user())) {
+            abort_unless($this->workstationContext->canAccessWorkOrder($request, $workOrder), 403);
+        }
 
         $workOrder->load([
             'line',
@@ -49,6 +78,9 @@ class WorkOrderController extends Controller
             'batches.steps.completedBy',
             'issues.issueType',
         ]);
+        if ($this->workstationContext->isLocked($request->user())) {
+            $this->limitTerminalRelations($workOrder, (int) $request->user()->workstation_id);
+        }
 
         // ISA-95 L4 standard production target (#52), computed from the snapshot.
         $workOrder->setAttribute('estimated_standard_production_minutes', $workOrder->estimatedStandardProductionMinutes());
@@ -217,5 +249,22 @@ class WorkOrderController extends Controller
             'message' => "Work order status set to {$target}",
             'data' => $workOrder->fresh(['line', 'productType']),
         ]);
+    }
+
+    private function limitTerminalRelations(WorkOrder $workOrder, int $workstationId): void
+    {
+        $batches = $workOrder->batches
+            ->filter(function ($batch) use ($workstationId) {
+                $currentStep = $batch->currentStep();
+
+                return $currentStep && (int) $currentStep->workstation_id === $workstationId;
+            })
+            ->each(function ($batch) {
+                $currentStep = $batch->currentStep();
+                $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
+            })
+            ->values();
+
+        $workOrder->setRelation('batches', $batches);
     }
 }

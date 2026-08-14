@@ -152,25 +152,36 @@ class WorkstationRoutingTest extends TestCase
         $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
     }
 
-    public function test_routing_disabled_allows_any_workstation(): void
+    public function test_workstation_account_remains_locked_when_optional_routing_is_disabled(): void
     {
         $this->setRouting(false);
         $step = $this->makeStep($this->stationA->id);
 
-        // Operator B (station B) may operate station A's step when routing is off
-        $result = app(BatchService::class)->startStep($step, $this->operatorB);
-
-        $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
+        $this->expectException(\Exception::class);
+        app(BatchService::class)->startStep($step, $this->operatorB);
     }
 
-    public function test_step_without_workstation_is_open_to_anyone(): void
+    public function test_workstation_account_cannot_operate_an_unassigned_step(): void
     {
         $this->setRouting(true);
         $step = $this->makeStep($this->stationA->id);
         $step->update(['workstation_id' => null]);
 
-        $result = app(BatchService::class)->startStep($step->fresh(), $this->operatorB);
+        $this->expectException(\Exception::class);
+        app(BatchService::class)->startStep($step->fresh(), $this->operatorB);
+    }
 
+    public function test_optional_routing_setting_still_applies_only_to_human_operators(): void
+    {
+        $this->setRouting(false);
+        $step = $this->makeStep($this->stationA->id);
+        $human = User::factory()->create([
+            'account_type' => 'user',
+            'workstation_id' => $this->stationB->id,
+        ]);
+        $human->assignRole('Operator');
+
+        $result = app(BatchService::class)->startStep($step, $human);
         $this->assertEquals(BatchStep::STATUS_IN_PROGRESS, $result->status);
     }
 }

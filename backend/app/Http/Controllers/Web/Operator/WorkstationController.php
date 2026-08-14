@@ -12,22 +12,24 @@ use App\Models\WorkOrderShiftEntry;
 use App\Models\Workstation;
 use App\Models\WorkstationState;
 use App\Services\Machine\WorkstationStateMachine;
+use App\Services\Operator\WorkstationContext;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class WorkstationController extends Controller
 {
+    public function __construct(private readonly WorkstationContext $workstationContext) {}
+
     /**
      * Workstation production view — flat table with inline quantity entry.
      */
     public function index(Request $request)
     {
-        $lineId = $request->session()->get('selected_line_id')
+        $lockedWorkstation = $this->workstationContext->workstation($request);
+        $workstationLocked = $lockedWorkstation !== null;
+        $lineId = $lockedWorkstation?->line_id
+            ?? $request->session()->get('selected_line_id')
             ?? $request->query('line');
-
-        if (! $lineId && auth()->user()->account_type === 'workstation') {
-            $lineId = auth()->user()->workstation?->line_id;
-        }
 
         if (! $lineId) {
             return redirect()->route('operator.select-line');
@@ -37,9 +39,10 @@ class WorkstationController extends Controller
 
         $line = Line::with(['viewColumns', 'viewTemplate'])->findOrFail($lineId);
 
-        $query = WorkOrder::where('line_id', $lineId)
+        $query = WorkOrder::query()
+            ->when(! $workstationLocked, fn ($query) => $query->where('line_id', $lineId))
             ->whereNotIn('status', [WorkOrder::STATUS_REJECTED, WorkOrder::STATUS_CANCELLED])
-            ->with(['productType'])
+            ->with(['productType', 'batches.steps'])
             ->orderByRaw("CASE WHEN status = 'IN_PROGRESS' THEN 0 WHEN status IN ('PENDING','ACCEPTED') THEN 1 ELSE 2 END")
             ->orderBy('priority', 'desc')
             ->orderBy('due_date', 'asc');
@@ -68,6 +71,16 @@ class WorkstationController extends Controller
         }
 
         $workOrders = $query->get();
+
+        if ($workstationLocked) {
+            $workOrders = $workOrders->filter(function (WorkOrder $workOrder) use ($lockedWorkstation) {
+                return $workOrder->batches->contains(function ($batch) use ($lockedWorkstation) {
+                    $step = $batch->currentStep();
+
+                    return $step && (int) $step->workstation_id === (int) $lockedWorkstation->id;
+                });
+            })->values();
+        }
 
         $issueTypes = IssueType::where('is_active', true)->orderBy('name')->get();
 
@@ -98,14 +111,14 @@ class WorkstationController extends Controller
 
         // Machine states (#87): the line's workstations with their current state,
         // so operators can set waiting/cleaning/maintenance etc. from the panel.
-        $machineStates = $this->machineStatesForLine((int) $lineId);
+        $machineStates = $this->machineStatesForLine((int) $lineId, $lockedWorkstation?->id);
         $machineStateOptions = WorkstationState::STATES;
 
         return Inertia::render('operator/Workstation', compact(
             'workOrders', 'line', 'availableWeeks', 'weekFilter', 'search',
             'issueTypes', 'allColumns', 'shifts', 'shiftEntries', 'today', 'trackingMode',
             'qtyEditPolicy', 'qtyEditWindowMinutes', 'labelTemplates',
-            'machineStates', 'machineStateOptions'
+            'machineStates', 'machineStateOptions', 'workstationLocked'
         ));
     }
 
@@ -114,9 +127,12 @@ class WorkstationController extends Controller
      *
      * @return array<int, array{id: int, name: string, state: string|null}>
      */
-    private function machineStatesForLine(int $lineId): array
+    private function machineStatesForLine(int $lineId, ?int $workstationId = null): array
     {
-        $workstations = Workstation::where('line_id', $lineId)->orderBy('name')->get(['id', 'name']);
+        $workstations = Workstation::where('line_id', $lineId)
+            ->when($workstationId, fn ($query) => $query->whereKey($workstationId))
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         $current = WorkstationState::whereIn('workstation_id', $workstations->pluck('id'))
             ->whereNull('ended_at')
@@ -137,6 +153,11 @@ class WorkstationController extends Controller
     public function setMachineState(SetWorkstationStateRequest $request, Workstation $workstation, WorkstationStateMachine $stateMachine)
     {
         $lineId = $request->session()->get('selected_line_id');
+
+        if ($this->workstationContext->isLocked($request->user())
+            && (int) $workstation->id !== (int) $this->workstationContext->workstation($request)?->id) {
+            abort(403);
+        }
 
         if (! $lineId || (int) $workstation->line_id !== (int) $lineId) {
             return redirect()->back()->with('error', 'That workstation is not on your selected line.');
@@ -173,7 +194,19 @@ class WorkstationController extends Controller
             $query->where('week_number', (int) $weekFilter);
         }
 
-        $orders = $query->select('id', 'status', 'produced_qty')->get();
+        if ($this->workstationContext->isLocked($request->user())) {
+            $workstationId = $this->workstationContext->workstation($request)?->id;
+            $query->with('batches.steps');
+            $orders = $query->get()->filter(function (WorkOrder $workOrder) use ($workstationId) {
+                return $workOrder->batches->contains(function ($batch) use ($workstationId) {
+                    $step = $batch->currentStep();
+
+                    return $step && (int) $step->workstation_id === (int) $workstationId;
+                });
+            })->values();
+        } else {
+            $orders = $query->select('id', 'status', 'produced_qty')->get();
+        }
         $hash = md5($orders->map(fn ($o) => "{$o->id}:{$o->status}:{$o->produced_qty}")->implode('|'));
 
         return response()->json([
@@ -226,9 +259,11 @@ class WorkstationController extends Controller
      */
     public function start(Request $request, WorkOrder $workOrder)
     {
+        abort_unless($this->workstationContext->canAccessWorkOrder($request, $workOrder), 403);
+
         $lineId = $request->session()->get('selected_line_id');
 
-        if ($workOrder->line_id != $lineId) {
+        if (! $this->workstationContext->isLocked($request->user()) && $workOrder->line_id != $lineId) {
             return back()->with('error', 'Work order does not belong to this line.');
         }
 
@@ -247,9 +282,11 @@ class WorkstationController extends Controller
      */
     public function complete(Request $request, WorkOrder $workOrder)
     {
+        abort_unless($this->workstationContext->canAccessWorkOrder($request, $workOrder), 403);
+
         $lineId = $request->session()->get('selected_line_id');
 
-        if ($workOrder->line_id != $lineId) {
+        if (! $this->workstationContext->isLocked($request->user()) && $workOrder->line_id != $lineId) {
             return back()->with('error', 'Work order does not belong to this line.');
         }
 
@@ -294,9 +331,11 @@ class WorkstationController extends Controller
      */
     public function shiftEntry(Request $request, WorkOrder $workOrder)
     {
+        abort_unless($this->workstationContext->canAccessWorkOrder($request, $workOrder), 403);
+
         $lineId = $request->session()->get('selected_line_id');
 
-        if ($workOrder->line_id != $lineId) {
+        if (! $this->workstationContext->isLocked($request->user()) && $workOrder->line_id != $lineId) {
             return back()->with('error', 'Work order does not belong to this line.');
         }
 

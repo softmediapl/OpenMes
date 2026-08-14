@@ -777,6 +777,7 @@ export default function Workstation() {
         labelTemplates = [],
         machineStates = [],
         machineStateOptions = [],
+        workstationLocked = false,
     } = usePage().props;
 
     const { visibleKeys, toggleColumn, resetColumns } = useVisibleColumns(allColumns, line?.id ?? 0);
@@ -846,12 +847,14 @@ export default function Workstation() {
                                 resetColumns={resetColumns}
                             />
 
-                            <Link
-                                href="/operator/select-line"
-                                className="px-4 py-2.5 rounded-om-sm text-sm font-medium text-om-ink border border-om-line bg-om-card hover:bg-om-chip transition-colors"
-                            >
-                                {__("Change Line")}
-                            </Link>
+                            {!workstationLocked && (
+                                <Link
+                                    href="/operator/select-line"
+                                    className="px-4 py-2.5 rounded-om-sm text-sm font-medium text-om-ink border border-om-line bg-om-card hover:bg-om-chip transition-colors"
+                                >
+                                    {__("Change Line")}
+                                </Link>
+                            )}
                         </div>
                     </div>
 

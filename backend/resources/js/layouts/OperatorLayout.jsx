@@ -17,6 +17,7 @@ import { __ } from '../lib/i18n';
  */
 export default function OperatorLayout({ children }) {
     const { auth, line, selectedWorkstation, csrf_token } = usePage().props;
+    const workstationLocked = auth?.user?.account_type === 'workstation';
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     const isActive = (prefix) => path === prefix || path.startsWith(prefix);
 
@@ -24,7 +25,7 @@ export default function OperatorLayout({ children }) {
         <div className="min-h-screen flex flex-col bg-om-bg font-sans">
             <header className="shrink-0 bg-om-card border-b border-om-line">
                 <div className="flex items-center gap-4 px-4 h-16">
-                    <Link href="/operator/select-line" className="flex items-center shrink-0">
+                    <Link href={workstationLocked ? '/operator/queue' : '/operator/select-line'} className="flex items-center shrink-0">
                         <img src="/logo_open_mes.png" alt="OpenMES" className="h-8 w-auto" />
                     </Link>
 
@@ -47,12 +48,14 @@ export default function OperatorLayout({ children }) {
                             <TopLink href="/operator/workstation" active={isActive('/operator/workstation')}>
                                 {__('Workstation')}
                             </TopLink>
-                            <Link
-                                href="/operator/select-line"
-                                className="px-3 py-2.5 rounded-om-sm text-sm font-medium text-om-muted border border-om-line hover:bg-om-chip hover:text-om-ink transition-colors"
-                            >
-                                {__('Switch Line')}
-                            </Link>
+                            {!workstationLocked && (
+                                <Link
+                                    href="/operator/select-line"
+                                    className="px-3 py-2.5 rounded-om-sm text-sm font-medium text-om-muted border border-om-line hover:bg-om-chip hover:text-om-ink transition-colors"
+                                >
+                                    {__('Switch Line')}
+                                </Link>
+                            )}
                         </nav>
                     )}
 
