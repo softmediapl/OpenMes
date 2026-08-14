@@ -120,6 +120,14 @@ class ShapeRegistry
                 'unit_of_measure', 'is_active', 'created_at', 'updated_at',
             ],
         ],
+        'transport_units' => [
+            'table' => 'transport_units',
+            'columns' => [
+                'id', 'transport_unit_type_id', 'code', 'capacity_quantity',
+                'unit_of_measure', 'status', 'current_workstation_id',
+                'last_scanned_at', 'created_at', 'updated_at',
+            ],
+        ],
         'subassemblies' => [
             'table' => 'subassemblies',
             'columns' => ['id', 'code', 'name', 'description', 'product_type_id', 'is_active', 'created_at', 'updated_at'],

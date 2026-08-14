@@ -677,6 +677,7 @@ Route::middleware('auth')->group(function () {
 
         Route::resource('transport-unit-types', \App\Http\Controllers\Web\Admin\TransportUnitTypeController::class)->except(['show']);
         Route::post('/transport-unit-types/{transportUnitType}/toggle-active', [\App\Http\Controllers\Web\Admin\TransportUnitTypeController::class, 'toggleActive'])->name('transport-unit-types.toggle-active');
+        Route::resource('transport-units', \App\Http\Controllers\Web\Admin\TransportUnitController::class)->except(['show']);
 
         // Workstation Devices (shop-floor PCs running the OpenMES Workstation client)
         Route::get('/workstation-devices', [\App\Http\Controllers\Web\Admin\WorkstationDeviceController::class, 'index'])->name('workstation-devices.index')->middleware('role:Admin');
