@@ -1820,7 +1820,7 @@ function EngineeringDocsSection({ docs = [], onView }) {
 // ---------------------------------------------------------------------------
 
 export default function WorkOrderDetail() {
-    const { workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false } = usePage().props;
+    const { auth, workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false } = usePage().props;
 
     const [engViewer, setEngViewer] = useState(null); // { url, title } for the sandboxed viewer
 
@@ -1844,7 +1844,10 @@ export default function WorkOrderDetail() {
     const remaining = Math.max(plannedQty - producedQty, 0);
     const pct = plannedQty > 0 ? Math.min((producedQty / plannedQty) * 100, 100) : 0;
 
-    const canCreateBatch = !workstationLocked && !['DONE', 'CANCELLED', 'BLOCKED'].includes(workOrder.status);
+    const canManageBatches = auth?.user?.roles?.some((role) => ['Admin', 'Supervisor'].includes(role));
+    const canCreateBatch = canManageBatches
+        && !workstationLocked
+        && !['DONE', 'CANCELLED', 'BLOCKED'].includes(workOrder.status);
     const canReportIssue = !['DONE', 'CANCELLED'].includes(workOrder.status);
     const canReportScrap = scrapReasons.length > 0 && !['DONE', 'CANCELLED'].includes(workOrder.status);
 

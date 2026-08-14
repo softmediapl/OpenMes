@@ -81,7 +81,7 @@ class WorkOrderServiceTest extends TestCase
 
     public function test_create_batch_initializes_steps_from_snapshot(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
         $this->assertCount(3, $workOrder->process_snapshot['steps']); // From factory
 
         $batch = $this->service->createBatch($workOrder, 50);
@@ -108,7 +108,7 @@ class WorkOrderServiceTest extends TestCase
 
     public function test_create_batch_auto_increments_batch_number(): void
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
 
         $batch1 = $this->service->createBatch($workOrder, 30);
         $batch2 = $this->service->createBatch($workOrder, 40);

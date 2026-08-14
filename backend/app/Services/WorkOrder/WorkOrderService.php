@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\ProcessTemplate;
 use App\Models\WorkOrder;
+use App\Support\SystemSetting;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Facades\DB;
 
@@ -538,9 +539,13 @@ class WorkOrderService
             WorkOrder::whereKey($workOrder->getKey())->lockForUpdate()->first();
             $workOrder->refresh();
 
+            $this->assertBatchTargetFits($workOrder, $targetQty);
+
             // Calculate next batch number
-            $lastBatch = $workOrder->batches()->reorder('batch_number', 'desc')->first();
-            $batchNumber = $lastBatch ? $lastBatch->batch_number + 1 : 1;
+            $lastBatchNumber = Batch::withTrashed()
+                ->where('work_order_id', $workOrder->id)
+                ->max('batch_number');
+            $batchNumber = $lastBatchNumber ? $lastBatchNumber + 1 : 1;
 
             // Create batch
             $batch = Batch::create([
@@ -565,6 +570,59 @@ class WorkOrderService
 
             return $batch;
         });
+    }
+
+    /**
+     * Resize an unstarted batch while preserving the work-order allocation limit.
+     */
+    public function updateBatchTarget(Batch $batch, float $targetQty): Batch
+    {
+        return DB::transaction(function () use ($batch, $targetQty) {
+            $workOrder = WorkOrder::whereKey($batch->work_order_id)
+                ->lockForUpdate()
+                ->firstOrFail();
+            $lockedBatch = Batch::whereKey($batch->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($lockedBatch->status !== Batch::STATUS_PENDING) {
+                throw new \DomainException('Only PENDING batches can be updated.');
+            }
+
+            $this->assertBatchTargetFits($workOrder, $targetQty, $lockedBatch->id);
+            $lockedBatch->update(['target_qty' => $targetQty]);
+
+            return $lockedBatch->fresh(['steps']);
+        });
+    }
+
+    /**
+     * Enforce the released quantity allocation under the work-order row lock.
+     * Cancelled batches release their target so a replacement can be created.
+     */
+    private function assertBatchTargetFits(WorkOrder $workOrder, float $targetQty, ?int $exceptBatchId = null): void
+    {
+        if (! is_finite($targetQty) || $targetQty <= 0) {
+            throw new \DomainException('Batch target quantity must be greater than zero.');
+        }
+
+        if (SystemSetting::boolean('allow_overproduction', config('openmmes.allow_overproduction', false))) {
+            return;
+        }
+
+        $allocatedQuery = $workOrder->batches()
+            ->where('status', '!=', Batch::STATUS_CANCELLED);
+
+        if ($exceptBatchId !== null) {
+            $allocatedQuery->where('id', '!=', $exceptBatchId);
+        }
+
+        $allocated = (float) $allocatedQuery->sum('target_qty');
+        $planned = (float) $workOrder->planned_qty;
+
+        if (($allocated + $targetQty - $planned) > 0.001) {
+            throw new \DomainException('Total batch quantity would exceed planned quantity');
+        }
     }
 
     /**

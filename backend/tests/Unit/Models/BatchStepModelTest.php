@@ -21,7 +21,10 @@ class BatchStepModelTest extends TestCase
     {
         parent::setUp();
 
-        $this->workOrder = WorkOrder::factory()->create(['status' => WorkOrder::STATUS_PENDING]);
+        $this->workOrder = WorkOrder::factory()->create([
+            'planned_qty' => 100,
+            'status' => WorkOrder::STATUS_PENDING,
+        ]);
         $this->batch = app(WorkOrderService::class)->createBatch($this->workOrder, 50);
     }
 

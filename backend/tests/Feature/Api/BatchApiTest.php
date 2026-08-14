@@ -106,6 +106,15 @@ class BatchApiTest extends TestCase
         ]);
     }
 
+    public function test_operator_cannot_create_batch(): void
+    {
+        $this->withHeader('Authorization', "Bearer {$this->operatorToken}")
+            ->postJson("/api/v1/work-orders/{$this->workOrder->id}/batches", [
+                'target_qty' => 50,
+            ])
+            ->assertForbidden();
+    }
+
     public function test_batch_target_qty_required(): void
     {
         $response = $this->withHeader('Authorization', "Bearer {$this->adminToken}")
@@ -136,6 +145,17 @@ class BatchApiTest extends TestCase
                 'target_qty' => 201,
             ])
             ->assertCreated();
+    }
+
+    public function test_pending_batch_resize_cannot_exceed_remaining_plan(): void
+    {
+        $first = app(WorkOrderService::class)->createBatch($this->workOrder, 100);
+        app(WorkOrderService::class)->createBatch($this->workOrder, 100);
+
+        $this->withHeader('Authorization', "Bearer {$this->adminToken}")
+            ->patchJson("/api/v1/batches/{$first->id}", ['target_qty' => 100.01])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Total batch quantity would exceed planned quantity');
     }
 
     public function test_batch_is_created_with_steps_from_work_order_snapshot(): void

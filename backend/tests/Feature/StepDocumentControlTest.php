@@ -39,7 +39,10 @@ class StepDocumentControlTest extends TestCase
 
         $this->service = app(BatchService::class);
         $this->line = Line::factory()->create();
-        $this->workOrder = WorkOrder::factory()->create(['line_id' => $this->line->id]);
+        $this->workOrder = WorkOrder::factory()->create([
+            'line_id' => $this->line->id,
+            'planned_qty' => 100,
+        ]);
         $this->batch = app(WorkOrderService::class)->createBatch($this->workOrder, 50);
 
         $this->operator = User::factory()->create();

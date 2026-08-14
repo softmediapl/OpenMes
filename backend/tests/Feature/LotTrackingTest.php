@@ -359,6 +359,7 @@ class LotTrackingTest extends TestCase
         return WorkOrder::factory()->create([
             'line_id' => $line?->id ?? Line::factory()->create()->id,
             'product_type_id' => $this->productType->id,
+            'planned_qty' => 100,
             'status' => WorkOrder::STATUS_ACCEPTED,
         ]);
     }

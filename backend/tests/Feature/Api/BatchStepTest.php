@@ -30,7 +30,7 @@ class BatchStepTest extends TestCase
 
     protected function createWorkOrderWithBatch()
     {
-        $workOrder = WorkOrder::factory()->create();
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
         $workOrderService = app(WorkOrderService::class);
         $batch = $workOrderService->createBatch($workOrder, 50);
 

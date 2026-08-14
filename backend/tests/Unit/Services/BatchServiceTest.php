@@ -28,7 +28,7 @@ class BatchServiceTest extends TestCase
         parent::setUp();
         $this->service = app(BatchService::class);
 
-        $this->workOrder = WorkOrder::factory()->create();
+        $this->workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
         $workOrderService = app(WorkOrderService::class);
         $this->batch = $workOrderService->createBatch($this->workOrder, 50);
         $this->user = User::factory()->create();

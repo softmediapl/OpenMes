@@ -6,6 +6,7 @@ use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Operator\CompleteBatchStepRequest;
 use App\Http\Requests\Operator\StartStepRequest;
+use App\Http\Requests\Web\Operator\StoreBatchRequest;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\BatchStepChecklistCompletion;
@@ -292,26 +293,20 @@ class BatchController extends Controller
         return $this->workstationContext->canAccessStep($request, $batchStep);
     }
 
-    public function store(Request $request)
+    public function store(StoreBatchRequest $request)
     {
         abort_if($this->workstationContext->isLocked($request->user()), 403);
+        $this->authorize('create', WorkOrder::class);
 
-        $request->validate([
-            'work_order_id' => 'required|exists:work_orders,id',
-            'target_qty' => 'required|numeric|min:0.01',
-            'workstation_id' => 'nullable|exists:workstations,id',
-            'lot_number' => 'nullable|string|max:50',
-            'auto_lot' => 'nullable|boolean',
-        ]);
-
-        $workOrder = WorkOrder::find($request->input('work_order_id'));
+        $validated = $request->validated();
+        $workOrder = WorkOrder::findOrFail($validated['work_order_id']);
 
         if ($workOrder->line_id != $request->session()->get('selected_line_id')) {
             return back()->with('error', 'This work order does not belong to the selected line.');
         }
 
         try {
-            $lotNumber = $request->input('lot_number');
+            $lotNumber = $validated['lot_number'] ?? null;
 
             if ($request->boolean('auto_lot') && ! $lotNumber) {
                 $lotNumber = $this->lotService->generateLot($workOrder->productType);
@@ -319,8 +314,8 @@ class BatchController extends Controller
 
             $this->workOrderService->createBatch(
                 $workOrder,
-                $request->input('target_qty'),
-                $request->input('workstation_id'),
+                $validated['target_qty'],
+                $validated['workstation_id'] ?? null,
                 $lotNumber,
             );
 
