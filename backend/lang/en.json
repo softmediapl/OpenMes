@@ -5251,5 +5251,8 @@
     "System managed": "System managed",
     "Unregistered": "Unregistered",
     "Uploading backup file...": "Uploading backup file...",
-    "Used for shift boundaries, reports and all displayed production timestamps.": "Used for shift boundaries, reports and all displayed production timestamps."
+    "Used for shift boundaries, reports and all displayed production timestamps.": "Used for shift boundaries, reports and all displayed production timestamps.",
+    "Additional lot picks must be selected manually.": "Additional lot picks must be selected manually.",
+    "This terminal cannot operate this step. The step is assigned to :station.": "This terminal cannot operate this step. The step is assigned to :station.",
+    "unknown workstation": "unknown workstation"
 }

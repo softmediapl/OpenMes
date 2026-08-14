@@ -8,6 +8,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
+- **Workstation terminals are now locked to their configured station** across the operator UI and API. URL parameters, line switching, workstation filters, batch creation and direct step endpoints can no longer expose or mutate another station's work. A terminal receives only the current actionable step for its station; completed work disappears from its queue, while supervisors and human operators retain their broader workflows.
+- **Material reservations no longer reduce physical stock twice.** Reserving a batch now changes only `reserved_quantity` and lot availability; physical on-hand stock changes once, when consumption or scrap is recorded. Cancellation and unused returns release reservations without creating artificial receipts. An audited migration repairs existing active reservations, and row locking prevents concurrent over-reservation.
 - Fix plant timezone persistence in the JSON-backed system settings table, preventing HTTP 500 responses when administrators save runtime settings on PostgreSQL.
 
 ### Added
