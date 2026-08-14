@@ -6,6 +6,8 @@ x-laravel-env: &laravel-env
   APP_DEBUG: "false"
   APP_KEY: "${APP_KEY:?APP_KEY is required}"
   APP_URL: "${APP_URL:?APP_URL is required}"
+  APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+  TZ: ${APP_TIMEZONE:-UTC}
   SANCTUM_STATEFUL_DOMAINS: ${SANCTUM_STATEFUL_DOMAINS:-}
   LOG_CHANNEL: ${LOG_CHANNEL:-stack}
   LOG_STACK: ${LOG_STACK:-single}
