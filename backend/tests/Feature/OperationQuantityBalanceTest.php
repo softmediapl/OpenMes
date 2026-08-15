@@ -84,6 +84,60 @@ class OperationQuantityBalanceTest extends TestCase
         $this->assertSame($this->operator->id, $entry->reported_by);
     }
 
+    public function test_completion_records_separate_scrap_entries_for_multiple_reasons(): void
+    {
+        $cracked = ScrapReason::factory()->create();
+        $misshapen = ScrapReason::factory()->create();
+        $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();
+
+        app(BatchService::class)->startStep($first, $this->operator);
+        app(BatchService::class)->completeStep($first->fresh(), $this->operator, [
+            'good_quantity' => 93,
+            'rework_quantity' => 3,
+            'scrap_quantity' => 4,
+            'scrap_entries' => [
+                ['scrap_reason_id' => $cracked->id, 'quantity' => 1],
+                ['scrap_reason_id' => $misshapen->id, 'quantity' => 3],
+            ],
+            'quantity_notes' => 'Gate C multi-reason scrap.',
+        ]);
+
+        $first->refresh();
+        $this->assertEquals(93, $first->good_quantity);
+        $this->assertEquals(4, $first->scrap_quantity);
+        $this->assertNull($first->scrap_reason_id);
+        $this->assertDatabaseCount('scrap_entries', 2);
+        $this->assertDatabaseHas('scrap_entries', [
+            'batch_step_id' => $first->id,
+            'scrap_reason_id' => $cracked->id,
+            'quantity' => 1,
+        ]);
+        $this->assertDatabaseHas('scrap_entries', [
+            'batch_step_id' => $first->id,
+            'scrap_reason_id' => $misshapen->id,
+            'quantity' => 3,
+        ]);
+    }
+
+    public function test_completion_rejects_a_scrap_breakdown_that_does_not_match_total(): void
+    {
+        $reason = ScrapReason::factory()->create();
+        $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();
+        app(BatchService::class)->startStep($first, $this->operator);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Scrap breakdown');
+
+        app(BatchService::class)->completeStep($first->fresh(), $this->operator, [
+            'good_quantity' => 95,
+            'rework_quantity' => 0,
+            'scrap_quantity' => 5,
+            'scrap_entries' => [
+                ['scrap_reason_id' => $reason->id, 'quantity' => 4],
+            ],
+        ]);
+    }
+
     public function test_completion_rejects_an_unbalanced_quantity_report_atomically(): void
     {
         $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();

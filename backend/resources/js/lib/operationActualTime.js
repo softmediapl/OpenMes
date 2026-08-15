@@ -3,15 +3,27 @@ export function operationActualTimeDefaults(step, nowMs = Date.now()) {
     const elapsed = startedAtMs && Number.isFinite(startedAtMs)
         ? Math.max(0, Math.ceil((nowMs - startedAtMs) / 60000))
         : 0;
-    const standardSetup = step?.setup_time_minutes != null
-        ? Math.max(0, Number(step.setup_time_minutes) || 0)
-        : 0;
-    const setup = elapsed >= standardSetup ? standardSetup : 0;
-    const run = Math.max(0, elapsed - setup);
+    // The system only knows when the whole operation started. Without a
+    // separate setup timer it must not present the standard as an actual.
+    const setup = 0;
+    const run = elapsed;
 
     return {
         elapsed,
         setup,
         run,
     };
+}
+
+export function operationActualRunMinutes(elapsed, setup) {
+    const elapsedMinutes = Number(elapsed);
+    const setupMinutes = Number(setup);
+
+    if (!Number.isInteger(elapsedMinutes) || elapsedMinutes < 0
+        || !Number.isInteger(setupMinutes) || setupMinutes < 0
+        || setupMinutes > elapsedMinutes) {
+        return null;
+    }
+
+    return elapsedMinutes - setupMinutes;
 }

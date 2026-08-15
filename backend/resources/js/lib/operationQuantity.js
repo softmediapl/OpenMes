@@ -25,3 +25,27 @@ export function operationQuantityBalance({ input, good, rework, scrap }) {
         balanced: Number.isFinite(difference) && Math.abs(difference) <= 0.0001,
     };
 }
+
+export function operationDerivedOutput({ input, rework, scrapEntries = [] }) {
+    const inputQuantity = Number(input);
+    const reworkQuantity = parseOperationQuantity(rework);
+    const parsedScrapQuantities = scrapEntries.map((entry) => parseOperationQuantity(entry.quantity));
+    const quantitiesValid = parsedScrapQuantities.every(Number.isFinite);
+    const scrapQuantity = quantitiesValid
+        ? Number(parsedScrapQuantities.reduce((sum, quantity) => sum + quantity, 0).toFixed(4))
+        : Number.NaN;
+    const rawGoodQuantity = Number.isFinite(inputQuantity)
+        && Number.isFinite(reworkQuantity)
+        && Number.isFinite(scrapQuantity)
+        ? Number((inputQuantity - reworkQuantity - scrapQuantity).toFixed(4))
+        : Number.NaN;
+
+    return {
+        inputQuantity,
+        reworkQuantity,
+        scrapQuantity,
+        goodQuantity: Number.isFinite(rawGoodQuantity) ? Math.max(0, rawGoodQuantity) : Number.NaN,
+        overReported: Number.isFinite(rawGoodQuantity) && rawGoodQuantity < 0,
+        valid: Number.isFinite(rawGoodQuantity) && rawGoodQuantity >= 0,
+    };
+}

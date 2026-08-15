@@ -20,6 +20,8 @@ class CompleteBatchStepRequest extends FormRequest
     public function rules(): array
     {
         $quantityReportingRequired = (bool) $this->route('batchStep')?->quantity_reporting_required;
+        $scrapEntries = $this->input('scrap_entries');
+        $hasScrapBreakdown = is_array($scrapEntries) && count($scrapEntries) > 0;
 
         return [
             'actual_elapsed_minutes' => ['nullable', 'integer', 'min:0'],
@@ -29,10 +31,17 @@ class CompleteBatchStepRequest extends FormRequest
             'rework_quantity' => [Rule::requiredIf($quantityReportingRequired), 'nullable', 'numeric', 'min:0', 'max:9999999999'],
             'scrap_quantity' => [Rule::requiredIf($quantityReportingRequired), 'nullable', 'numeric', 'min:0', 'max:9999999999'],
             'scrap_reason_id' => [
-                Rule::requiredIf(fn () => (float) $this->input('scrap_quantity', 0) > 0),
+                Rule::requiredIf(fn () => (float) $this->input('scrap_quantity', 0) > 0 && ! $hasScrapBreakdown),
                 'nullable',
                 Rule::exists('scrap_reasons', 'id')->where('is_active', true)->whereNull('deleted_at'),
             ],
+            'scrap_entries' => ['nullable', 'array'],
+            'scrap_entries.*.scrap_reason_id' => [
+                'required',
+                'distinct',
+                Rule::exists('scrap_reasons', 'id')->where('is_active', true)->whereNull('deleted_at'),
+            ],
+            'scrap_entries.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
             'quantity_notes' => ['nullable', 'string', 'max:2000'],
             'hold_override_reason' => ['nullable', 'string', 'min:10', 'max:1000'],
         ];

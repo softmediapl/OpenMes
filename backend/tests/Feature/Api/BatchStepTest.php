@@ -234,6 +234,44 @@ class BatchStepTest extends TestCase
         ]);
     }
 
+    public function test_quantity_reporting_api_accepts_multiple_scrap_reasons(): void
+    {
+        $user = $this->authenticatedUser('Operator');
+        [$workOrder, $batch] = $this->createWorkOrderWithBatch();
+        $user->lines()->attach($workOrder->line_id);
+
+        $step = $batch->steps()->orderBy('step_number')->firstOrFail();
+        $step->update(['quantity_reporting_required' => true]);
+        app(\App\Services\WorkOrder\BatchService::class)->startStep($step->fresh(), $user);
+
+        $firstReason = ScrapReason::factory()->create();
+        $secondReason = ScrapReason::factory()->create();
+        $token = $user->createToken('multi-reason-scrap')->plainTextToken;
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/v1/batch-steps/{$step->id}/complete", [
+                'good_quantity' => 45,
+                'rework_quantity' => 2,
+                'scrap_quantity' => 3,
+                'scrap_entries' => [
+                    ['scrap_reason_id' => $firstReason->id, 'quantity' => 1],
+                    ['scrap_reason_id' => $secondReason->id, 'quantity' => 2],
+                ],
+            ])
+            ->assertOk();
+
+        $this->assertDatabaseHas('scrap_entries', [
+            'batch_step_id' => $step->id,
+            'scrap_reason_id' => $firstReason->id,
+            'quantity' => 1,
+        ]);
+        $this->assertDatabaseHas('scrap_entries', [
+            'batch_step_id' => $step->id,
+            'scrap_reason_id' => $secondReason->id,
+            'quantity' => 2,
+        ]);
+    }
+
     public function test_cannot_complete_step_that_is_not_in_progress(): void
     {
         $user = $this->authenticatedUser('Operator');

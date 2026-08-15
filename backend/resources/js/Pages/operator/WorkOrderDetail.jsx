@@ -13,8 +13,8 @@ import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
 import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
-import { operationQuantityBalance } from '../../lib/operationQuantity';
-import { operationActualTimeDefaults } from '../../lib/operationActualTime';
+import { operationDerivedOutput } from '../../lib/operationQuantity';
+import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
 
@@ -1407,12 +1407,9 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
     const earlyRelease = remainingHoldSeconds > 0;
     const form = useForm({
         actual_elapsed_minutes: reportsTime ? String(actualTimeDefaults.elapsed) : '',
-        actual_setup_minutes: reportsTime && step.setup_time_minutes != null ? String(actualTimeDefaults.setup) : '',
-        actual_run_minutes: reportsTime ? String(actualTimeDefaults.run) : '',
-        good_quantity: reportsQuantity ? String(inputQuantity) : '',
+        actual_setup_minutes: reportsTime ? String(actualTimeDefaults.setup) : '',
         rework_quantity: reportsQuantity ? '0' : '',
-        scrap_quantity: reportsQuantity ? '0' : '',
-        scrap_reason_id: '',
+        scrap_entries: reportsQuantity ? [{ scrap_reason_id: '', quantity: '0' }] : [],
         quantity_notes: '',
         hold_override_reason: '',
     });
@@ -1429,42 +1426,77 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
     // (the number inputs' min= does not block this custom-button submission).
     const isNonNegInt = (v) => /^\d+$/.test(String(v).trim());
     const elapsedValid = !reportsTime || isNonNegInt(form.data.actual_elapsed_minutes);
-    const setupValid = form.data.actual_setup_minutes === '' || isNonNegInt(form.data.actual_setup_minutes);
-    const runValid = form.data.actual_run_minutes === '' || isNonNegInt(form.data.actual_run_minutes);
+    const setupValid = !reportsTime || isNonNegInt(form.data.actual_setup_minutes);
     const elapsedNum = elapsedValid ? Number(form.data.actual_elapsed_minutes) : 0;
-    const overflow = reportsTime
-        && (Number(form.data.actual_setup_minutes) || 0) + (Number(form.data.actual_run_minutes) || 0) > elapsedNum;
+    const setupNum = setupValid ? Number(form.data.actual_setup_minutes) : 0;
+    const actualRunMinutes = reportsTime && elapsedValid && setupValid
+        ? operationActualRunMinutes(elapsedNum, setupNum)
+        : null;
+    const setupExceedsElapsed = reportsTime && elapsedValid && setupValid && actualRunMinutes == null;
 
-    const quantityBalance = operationQuantityBalance({
+    const derivedOutput = operationDerivedOutput({
         input: inputQuantity,
-        good: form.data.good_quantity,
         rework: form.data.rework_quantity,
-        scrap: form.data.scrap_quantity,
+        scrapEntries: form.data.scrap_entries,
     });
     const {
+        goodQuantity,
+        reworkQuantity,
         scrapQuantity,
-        difference: balanceDifference,
-    } = quantityBalance;
+    } = derivedOutput;
+    const scrapBreakdownInvalid = form.data.scrap_entries.some((entry) => {
+        const quantity = Number(entry.quantity);
+        return !Number.isFinite(quantity)
+            || quantity < 0
+            || (quantity > 0 && !entry.scrap_reason_id);
+    });
     const quantityInvalid = reportsQuantity && (
-        !quantityBalance.balanced
-        || (scrapQuantity > 0 && !form.data.scrap_reason_id)
+        !derivedOutput.valid
+        || scrapBreakdownInvalid
     );
     const holdOverrideInvalid = earlyRelease && (
         !canOverrideOperationHold
         || form.data.hold_override_reason.trim().length < 10
     );
-    const invalid = !elapsedValid || !setupValid || !runValid || overflow || quantityInvalid || holdOverrideInvalid;
+    const invalid = !elapsedValid || !setupValid || setupExceedsElapsed || quantityInvalid || holdOverrideInvalid;
+
+    const updateScrapEntry = (index, field, value) => {
+        form.setData('scrap_entries', form.data.scrap_entries.map((entry, entryIndex) => (
+            entryIndex === index ? { ...entry, [field]: value } : entry
+        )));
+    };
+    const addScrapEntry = () => {
+        form.setData('scrap_entries', [
+            ...form.data.scrap_entries,
+            { scrap_reason_id: '', quantity: '0' },
+        ]);
+    };
+    const removeScrapEntry = (index) => {
+        const remaining = form.data.scrap_entries.filter((_, entryIndex) => entryIndex !== index);
+        form.setData('scrap_entries', remaining.length > 0
+            ? remaining
+            : [{ scrap_reason_id: '', quantity: '0' }]);
+    };
 
     const submit = () => {
         if (invalid) return;
+        const reportedScrapEntries = form.data.scrap_entries
+            .filter((entry) => Number(entry.quantity) > 0)
+            .map((entry) => ({
+                scrap_reason_id: Number(entry.scrap_reason_id),
+                quantity: Number(entry.quantity),
+            }));
         form.transform((data) => ({
             actual_elapsed_minutes: reportsTime ? elapsedNum : null,
-            actual_setup_minutes: reportsTime && data.actual_setup_minutes !== '' ? Number(data.actual_setup_minutes) : null,
-            actual_run_minutes: reportsTime && data.actual_run_minutes !== '' ? Number(data.actual_run_minutes) : null,
-            good_quantity: reportsQuantity ? Number(data.good_quantity) : null,
-            rework_quantity: reportsQuantity ? Number(data.rework_quantity) : null,
-            scrap_quantity: reportsQuantity ? Number(data.scrap_quantity) : null,
-            scrap_reason_id: reportsQuantity && scrapQuantity > 0 ? Number(data.scrap_reason_id) : null,
+            actual_setup_minutes: reportsTime ? setupNum : null,
+            actual_run_minutes: reportsTime ? actualRunMinutes : null,
+            good_quantity: reportsQuantity ? goodQuantity : null,
+            rework_quantity: reportsQuantity ? reworkQuantity : null,
+            scrap_quantity: reportsQuantity ? scrapQuantity : null,
+            scrap_entries: reportsQuantity ? reportedScrapEntries : [],
+            scrap_reason_id: reportedScrapEntries.length === 1
+                ? reportedScrapEntries[0].scrap_reason_id
+                : null,
             quantity_notes: reportsQuantity && data.quantity_notes.trim() !== '' ? data.quantity_notes.trim() : null,
             hold_override_reason: earlyRelease && canOverrideOperationHold
                 ? data.hold_override_reason.trim()
@@ -1490,7 +1522,7 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className={labelCls}>{__('Good quantity')}</label>
-                                <input type="number" min="0" step="0.0001" value={form.data.good_quantity} onChange={(e) => form.setData('good_quantity', e.target.value)} className={inputCls} />
+                                <input type="number" min="0" step="0.0001" value={Number.isFinite(goodQuantity) ? goodQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Rework quantity')}</label>
@@ -1498,32 +1530,73 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
-                                <input type="number" min="0" step="0.0001" value={form.data.scrap_quantity} onChange={(e) => form.setData('scrap_quantity', e.target.value)} className={inputCls} />
+                                <input type="number" min="0" step="0.0001" value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                         </div>
-                        <div className={`rounded-om-sm border px-3 py-2 text-xs ${quantityBalance.balanced ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
-                            {quantityBalance.balanced
+                        <div className={`rounded-om-sm border px-3 py-2 text-xs ${derivedOutput.valid ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
+                            {derivedOutput.valid
                                 ? __('Quantity balance is complete.')
-                                : Number.isFinite(balanceDifference)
-                                    ? __('Unaccounted quantity: :quantity', { quantity: fmtQty(balanceDifference, 4) })
+                                : derivedOutput.overReported
+                                    ? __('Rework and scrap cannot exceed the input quantity.')
                                     : __('Enter valid quantities for the complete balance.')}
                         </div>
-                        {scrapQuantity > 0 && (
-                            <div>
-                                <label className={labelCls}>{__('Scrap reason')}</label>
-                                <Dropdown
-                                    options={applicableScrapReasons.map((reason) => ({
-                                        value: String(reason.id),
-                                        label: `${reason.code} — ${reason.name}`,
-                                    }))}
-                                    value={String(form.data.scrap_reason_id || '')}
-                                    onChange={(value) => form.setData('scrap_reason_id', value)}
-                                    placeholder={__('— Select reason —')}
-                                    className="w-full"
-                                />
-                                {form.errors.scrap_reason_id && <p className={errorCls}>{form.errors.scrap_reason_id}</p>}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className={labelCls}>{__('Scrap breakdown')}</span>
+                                <button
+                                    type="button"
+                                    onClick={addScrapEntry}
+                                    className="flex h-9 w-9 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent"
+                                    aria-label={__('Add scrap reason')}
+                                    title={__('Add scrap reason')}
+                                >
+                                    +
+                                </button>
                             </div>
-                        )}
+                            {form.data.scrap_entries.map((entry, index) => (
+                                <div key={index} className="grid grid-cols-[minmax(0,1fr)_7rem_2.5rem] items-end gap-2">
+                                    <div>
+                                        <label className={labelCls}>{__('Scrap reason')}</label>
+                                        <Dropdown
+                                            options={applicableScrapReasons.map((reason) => ({
+                                                value: String(reason.id),
+                                                label: `${reason.code} — ${reason.name}`,
+                                            }))}
+                                            value={String(entry.scrap_reason_id || '')}
+                                            onChange={(value) => updateScrapEntry(index, 'scrap_reason_id', value)}
+                                            placeholder={__('— Select reason —')}
+                                            searchable
+                                            searchPlaceholder={__('Search reasons…')}
+                                            noResultsLabel={__('No results')}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>{__('Quantity')}</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            step="0.0001"
+                                            value={entry.quantity}
+                                            onChange={(event) => updateScrapEntry(index, 'quantity', event.target.value)}
+                                            className={inputCls}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => removeScrapEntry(index)}
+                                        className="flex h-10 w-10 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked"
+                                        aria-label={__('Remove scrap reason')}
+                                        title={__('Remove scrap reason')}
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            ))}
+                            {(form.errors.scrap_entries || form.errors.scrap_reason_id) && (
+                                <p className={errorCls}>{form.errors.scrap_entries || form.errors.scrap_reason_id}</p>
+                            )}
+                        </div>
                         <div>
                             <label className={labelCls}>{__('Quantity notes')}</label>
                             <textarea
@@ -1581,10 +1654,10 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Actual run (minutes)')}</label>
-                                <input type="number" min="0" value={form.data.actual_run_minutes} onChange={(e) => form.setData('actual_run_minutes', e.target.value)} className={inputCls} placeholder={__('optional')} />
+                                <input type="number" min="0" value={actualRunMinutes ?? ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                         </div>
-                        {overflow && <p className="text-om-blocked text-xs">{__('Setup + run cannot exceed the elapsed time.')}</p>}
+                        {setupExceedsElapsed && <p className="text-om-blocked text-xs">{__('Setup cannot exceed the elapsed time.')}</p>}
                     </section>
                 )}
 

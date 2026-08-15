@@ -20,11 +20,15 @@ export function Dropdown({
     onChange,
     label,
     placeholder,
+    searchable = false,
+    searchPlaceholder = 'Search…',
+    noResultsLabel = 'No results',
     disabled = false,
     className = '',
     ...props
 }) {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
     const rootRef = useRef(null);
     const { anchorRef, popRef, style } = useAnchoredPopover(open, { estHeight: 320 });
 
@@ -50,6 +54,10 @@ export function Dropdown({
     const single = !multiple ? options.find((o) => o.value === value) : undefined;
     const isPlaceholder = label == null && (multiple ? selectedValues.length === 0 : !single);
     const triggerLabel = label ?? (multiple ? placeholder : (single?.label ?? placeholder));
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const visibleOptions = searchable && normalizedQuery !== ''
+        ? options.filter((option) => option.label.toLocaleLowerCase().includes(normalizedQuery))
+        : options;
 
     const pick = (option) => {
         if (multiple) {
@@ -71,7 +79,10 @@ export function Dropdown({
                 disabled={disabled}
                 aria-haspopup="listbox"
                 aria-expanded={open}
-                onClick={() => setOpen((o) => !o)}
+                onClick={() => {
+                    setQuery('');
+                    setOpen((o) => !o);
+                }}
                 className={`flex w-full items-center justify-between gap-[10px] rounded-om-sm border border-om-line bg-om-bg px-[13px] py-[10px] text-left ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
             >
                 <span className={`text-[13.5px] ${isPlaceholder ? 'text-om-faint' : 'text-om-ink'}`}>{triggerLabel}</span>
@@ -87,7 +98,17 @@ export function Dropdown({
                     style={style}
                     className="max-h-[320px] w-max max-w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-om border border-om-line bg-om-card p-[6px] shadow-[0_18px_44px_-18px_rgba(0,0,0,.3)]"
                 >
-                    {options.map((o) => {
+                    {searchable && (
+                        <input
+                            type="search"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder={searchPlaceholder}
+                            autoFocus
+                            className="mb-[6px] w-full rounded-[6px] border border-om-line bg-om-bg px-[11px] py-[9px] text-[13px] text-om-ink outline-none placeholder:text-om-faint focus:border-om-accent"
+                        />
+                    )}
+                    {visibleOptions.map((o) => {
                         if (multiple) {
                             const on = selectedValues.includes(o.value);
                             return (
@@ -125,6 +146,9 @@ export function Dropdown({
                             </div>
                         );
                     })}
+                    {visibleOptions.length === 0 && (
+                        <div className="px-[11px] py-[9px] text-[13px] text-om-faint">{noResultsLabel}</div>
+                    )}
                 </div>,
                 document.body,
             )}

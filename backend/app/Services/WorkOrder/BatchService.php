@@ -187,6 +187,14 @@ class BatchService
             }
 
             $quantityPayload = $this->completionQuantityPayload($step, $user, $data);
+            $scrapBreakdown = $this->completionScrapBreakdown(
+                $step,
+                $data,
+                (float) $quantityPayload['scrap_quantity'],
+            );
+            $quantityPayload['scrap_reason_id'] = count($scrapBreakdown) === 1
+                ? $scrapBreakdown[0]['scrap_reason_id']
+                : null;
             $this->guardPalletizedOutput($step, $quantityPayload);
 
             // Complete the step
@@ -202,11 +210,11 @@ class BatchService
 
             $this->transportUnitLoadService->releaseCompletedStepLoads($step, $user);
 
-            if ((float) $step->scrap_quantity > 0) {
+            foreach ($scrapBreakdown as $scrapEntry) {
                 ScrapEntry::create([
                     'work_order_id' => $step->batch->work_order_id,
-                    'scrap_reason_id' => $step->scrap_reason_id,
-                    'quantity' => $step->scrap_quantity,
+                    'scrap_reason_id' => $scrapEntry['scrap_reason_id'],
+                    'quantity' => $scrapEntry['quantity'],
                     'batch_step_id' => $step->id,
                     'notes' => $step->quantity_notes,
                     'reported_by' => $user->id,
@@ -553,26 +561,81 @@ class BatchService
             ));
         }
 
-        $scrapReasonId = $data['scrap_reason_id'] ?? null;
-        $scrapReason = $scrapReasonId ? ScrapReason::active()->whereKey($scrapReasonId)->first() : null;
-        if ($scrap > 0 && ! $scrapReason) {
-            throw new \DomainException(__('An active scrap reason is required when scrap is reported.'));
-        }
-        if ($scrap > 0 && ! $scrapReason->appliesToWorkstationType($step->workstation_type_id)) {
-            throw new \DomainException(__('The selected scrap reason does not apply to this operation.'));
-        }
-
         return [
             'input_quantity' => $input,
             'good_quantity' => $good,
             'rework_quantity' => $rework,
             'scrap_quantity' => $scrap,
             'released_quantity' => $good,
-            'scrap_reason_id' => $scrap > 0 ? $scrapReasonId : null,
+            'scrap_reason_id' => null,
             'quantity_notes' => $data['quantity_notes'] ?? null,
             'quantity_reported_at' => now(),
             'quantity_reported_by_id' => $user->id,
         ];
+    }
+
+    /**
+     * Normalize legacy single-reason reports and the operator's multi-reason
+     * breakdown into the auditable ScrapEntry rows written by completeStep().
+     */
+    private function completionScrapBreakdown(BatchStep $step, array $data, float $scrap): array
+    {
+        if ($scrap <= 0) {
+            return [];
+        }
+
+        $submittedEntries = $data['scrap_entries'] ?? null;
+        if (! is_array($submittedEntries) || $submittedEntries === []) {
+            if (empty($data['scrap_reason_id'])) {
+                throw new \DomainException(__('An active scrap reason is required when scrap is reported.'));
+            }
+            $submittedEntries = [[
+                'scrap_reason_id' => $data['scrap_reason_id'] ?? null,
+                'quantity' => $scrap,
+            ]];
+        }
+
+        $normalized = [];
+        foreach ($submittedEntries as $entry) {
+            if (! is_array($entry) || empty($entry['scrap_reason_id']) || ! array_key_exists('quantity', $entry)) {
+                throw new \DomainException(__('Every scrap quantity requires an active reason.'));
+            }
+
+            $reasonId = (int) $entry['scrap_reason_id'];
+            $quantity = $this->nonNegativeFiniteQuantity($entry['quantity'], 'Scrap quantity');
+            if ($quantity <= 0) {
+                throw new \DomainException(__('Every scrap breakdown quantity must be greater than zero.'));
+            }
+
+            if (! isset($normalized[$reasonId])) {
+                $normalized[$reasonId] = [
+                    'scrap_reason_id' => $reasonId,
+                    'quantity' => 0.0,
+                ];
+            }
+            $normalized[$reasonId]['quantity'] = round($normalized[$reasonId]['quantity'] + $quantity, 4);
+        }
+
+        $reportedScrap = array_sum(array_column($normalized, 'quantity'));
+        if (abs($scrap - $reportedScrap) > 0.0001) {
+            throw new \DomainException(__(
+                'Scrap breakdown (:breakdown) must equal the reported scrap quantity (:scrap).',
+                ['breakdown' => $reportedScrap, 'scrap' => $scrap],
+            ));
+        }
+
+        $reasons = ScrapReason::active()->whereIn('id', array_keys($normalized))->get()->keyBy('id');
+        foreach ($normalized as $reasonId => $entry) {
+            $reason = $reasons->get($reasonId);
+            if (! $reason) {
+                throw new \DomainException(__('An active scrap reason is required when scrap is reported.'));
+            }
+            if (! $reason->appliesToWorkstationType($step->workstation_type_id)) {
+                throw new \DomainException(__('The selected scrap reason does not apply to this operation.'));
+            }
+        }
+
+        return array_values($normalized);
     }
 
     private function nonNegativeFiniteQuantity(mixed $value, string $label): float

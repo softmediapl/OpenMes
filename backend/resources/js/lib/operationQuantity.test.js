@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { operationQuantityBalance, parseOperationQuantity } from './operationQuantity';
+import { operationDerivedOutput, operationQuantityBalance, parseOperationQuantity } from './operationQuantity';
 
 describe('operation quantity balance', () => {
     it('balances good, rework, and scrap against the operation input', () => {
@@ -31,4 +31,25 @@ describe('operation quantity balance', () => {
         'rejects invalid quantity %s',
         (value) => expect(parseOperationQuantity(value)).toBeNaN(),
     );
+
+    it('derives good output from input and operator-reported exceptions', () => {
+        expect(operationDerivedOutput({
+            input: 200,
+            rework: '3',
+            scrapEntries: [{ quantity: '2' }, { quantity: '2' }],
+        })).toMatchObject({
+            goodQuantity: 193,
+            reworkQuantity: 3,
+            scrapQuantity: 4,
+            valid: true,
+        });
+    });
+
+    it('rejects exceptions that exceed the operation input', () => {
+        expect(operationDerivedOutput({
+            input: 5,
+            rework: '3',
+            scrapEntries: [{ quantity: '4' }],
+        })).toMatchObject({ goodQuantity: 0, overReported: true, valid: false });
+    });
 });

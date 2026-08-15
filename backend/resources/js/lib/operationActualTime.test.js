@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { operationActualTimeDefaults } from './operationActualTime';
+import { operationActualRunMinutes, operationActualTimeDefaults } from './operationActualTime';
 
 describe('operationActualTimeDefaults', () => {
     it('prefills elapsed time from the step start timestamp', () => {
@@ -10,9 +10,15 @@ describe('operationActualTimeDefaults', () => {
 
         expect(defaults).toEqual({
             elapsed: 166,
-            setup: 15,
-            run: 151,
+            setup: 0,
+            run: 166,
         });
+    });
+
+    it('derives run time whenever elapsed or setup is corrected', () => {
+        expect(operationActualRunMinutes('222', '15')).toBe(207);
+        expect(operationActualRunMinutes('15', '0')).toBe(15);
+        expect(operationActualRunMinutes('10', '15')).toBeNull();
     });
 
     it('does not let the standard setup default block short operations', () => {

@@ -10,6 +10,7 @@ import {
     ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
     type StyleProp,
     type ViewStyle,
@@ -33,6 +34,9 @@ export interface DropdownProps {
     /** Computed trigger-label override (e.g. "3 selected" in multi mode). */
     label?: string;
     placeholder?: string;
+    searchable?: boolean;
+    searchPlaceholder?: string;
+    noResultsLabel?: string;
     disabled?: boolean;
     style?: StyleProp<ViewStyle>;
 }
@@ -45,15 +49,23 @@ export function Dropdown({
     onChange,
     label,
     placeholder,
+    searchable = false,
+    searchPlaceholder = 'Search…',
+    noResultsLabel = 'No results',
     disabled = false,
     style,
 }: DropdownProps) {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
 
     const selectedValues = multiple ? (values ?? []) : [];
     const single = !multiple ? options.find((o) => o.value === value) : undefined;
     const isPlaceholder = label == null && (multiple ? selectedValues.length === 0 : !single);
     const triggerLabel = label ?? (multiple ? placeholder : (single?.label ?? placeholder));
+    const normalizedQuery = query.trim().toLocaleLowerCase();
+    const visibleOptions = searchable && normalizedQuery !== ''
+        ? options.filter((option) => option.label.toLocaleLowerCase().includes(normalizedQuery))
+        : options;
 
     const pick = (option: DropdownOption) => {
         if (multiple) {
@@ -73,7 +85,10 @@ export function Dropdown({
                 accessibilityRole="button"
                 accessibilityState={{ disabled, expanded: open }}
                 disabled={disabled}
-                onPress={() => setOpen(true)}
+                onPress={() => {
+                    setQuery('');
+                    setOpen(true);
+                }}
                 style={[styles.trigger, disabled && styles.triggerDisabled]}
             >
                 <Text style={[styles.triggerLabel, isPlaceholder && styles.triggerPlaceholder]}>{triggerLabel}</Text>
@@ -82,8 +97,17 @@ export function Dropdown({
             <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
                 <Pressable style={styles.scrim} onPress={() => setOpen(false)}>
                     <Pressable style={styles.menu}>
+                        {searchable && (
+                            <TextInput
+                                value={query}
+                                onChangeText={setQuery}
+                                placeholder={searchPlaceholder}
+                                autoFocus
+                                style={styles.searchInput}
+                            />
+                        )}
                         <ScrollView bounces={false} style={styles.menuScroll}>
-                            {options.map((o) => {
+                            {visibleOptions.map((o) => {
                                 if (multiple) {
                                     const on = selectedValues.includes(o.value);
                                     return (
@@ -121,6 +145,7 @@ export function Dropdown({
                                     </Pressable>
                                 );
                             })}
+                            {visibleOptions.length === 0 && <Text style={styles.noResults}>{noResultsLabel}</Text>}
                         </ScrollView>
                     </Pressable>
                 </Pressable>
@@ -181,6 +206,25 @@ const styles = StyleSheet.create({
     },
     menuScroll: {
         maxHeight: 380,
+    },
+    searchInput: {
+        borderWidth: 1,
+        borderColor: colors.line,
+        borderRadius: 6,
+        backgroundColor: colors.bg,
+        color: colors.ink,
+        fontSize: 13,
+        fontFamily: fonts.sans.native.regular,
+        paddingVertical: 9,
+        paddingHorizontal: 11,
+        marginBottom: 6,
+    },
+    noResults: {
+        color: colors.faint,
+        fontSize: 13,
+        fontFamily: fonts.sans.native.regular,
+        paddingVertical: 9,
+        paddingHorizontal: 11,
     },
     row: {
         flexDirection: 'row',
