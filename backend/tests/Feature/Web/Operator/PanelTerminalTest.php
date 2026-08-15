@@ -60,6 +60,7 @@ class PanelTerminalTest extends TestCase
         $this->step = BatchStep::factory()->create([
             'batch_id' => $batch->id,
             'workstation_id' => $this->workstation->id,
+            'step_number' => 1,
             'status' => BatchStep::STATUS_READY,
         ]);
     }

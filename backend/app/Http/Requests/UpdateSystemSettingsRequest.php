@@ -34,6 +34,12 @@ class UpdateSystemSettingsRequest extends FormRequest
             'forecast_at_risk_slack_minutes' => SystemSetting::integer('forecast_at_risk_slack_minutes', 480),
             'forecast_variance_alert_minutes' => SystemSetting::integer('forecast_variance_alert_minutes', 120),
             'forecast_alert_recovery_margin_minutes' => SystemSetting::integer('forecast_alert_recovery_margin_minutes', 30),
+            'panel_identity_mode' => SystemSetting::get('panel_identity_mode', 'username_pin'),
+            'panel_pin_length' => SystemSetting::integer('panel_pin_length', 9),
+            'panel_pin_group_size' => SystemSetting::integer('panel_pin_group_size', 3),
+            'panel_operator_session_hours' => SystemSetting::integer('panel_operator_session_hours', 12),
+            'panel_supervisor_mode' => SystemSetting::get('panel_supervisor_mode', 'inline_pin'),
+            'panel_help_issue_type_id' => SystemSetting::get('panel_help_issue_type_id'),
             'tier_promotion_thresholds' => TierPromotionRegistry::thresholds(),
         ];
 
