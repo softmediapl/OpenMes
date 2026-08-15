@@ -10,11 +10,26 @@ export function currentBatchStep(batch) {
         ?? null;
 }
 
-export function workForStation(workOrder, workstationId) {
+function stationCanOperateStep(workOrder, step, workstation) {
+    const workstationId = typeof workstation === 'object' ? workstation?.id : workstation;
+
+    if (step.workstation_id != null) {
+        return String(step.workstation_id) === String(workstationId);
+    }
+
+    if (typeof workstation !== 'object' || step.workstation_type_id == null) {
+        return false;
+    }
+
+    return String(step.workstation_type_id) === String(workstation.workstation_type_id)
+        && String(workOrder?.line_id) === String(workstation.line_id);
+}
+
+export function workForStation(workOrder, workstation) {
     for (const batch of workOrder?.batches ?? []) {
         const step = currentBatchStep(batch);
 
-        if (step && String(step.workstation_id) === String(workstationId)) {
+        if (step && stationCanOperateStep(workOrder, step, workstation)) {
             return { batch, step };
         }
     }

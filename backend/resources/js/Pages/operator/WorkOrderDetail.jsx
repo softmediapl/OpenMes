@@ -1055,6 +1055,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                     step={pickModal.step}
                     materials={pickModal.materials}
                     transportUnitRequirement={pickModal.transportUnitRequirement}
+                    quantityPrecision={quantityPrecision}
                     onClose={() => setPickModal(null)}
                 />
             )}
@@ -1827,9 +1828,13 @@ function StepChecklist({ step, items = [], completedItemIds, completions = [], c
 
 const EPSILON = 0.0001;
 
-function StepStartModal({ step, materials, transportUnitRequirement, onClose }) {
+function StepStartModal({ step, materials, transportUnitRequirement, quantityPrecision, onClose }) {
     const [submitting, setSubmitting] = useState(false);
     const [serverError, setServerError] = useState('');
+    const transportQuantityInput = operationQuantityInput(
+        quantityPrecision,
+        transportUnitRequirement?.unit_of_measure,
+    );
     // picks: { [materialId]: [{ material_lot_id, picked_qty: string }] }
     const [picks, setPicks] = useState(() =>
         Object.fromEntries(
@@ -1949,7 +1954,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, onClose }) 
                                 <div className="text-right font-mono text-[11px]">
                                     <span className="block text-om-faint">{__('Required')}</span>
                                     <span className="font-semibold text-om-ink">
-                                        {fmtQty(transportUnitRequirement.required_quantity, 4)} {transportUnitRequirement.unit_of_measure}
+                                        {fmtQty(transportUnitRequirement.required_quantity, transportQuantityInput.precision)} {transportUnitRequirement.unit_of_measure}
                                     </span>
                                 </div>
                             </div>
@@ -1975,8 +1980,8 @@ function StepStartModal({ step, materials, transportUnitRequirement, onClose }) 
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    step="0.0001"
-                                                    inputMode="decimal"
+                                                    step={transportQuantityInput.step}
+                                                    inputMode={transportQuantityInput.inputMode}
                                                     value={unit.quantity}
                                                     onChange={(e) => setTransportUnit(idx, { quantity: e.target.value })}
                                                     className={`${inputCls} font-mono text-right`}
@@ -2007,7 +2012,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, onClose }) 
                                     {__('+ Add unit')}
                                 </Button>
                                 <span className={`font-mono text-[11px] ${Math.abs(transportValidation.difference) <= EPSILON ? 'text-om-done' : 'text-om-blocked'}`}>
-                                    {__('Allocated')} {fmtQty(transportValidation.total, 4)} / {fmtQty(transportUnitRequirement.required_quantity, 4)}
+                                    {__('Allocated')} {fmtQty(transportValidation.total, transportQuantityInput.precision)} / {fmtQty(transportUnitRequirement.required_quantity, transportQuantityInput.precision)}
                                 </span>
                             </div>
                         </div>

@@ -867,10 +867,11 @@ export default function Queue() {
                             {workstationQueue.map((wo) => {
                                 const { batch: currentBatch, step: currentStep } = workForStation(
                                     wo,
-                                    selectedWorkstation.id,
+                                    selectedWorkstation,
                                 );
                                 const operationQuantity = currentStep?.input_quantity ?? currentBatch?.target_qty ?? wo.planned_qty;
                                 const batchReference = currentBatch?.lot_number || (currentBatch ? `#${currentBatch.batch_number}` : '—');
+                                const quantityPrecision = wo.product_type?.quantity_precision ?? 4;
 
                                 return (
                                     <Link key={wo.id}
@@ -894,7 +895,7 @@ export default function Queue() {
                                             </div>
                                         )}
                                         <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-om-faint">
-                                            {__("WIP quantity")}: {fmtQty(operationQuantity, 4)} &middot; {__("Batch")}: {batchReference}
+                                            {__("WIP quantity")}: {fmtQty(operationQuantity, quantityPrecision)} &middot; {__("Batch")}: {batchReference}
                                         </div>
                                     </Link>
                                 );
