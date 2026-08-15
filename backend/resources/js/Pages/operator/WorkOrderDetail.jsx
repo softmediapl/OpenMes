@@ -1357,6 +1357,10 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
     const initialSetup = step.setup_time_minutes != null ? Number(step.setup_time_minutes) : 0;
     const inputQuantity = Number(step.input_quantity ?? 0);
     const reportsQuantity = !!step.quantity_reporting_required;
+    const applicableScrapReasons = scrapReasons.filter((reason) => {
+        const workstationTypeIds = reason.workstation_type_ids ?? [];
+        return workstationTypeIds.length === 0 || workstationTypeIds.includes(Number(step.workstation_type_id));
+    });
     const isFixedHold = step.execution_mode === 'fixed_hold';
     const reportsTime = isFixedHold || step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
     const [clock, setClock] = useState(Date.now());
@@ -1469,7 +1473,7 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                             <div>
                                 <label className={labelCls}>{__('Scrap reason')}</label>
                                 <Dropdown
-                                    options={scrapReasons.map((reason) => ({
+                                    options={applicableScrapReasons.map((reason) => ({
                                         value: String(reason.id),
                                         label: `${reason.code} — ${reason.name}`,
                                     }))}
@@ -2415,7 +2419,9 @@ export default function WorkOrderDetail() {
         && !workstationLocked
         && !['DONE', 'CANCELLED', 'BLOCKED'].includes(workOrder.status);
     const canReportIssue = !['DONE', 'CANCELLED'].includes(workOrder.status);
-    const canReportScrap = scrapReasons.length > 0 && !['DONE', 'CANCELLED'].includes(workOrder.status);
+    const canReportScrap = !workstationLocked
+        && scrapReasons.length > 0
+        && !['DONE', 'CANCELLED'].includes(workOrder.status);
 
     const scrapEntries = workOrder.scrap_entries ?? [];
     const totalScrap = scrapEntries.reduce((sum, e) => sum + Number(e.quantity ?? 0), 0);

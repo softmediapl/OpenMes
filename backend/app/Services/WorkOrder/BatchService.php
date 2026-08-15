@@ -495,8 +495,12 @@ class BatchService
         }
 
         $scrapReasonId = $data['scrap_reason_id'] ?? null;
-        if ($scrap > 0 && (! $scrapReasonId || ! ScrapReason::active()->whereKey($scrapReasonId)->exists())) {
+        $scrapReason = $scrapReasonId ? ScrapReason::active()->whereKey($scrapReasonId)->first() : null;
+        if ($scrap > 0 && ! $scrapReason) {
             throw new \DomainException(__('An active scrap reason is required when scrap is reported.'));
+        }
+        if ($scrap > 0 && ! $scrapReason->appliesToWorkstationType($step->workstation_type_id)) {
+            throw new \DomainException(__('The selected scrap reason does not apply to this operation.'));
         }
 
         return [

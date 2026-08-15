@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScrapReason extends Model
@@ -54,6 +55,22 @@ class ScrapReason extends Model
     public function scrapEntries(): HasMany
     {
         return $this->hasMany(ScrapEntry::class);
+    }
+
+    /** Equipment classes where operators may select this reason. Empty means global. */
+    public function workstationTypes(): BelongsToMany
+    {
+        return $this->belongsToMany(WorkstationType::class);
+    }
+
+    public function appliesToWorkstationType(?int $workstationTypeId): bool
+    {
+        if (! $this->workstationTypes()->exists()) {
+            return true;
+        }
+
+        return $workstationTypeId !== null
+            && $this->workstationTypes()->whereKey($workstationTypeId)->exists();
     }
 
     /**

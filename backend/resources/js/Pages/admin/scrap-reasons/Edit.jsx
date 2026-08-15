@@ -4,7 +4,7 @@ import ResourceForm from '../../../components/ResourceForm';
 import { scrapReasonFields } from './fields';
 import { __ } from '../../../lib/i18n';
 
-export default function ScrapReasonEdit({ scrapReason }) {
+export default function ScrapReasonEdit({ scrapReason, workstationTypes = [], workstationTypeIds = [] }) {
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={__('Edit Scrap Reason')} />
@@ -12,13 +12,14 @@ export default function ScrapReasonEdit({ scrapReason }) {
             <ResourceForm
                 action={`/admin/scrap-reasons/${scrapReason.id}`}
                 method="put"
-                fields={scrapReasonFields()}
+                fields={scrapReasonFields(workstationTypes)}
                 initial={{
                     code: scrapReason.code ?? '',
                     name: scrapReason.name ?? '',
                     category: scrapReason.category ?? '',
                     description: scrapReason.description ?? '',
                     sort_order: scrapReason.sort_order ?? 0,
+                    workstation_type_ids: workstationTypeIds,
                     is_active: !!scrapReason.is_active,
                 }}
                 submitLabel={__('Save Changes')}

@@ -12,9 +12,9 @@ use App\Models\TemplateStepChecklistItem;
 use App\Models\TemplateStepMedia;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
+use App\Services\Material\BomService;
 use App\Services\Operator\WorkstationContext;
 use App\Services\Quality\OperationQualityService;
-use App\Services\Material\BomService;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -287,8 +287,6 @@ class WorkOrderController extends Controller
 
         $issueTypes = IssueType::where('is_active', true)->orderBy('name')->get();
 
-        $scrapReasons = ScrapReason::active()->ordered()->get();
-
         $workOrder->batches->flatMap->steps->each(function ($step) {
             $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
             $step->setAttribute('hold_remaining_seconds', $step->holdRemainingSeconds());
@@ -310,6 +308,28 @@ class WorkOrderController extends Controller
                 ->values();
             $workOrder->setRelation('batches', $visibleBatches);
         }
+
+        $visibleWorkstationTypeIds = $workOrder->batches
+            ->flatMap->steps
+            ->pluck('workstation_type_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        $scrapReasons = ScrapReason::active()
+            ->with('workstationTypes:id')
+            ->when($workstationLocked, fn ($query) => $query->where(function ($scope) use ($visibleWorkstationTypeIds) {
+                $scope->whereDoesntHave('workstationTypes');
+                if ($visibleWorkstationTypeIds->isNotEmpty()) {
+                    $scope->orWhereHas('workstationTypes', fn ($types) => $types->whereKey($visibleWorkstationTypeIds));
+                }
+            }))
+            ->ordered()
+            ->get()
+            ->each(fn (ScrapReason $reason) => $reason->setAttribute(
+                'workstation_type_ids',
+                $reason->workstationTypes->pluck('id')->map(fn ($id) => (int) $id)->values(),
+            ));
 
         [$materialRequirements, $materialRequirementQuantity] = $this->materialRequirements(
             $workOrder,

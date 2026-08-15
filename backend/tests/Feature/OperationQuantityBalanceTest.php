@@ -8,6 +8,7 @@ use App\Models\ScrapEntry;
 use App\Models\ScrapReason;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkstationType;
 use App\Services\WorkOrder\BatchService;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -115,6 +116,28 @@ class OperationQuantityBalanceTest extends TestCase
             'good_quantity' => 95,
             'rework_quantity' => 0,
             'scrap_quantity' => 5,
+        ]);
+    }
+
+    public function test_completion_rejects_a_scrap_reason_from_another_operation_class(): void
+    {
+        $formingType = WorkstationType::factory()->create();
+        $packingType = WorkstationType::factory()->create();
+        $reason = ScrapReason::factory()->create();
+        $reason->workstationTypes()->attach($packingType);
+
+        $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();
+        $first->update(['workstation_type_id' => $formingType->id]);
+        app(BatchService::class)->startStep($first->fresh(), $this->operator);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('does not apply to this operation');
+
+        app(BatchService::class)->completeStep($first->fresh(), $this->operator, [
+            'good_quantity' => 95,
+            'rework_quantity' => 0,
+            'scrap_quantity' => 5,
+            'scrap_reason_id' => $reason->id,
         ]);
     }
 

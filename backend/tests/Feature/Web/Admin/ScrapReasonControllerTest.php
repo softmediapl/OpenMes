@@ -5,6 +5,7 @@ namespace Tests\Feature\Web\Admin;
 use App\Models\ScrapEntry;
 use App\Models\ScrapReason;
 use App\Models\User;
+use App\Models\WorkstationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -38,11 +39,17 @@ class ScrapReasonControllerTest extends TestCase
 
     public function test_admin_can_create_scrap_reason(): void
     {
+        $workstationType = WorkstationType::factory()->create();
         $response = $this->actingAs($this->admin)->post(route('admin.scrap-reasons.store'), [
             'code' => 'WELD-CRACK',
             'name' => 'Weld crack',
             'category' => ScrapReason::CATEGORY_METHOD,
             'is_active' => '1',
+            'workstation_type_ids' => [$workstationType->id],
+        ]);
+        $this->assertDatabaseHas('scrap_reason_workstation_type', [
+            'scrap_reason_id' => ScrapReason::where('code', 'WELD-CRACK')->value('id'),
+            'workstation_type_id' => $workstationType->id,
         ]);
 
         $response->assertRedirect(route('admin.scrap-reasons.index'));
@@ -81,15 +88,21 @@ class ScrapReasonControllerTest extends TestCase
     public function test_admin_can_update_scrap_reason(): void
     {
         $reason = ScrapReason::factory()->create(['name' => 'Old']);
+        $workstationType = WorkstationType::factory()->create();
 
         $response = $this->actingAs($this->admin)->put(route('admin.scrap-reasons.update', $reason), [
             'code' => $reason->code,
             'name' => 'New name',
             'category' => ScrapReason::CATEGORY_MACHINE,
+            'workstation_type_ids' => [$workstationType->id],
         ]);
 
         $response->assertRedirect(route('admin.scrap-reasons.index'));
         $this->assertDatabaseHas('scrap_reasons', ['id' => $reason->id, 'name' => 'New name', 'category' => 'machine']);
+        $this->assertDatabaseHas('scrap_reason_workstation_type', [
+            'scrap_reason_id' => $reason->id,
+            'workstation_type_id' => $workstationType->id,
+        ]);
     }
 
     public function test_admin_can_toggle_active(): void

@@ -4,7 +4,7 @@ import ResourceForm from '../../../components/ResourceForm';
 import { scrapReasonFields } from './fields';
 import { __ } from '../../../lib/i18n';
 
-export default function ScrapReasonCreate() {
+export default function ScrapReasonCreate({ workstationTypes = [] }) {
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={__('New Scrap Reason')} />
@@ -12,8 +12,8 @@ export default function ScrapReasonCreate() {
             <ResourceForm
                 action="/admin/scrap-reasons"
                 method="post"
-                fields={scrapReasonFields()}
-                initial={{ code: '', name: '', category: '', description: '', sort_order: 0, is_active: true }}
+                fields={scrapReasonFields(workstationTypes)}
+                initial={{ code: '', name: '', category: '', description: '', sort_order: 0, workstation_type_ids: [], is_active: true }}
                 submitLabel={__('Create')}
                 cancelHref="/admin/scrap-reasons"
             />
