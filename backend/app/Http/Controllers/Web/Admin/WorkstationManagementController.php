@@ -18,7 +18,11 @@ class WorkstationManagementController extends Controller
     public function index(Line $line)
     {
         $workstations = $line->workstations()
-            ->withCount(['templateSteps', 'workers', 'activeSteps'])
+            ->withCount([
+                'templateSteps',
+                'authorizedWorkers as workers_count',
+                'activeSteps',
+            ])
             ->orderBy('code')
             ->get();
 
@@ -82,7 +86,10 @@ class WorkstationManagementController extends Controller
             abort(404);
         }
 
-        $workers = Worker::active()->orderBy('name')->with(['workstation', 'crew'])->get();
+        $workers = Worker::active()
+            ->orderBy('name')
+            ->with(['workstation', 'crew', 'authorizedWorkstations:id'])
+            ->get();
 
         return Inertia::render('admin/workstations/Edit', [
             'line' => $line->only('id', 'name', 'code'),
@@ -95,6 +102,7 @@ class WorkstationManagementController extends Controller
                 'workstation_id' => $w->workstation_id,
                 'workstation_name' => $w->workstation?->name,
                 'crew_name' => $w->crew?->name,
+                'is_authorized' => $w->authorizedWorkstations->contains($workstation->id),
             ])->values(),
         ]);
     }
@@ -120,6 +128,7 @@ class WorkstationManagementController extends Controller
         ], $cf->rules('workstation')), [], $cf->attributeNames('workstation'));
 
         $validated['is_active'] = $request->boolean('is_active');
+        unset($validated['worker_ids']);
         unset($validated['custom_field_files']);
         if ($cf->touched($request)) {
             $validated['custom_fields'] = $cf->fromRequest($request, 'workstation', $workstation->custom_fields) ?: null;
@@ -127,16 +136,12 @@ class WorkstationManagementController extends Controller
 
         $workstation->update($validated);
 
-        // Update worker assignments
+        // Authorization is independent from the worker's primary workstation.
         $workerIds = $request->input('worker_ids', []);
-        // Un-assign workers no longer selected (only those currently at THIS workstation)
-        Worker::where('workstation_id', $workstation->id)
-            ->whereNotIn('id', $workerIds)
-            ->update(['workstation_id' => null]);
-        // Assign selected workers (may move them from another workstation)
-        if (! empty($workerIds)) {
-            Worker::whereIn('id', $workerIds)->update(['workstation_id' => $workstation->id]);
-        }
+        $workstation->authorizedWorkers()->syncWithPivotValues(
+            $workerIds,
+            ['granted_by_id' => $request->user()->id],
+        );
 
         return redirect()->route('admin.lines.workstations.index', $line)
             ->with('success', 'Workstation updated successfully.');

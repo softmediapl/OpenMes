@@ -9,7 +9,7 @@ export default function WorkstationEdit() {
     const { line, workstation, workers = [], customFields = [] } = usePage().props;
 
     const assignedWorkerIds = workers
-        .filter((w) => w.workstation_id === workstation.id)
+        .filter((w) => w.is_authorized)
         .map((w) => w.id);
 
     const form = useForm({
@@ -127,10 +127,12 @@ export default function WorkstationEdit() {
                     label={__('Active (workstation is ready for use)')}
                 />
 
-                {/* Assigned Workers */}
+                {/* Authorized workers */}
                 <div className="border-t border-om-line2 pt-5">
-                    <h2 className="text-base font-semibold text-om-ink mb-1">{__('Assigned Workers')}</h2>
-                    <p className="text-sm text-om-muted mb-3">{__('Workers regularly operating at this workstation.')}</p>
+                    <h2 className="text-base font-semibold text-om-ink mb-1">{__('Authorized workers')}</h2>
+                    <p className="text-sm text-om-muted mb-3">
+                        {__('Workers qualified to operate this workstation. Their primary workstation is managed separately.')}
+                    </p>
 
                     {workers.length === 0 ? (
                         <p className="text-sm text-om-faint italic">{__('No active workers in the system.')}</p>
@@ -150,9 +152,9 @@ export default function WorkstationEdit() {
                                         <div className="flex-1 min-w-0">
                                             <span className="text-sm font-medium text-om-ink">{worker.name}</span>
                                             <span className="text-xs text-om-faint font-mono ml-2">{worker.code}</span>
-                                            {worker.workstation_id && !isAssigned && (
-                                                <span className="text-xs text-orange-500 ml-2">
-                                                    {__('(currently at: :station)', { station: worker.workstation_name ?? '…' })}
+                                            {worker.workstation_id && (
+                                                <span className="text-xs text-om-faint ml-2">
+                                                    {__('(primary: :station)', { station: worker.workstation_name ?? '…' })}
                                                 </span>
                                             )}
                                         </div>

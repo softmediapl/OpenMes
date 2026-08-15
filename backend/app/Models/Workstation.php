@@ -7,6 +7,7 @@ use App\Models\Concerns\SoftDeletesWithAudit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Workstation extends Model
@@ -81,6 +82,16 @@ class Workstation extends Model
     public function workers(): HasMany
     {
         return $this->hasMany(Worker::class);
+    }
+
+    /**
+     * Workers qualified and authorized to operate this workstation.
+     */
+    public function authorizedWorkers(): BelongsToMany
+    {
+        return $this->belongsToMany(Worker::class, 'worker_workstation_authorizations')
+            ->withPivot(['authorized_from', 'authorized_until', 'granted_by_id'])
+            ->withTimestamps();
     }
 
     /**

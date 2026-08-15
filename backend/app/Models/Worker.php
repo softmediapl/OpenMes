@@ -53,6 +53,16 @@ class Worker extends Model
     }
 
     /**
+     * Workstations this worker is currently or historically authorized to run.
+     */
+    public function authorizedWorkstations(): BelongsToMany
+    {
+        return $this->belongsToMany(Workstation::class, 'worker_workstation_authorizations')
+            ->withPivot(['authorized_from', 'authorized_until', 'granted_by_id'])
+            ->withTimestamps();
+    }
+
+    /**
      * Get the crew this worker belongs to.
      */
     public function crew(): BelongsTo

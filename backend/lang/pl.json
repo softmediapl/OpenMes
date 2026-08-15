@@ -5527,5 +5527,8 @@
     "Capacity plan applied.": "Plan zdolności został zastosowany.",
     "Unable to calculate a capacity plan.": "Nie można obliczyć planu zdolności.",
     "Select a production line, planned start and start shift.": "Wybierz linię produkcyjną, planowany start i zmianę początkową.",
-    "The plan changed. Calculate a fresh proposal before applying it.": "Plan uległ zmianie. Przed zastosowaniem oblicz nową propozycję."
+    "The plan changed. Calculate a fresh proposal before applying it.": "Plan uległ zmianie. Przed zastosowaniem oblicz nową propozycję.",
+    "Authorized workers": "Uprawnieni pracownicy",
+    "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Pracownicy uprawnieni do obsługi tego stanowiska. Ich stanowisko podstawowe jest zarządzane oddzielnie.",
+    "(primary: :station)": "(podstawowe: :station)"
 }

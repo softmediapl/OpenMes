@@ -5527,5 +5527,8 @@
     "Capacity plan applied.": "Capacity plan applied.",
     "Unable to calculate a capacity plan.": "Unable to calculate a capacity plan.",
     "Select a production line, planned start and start shift.": "Select a production line, planned start and start shift.",
-    "The plan changed. Calculate a fresh proposal before applying it.": "The plan changed. Calculate a fresh proposal before applying it."
+    "The plan changed. Calculate a fresh proposal before applying it.": "The plan changed. Calculate a fresh proposal before applying it.",
+    "Authorized workers": "Authorized workers",
+    "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Workers qualified to operate this workstation. Their primary workstation is managed separately.",
+    "(primary: :station)": "(primary: :station)"
 }
