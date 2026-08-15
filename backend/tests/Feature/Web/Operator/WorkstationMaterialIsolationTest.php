@@ -119,6 +119,30 @@ class WorkstationMaterialIsolationTest extends TestCase
         $this->assertDatabaseCount('material_replenishment_requests', 1);
     }
 
+    public function test_terminal_can_request_one_issue_increment_even_at_target_stock(): void
+    {
+        $policy = $this->createPolicy($this->workstation, $this->material);
+        WorkstationMaterialStock::create([
+            'workstation_id' => $this->workstation->id,
+            'material_id' => $this->material->id,
+            'quantity' => 50,
+            'reserved_quantity' => 0,
+            'unit_of_measure' => 'pcs',
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->post(route('operator.materials.replenishments.store'), [
+                'workstation_material_policy_id' => $policy->id,
+                'quantity' => 10,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $request = MaterialReplenishmentRequest::sole();
+        $this->assertEqualsWithDelta(10, (float) $request->requested_quantity, 0.0001);
+        $this->assertSame($this->workstation->id, $request->workstation_id);
+    }
+
     public function test_terminal_can_cancel_only_a_request_for_its_workstation(): void
     {
         $ownRequest = $this->createRequest(

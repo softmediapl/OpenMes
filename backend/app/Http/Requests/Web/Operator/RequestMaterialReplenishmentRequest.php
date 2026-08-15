@@ -15,6 +15,7 @@ class RequestMaterialReplenishmentRequest extends FormRequest
     {
         return [
             'workstation_material_policy_id' => ['required', 'integer', 'exists:workstation_material_policies,id'],
+            'quantity' => ['nullable', 'numeric', 'gt:0', 'max:9999999999'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }

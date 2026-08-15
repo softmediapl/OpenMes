@@ -27,10 +27,12 @@ function dateValue(value) {
     return new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(value));
 }
 
-function requestRefill(policyId) {
+function requestRefill(row, onFinish) {
+    const increment = Number(row.policy?.issue_increment);
     router.post('/operator/materials/replenishments', {
-        workstation_material_policy_id: policyId,
-    }, { preserveScroll: true });
+        workstation_material_policy_id: row.policy.id,
+        quantity: Number.isFinite(increment) && increment > 0 ? increment : null,
+    }, { preserveScroll: true, onFinish });
 }
 
 function cancelRequest(requestId) {
@@ -40,6 +42,7 @@ function cancelRequest(requestId) {
 
 export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation }) {
     const [countedStock, setCountedStock] = useState(null);
+    const [requestingPolicyId, setRequestingPolicyId] = useState(null);
     const rows = useMemo(
         () => buildMaterialRows(stocks, policies, replenishmentRequests),
         [stocks, policies, replenishmentRequests],
@@ -134,8 +137,16 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                                         {__('Cancel request')}
                                                     </button>
                                                 ) : row.policy ? (
-                                                    <button type="button" onClick={() => requestRefill(row.policy.id)} className="rounded-om-sm bg-om-ink px-3 py-2 text-sm font-semibold text-om-on-ink hover:opacity-90">
-                                                        {__('Request refill')}
+                                                    <button
+                                                        type="button"
+                                                        disabled={requestingPolicyId === row.policy.id}
+                                                        onClick={() => {
+                                                            setRequestingPolicyId(row.policy.id);
+                                                            requestRefill(row, () => setRequestingPolicyId(null));
+                                                        }}
+                                                        className="rounded-om-sm bg-om-ink px-3 py-2 text-sm font-semibold text-om-on-ink hover:opacity-90 disabled:opacity-50"
+                                                    >
+                                                        {requestingPolicyId === row.policy.id ? '…' : __('Request refill')}
                                                     </button>
                                                 ) : <span className="text-xs text-om-faint">—</span>}
                                             </td>

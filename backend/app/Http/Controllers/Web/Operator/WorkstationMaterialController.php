@@ -76,6 +76,7 @@ class WorkstationMaterialController extends Controller
         $replenishment->request(
             $policy,
             $request->user(),
+            quantity: isset($data['quantity']) ? (float) $data['quantity'] : null,
             notes: $data['notes'] ?? null,
         );
 

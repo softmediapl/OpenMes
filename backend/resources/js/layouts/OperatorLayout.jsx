@@ -48,7 +48,7 @@ export default function OperatorLayout({ children }) {
                             <TopLink href="/operator/workstation" active={isActive('/operator/workstation')}>
                                 {__('Workstation')}
                             </TopLink>
-                            {selectedWorkstation && (
+                            {(selectedWorkstation || workstationLocked) && (
                                 <TopLink href="/operator/materials" active={isActive('/operator/materials')}>
                                     {__('Materials')}
                                 </TopLink>
