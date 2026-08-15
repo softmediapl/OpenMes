@@ -1505,7 +1505,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
             hold_override_reason: earlyRelease && canOverrideOperationHold
                 ? data.hold_override_reason.trim()
                 : null,
-        })).post(`/operator/batch-step/${step.id}/complete`, {
+        }));
+        form.post(`/operator/batch-step/${step.id}/complete`, {
             preserveScroll: true,
             onSuccess: () => onClose(),
         });

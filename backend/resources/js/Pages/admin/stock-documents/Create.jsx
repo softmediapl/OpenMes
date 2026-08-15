@@ -67,7 +67,8 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                 notes: line.notes || null,
             }));
 
-        form.transform(() => ({ ...data, lines: payload })).post('/admin/stock-documents');
+        form.transform(() => ({ ...data, lines: payload }));
+        form.post('/admin/stock-documents');
     };
 
     return (

@@ -17,8 +17,8 @@ function BandEditor({ bands }) {
     const submit = (e) => {
         e.preventDefault();
         if (hasBlank) return;
-        form.transform((d) => ({ bands: d.bands.map((b) => Number(b)) }))
-            .post('/admin/priority-rules/bands', { preserveScroll: true });
+        form.transform((d) => ({ bands: d.bands.map((b) => Number(b)) }));
+        form.post('/admin/priority-rules/bands', { preserveScroll: true });
     };
 
     // Row descriptors: P1..P4 are "≤ threshold[i]", P5 is "> threshold[3]".

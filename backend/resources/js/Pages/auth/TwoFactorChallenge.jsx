@@ -20,8 +20,8 @@ export default function TwoFactorChallenge() {
         e.preventDefault();
         form.transform((data) => (mode === 'code'
             ? { code: data.code }
-            : { recovery_code: data.recovery_code }))
-            .post('/2fa/challenge');
+            : { recovery_code: data.recovery_code }));
+        form.post('/2fa/challenge');
     };
 
     // §04 input idiom, kept hand-rolled for the centered code styling.

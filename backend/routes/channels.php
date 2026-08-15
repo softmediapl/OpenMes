@@ -25,7 +25,13 @@ Broadcast::channel('col.{tenant}.{collection}', function ($user, string $tenant,
         return false;
     }
 
-    // Admin lists are Admin/Supervisor only. Refine per-collection as operator
-    // screens move onto Reverb.
+    // Operator screens subscribe only to active work orders. The HTTP snapshot
+    // already exposes this tenant-scoped collection to operators, so matching
+    // Reverb access restores live refresh without opening admin collections.
+    if ($collection === 'work_orders_active' && $user->hasRole('Operator')) {
+        return true;
+    }
+
+    // Admin lists remain Admin/Supervisor only.
     return $user->hasAnyRole(['Admin', 'Supervisor']);
 });
