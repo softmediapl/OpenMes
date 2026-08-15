@@ -985,7 +985,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                         )}
 
                         {(step.quantity_reporting_required || step.quantity_reported_at) && (
-                            <OperationQuantitySummary step={step} />
+                            <OperationQuantitySummary step={step} quantityPrecision={quantityPrecision} />
                         )}
 
                         {step.requires_palletization && (
@@ -997,7 +997,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                         )}
 
                         {(step.transport_unit_loads?.length > 0) && (
-                            <TransportUnitLoadSummary loads={step.transport_unit_loads} />
+                            <TransportUnitLoadSummary loads={step.transport_unit_loads} quantityPrecision={quantityPrecision} />
                         )}
 
                         {(step.instruction?.trim() || media.length > 0) && (
@@ -1306,7 +1306,7 @@ function OperationQualityGate({ step, status }) {
     );
 }
 
-function TransportUnitLoadSummary({ loads }) {
+function TransportUnitLoadSummary({ loads, quantityPrecision }) {
     return (
         <div className="border-t border-om-line2 px-3 py-2.5">
             <span className={`${sectionLabelCls} mb-2 block`}>{__('Transport units')}</span>
@@ -1317,7 +1317,7 @@ function TransportUnitLoadSummary({ loads }) {
                             {load.transport_unit?.code ?? `#${load.transport_unit_id}`}
                         </span>
                         <span className="font-mono text-[10px] text-om-muted">
-                            {fmtQty(load.quantity, 4)} {load.transport_unit?.unit_of_measure ?? load.transport_unit?.type?.unit_of_measure ?? ''}
+                            {fmtQty(load.quantity, quantityPrecision)} {load.transport_unit?.unit_of_measure ?? load.transport_unit?.type?.unit_of_measure ?? ''}
                             {' · '}
                             {load.released_at ? __('Released') : __('In use')}
                         </span>
@@ -1328,7 +1328,7 @@ function TransportUnitLoadSummary({ loads }) {
     );
 }
 
-function OperationQuantitySummary({ step }) {
+function OperationQuantitySummary({ step, quantityPrecision }) {
     const items = [
         ['Input', step.input_quantity],
         ['Good', step.good_quantity],
@@ -1346,7 +1346,7 @@ function OperationQuantitySummary({ step }) {
                             {__(label)}
                         </span>
                         <span className="font-mono text-[13px] font-medium text-om-ink">
-                            {value == null ? '—' : fmtQty(value, 4)}
+                            {value == null ? '—' : fmtQty(value, quantityPrecision)}
                         </span>
                     </div>
                 ))}
