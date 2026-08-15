@@ -5,7 +5,7 @@ import './lib/echo'; // opens the single Reverb WebSocket
 
 createInertiaApp({
     resolve: (name) => {
-        const pages = import.meta.glob('./Pages/**/*.jsx', { eager: true });
+        const pages = import.meta.glob(['./Pages/**/*.jsx', '!./Pages/**/*.test.jsx'], { eager: true });
         const page = pages[`./Pages/${name}.jsx`];
         if (!page) {
             throw new Error(`Inertia page not found: ${name} (expected resources/js/Pages/${name}.jsx)`);
