@@ -401,6 +401,8 @@ Route::middleware('auth')->group(function () {
         Route::get('/schedule/check-updates', [SchedulePlannerController::class, 'checkUpdates'])->name('schedule.check-updates');
         Route::get('/schedule/changes', [SchedulePlannerController::class, 'changes'])->name('schedule.changes');
         Route::post('/schedule/changes/{change}/undo', [SchedulePlannerController::class, 'undoChange'])->name('schedule.changes.undo');
+        Route::post('/schedule/{workOrder}/aps-proposal', [SchedulePlannerController::class, 'proposeFiniteSchedule'])->name('schedule.aps.proposal');
+        Route::post('/schedule/{workOrder}/aps-apply', [SchedulePlannerController::class, 'applyFiniteSchedule'])->name('schedule.aps.apply');
         Route::put('/schedule/{workOrder}', [SchedulePlannerController::class, 'updateOrder'])->name('schedule.update');
         Route::put('/schedule/{workOrder}/resize', [SchedulePlannerController::class, 'resizeOrder'])->name('schedule.resize');
 

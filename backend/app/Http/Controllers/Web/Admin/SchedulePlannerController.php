@@ -3,17 +3,82 @@
 namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Web\Admin\ApplyFiniteScheduleRequest;
+use App\Http\Requests\Web\Admin\ProposeFiniteScheduleRequest;
 use App\Models\Line;
 use App\Models\ScheduleChangeLog;
 use App\Models\Shift;
 use App\Models\WorkOrder;
+use App\Services\Schedule\FiniteCapacityScheduler;
+use App\Services\Schedule\FiniteSchedulePlanService;
+use App\Services\Schedule\StaleScheduleProposal;
+use App\Services\Schedule\UnableToBuildSchedule;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class SchedulePlannerController extends Controller
 {
+    public function proposeFiniteSchedule(
+        ProposeFiniteScheduleRequest $request,
+        WorkOrder $workOrder,
+        FiniteCapacityScheduler $scheduler,
+    ) {
+        try {
+            $proposal = $scheduler->propose(
+                $workOrder,
+                CarbonImmutable::parse($request->validated('requested_start_at')),
+                (int) $request->validated('line_id'),
+            );
+        } catch (UnableToBuildSchedule $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        return response()->json(['success' => true, 'proposal' => $proposal->toArray()]);
+    }
+
+    public function applyFiniteSchedule(
+        ApplyFiniteScheduleRequest $request,
+        WorkOrder $workOrder,
+        FiniteSchedulePlanService $planService,
+    ) {
+        $snapshotBefore = $this->placementSnapshot($workOrder);
+
+        try {
+            $proposal = $planService->apply(
+                $workOrder,
+                CarbonImmutable::parse($request->validated('requested_start_at')),
+                (int) $request->validated('line_id'),
+                (int) $request->user()->id,
+                $request->validated('fingerprint'),
+            );
+        } catch (StaleScheduleProposal $exception) {
+            return response()->json([
+                'success' => false,
+                'stale' => true,
+                'message' => $exception->getMessage(),
+            ], 409);
+        } catch (UnableToBuildSchedule $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 422);
+        }
+
+        $this->logChange($workOrder->fresh(), $snapshotBefore);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('APS proposal applied.'),
+            'proposal' => $proposal->toArray(),
+        ]);
+    }
+
     public function index(Request $request)
     {
         // Load schedule settings
@@ -421,6 +486,9 @@ class SchedulePlannerController extends Controller
         }
 
         $workOrder->update($data);
+        if (array_intersect(array_keys($data), ['line_id', 'planned_start_at', 'planned_end_at']) !== []) {
+            $workOrder->operationPlans()->delete();
+        }
 
         // Sync the extra segments when the request carries them: update rows
         // by id, create rows without one, delete rows the client dropped.
@@ -544,6 +612,7 @@ class SchedulePlannerController extends Controller
                 'planned_start_at' => $validated['planned_start_at'],
                 'planned_end_at' => $validated['planned_end_at'],
             ]);
+            $workOrder->operationPlans()->delete();
             $this->logChange($workOrder, $snapshotBefore);
             \App\Events\Schedule\WorkOrderScheduled::dispatch($workOrder, $workOrder->getChanges());
 
@@ -572,6 +641,7 @@ class SchedulePlannerController extends Controller
                 'end_shift_number' => $request->input('end_shift_number'),
             ]);
         }
+        $workOrder->operationPlans()->delete();
         $this->logChange($workOrder, $snapshotBefore);
         \App\Events\Schedule\WorkOrderScheduled::dispatch($workOrder, $workOrder->getChanges());
 
@@ -697,6 +767,12 @@ class SchedulePlannerController extends Controller
         foreach ($s['placements'] ?? [] as $p) {
             $workOrder->extraPlacements()->create($p);
         }
+        if (array_key_exists('operation_plans', $s)) {
+            $workOrder->operationPlans()->delete();
+            foreach ($s['operation_plans'] as $operationPlan) {
+                $workOrder->operationPlans()->create($operationPlan);
+            }
+        }
 
         $change->update(['undone_at' => now()]);
         ScheduleChangeLog::create([
@@ -734,6 +810,20 @@ class SchedulePlannerController extends Controller
                 'shift_number' => $p->shift_number,
                 'end_date' => $p->end_date?->format('Y-m-d'),
                 'end_shift_number' => $p->end_shift_number,
+            ])->values()->all(),
+            'operation_plans' => $workOrder->operationPlans()->get()->map(fn ($plan) => [
+                'line_id' => $plan->line_id,
+                'workstation_id' => $plan->workstation_id,
+                'step_number' => $plan->step_number,
+                'segment_number' => $plan->segment_number,
+                'slot_number' => $plan->slot_number,
+                'planned_start_at' => $plan->planned_start_at->toIso8601String(),
+                'planned_end_at' => $plan->planned_end_at->toIso8601String(),
+                'duration_minutes' => $plan->duration_minutes,
+                'planned_quantity' => $plan->planned_quantity,
+                'source' => $plan->source,
+                'scheduled_by_id' => $plan->scheduled_by_id,
+                'plan_metadata' => $plan->plan_metadata,
             ])->values()->all(),
         ];
     }
