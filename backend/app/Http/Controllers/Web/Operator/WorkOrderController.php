@@ -101,7 +101,7 @@ class WorkOrderController extends Controller
             $workstationQueue = $queueSource->filter(function ($wo) use ($selectedWorkstation) {
                 foreach ($wo->batches as $batch) {
                     $currentStep = $batch->currentStep();
-                    if ($currentStep && (int) $currentStep->workstation_id === (int) $selectedWorkstation->id) {
+                    if ($currentStep && $this->workstationContext->workstationCanOperateStep($selectedWorkstation, $currentStep)) {
                         return true;
                     }
                 }
@@ -206,6 +206,7 @@ class WorkOrderController extends Controller
         $trackingMode = json_decode($settingRows['production_tracking_mode']->value ?? '"per_operation"', true) ?? 'per_operation';
 
         if ($wsId && ($this->workstationContext->isLocked($request->user()) || in_array($trackingMode, ['per_operation', 'hybrid']))) {
+            $workstation = Workstation::find($wsId);
             $query = WorkOrder::query()
                 ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
                 ->with('batches.steps');
@@ -216,10 +217,14 @@ class WorkOrderController extends Controller
 
             $workstationCount = $query
                 ->get()
-                ->filter(function ($wo) use ($wsId) {
+                ->filter(function ($wo) use ($workstation) {
+                    if (! $workstation) {
+                        return false;
+                    }
+
                     foreach ($wo->batches as $batch) {
                         $step = $batch->currentStep();
-                        if ($step && $step->workstation_id == $wsId) {
+                        if ($step && $this->workstationContext->workstationCanOperateStep($workstation, $step)) {
                             return true;
                         }
                     }
@@ -287,7 +292,7 @@ class WorkOrderController extends Controller
                 ->filter(function ($batch) use ($lockedWorkstation) {
                     $step = $this->currentLoadedStep($batch);
 
-                    return $step && (int) $step->workstation_id === (int) $lockedWorkstation->id;
+                    return $step && $this->workstationContext->workstationCanOperateStep($lockedWorkstation, $step);
                 })
                 ->map(function ($batch) {
                     $currentStep = $this->currentLoadedStep($batch);

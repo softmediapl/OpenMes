@@ -77,7 +77,7 @@ class WorkstationController extends Controller
                 return $workOrder->batches->contains(function ($batch) use ($lockedWorkstation) {
                     $step = $batch->currentStep();
 
-                    return $step && (int) $step->workstation_id === (int) $lockedWorkstation->id;
+                    return $step && $this->workstationContext->workstationCanOperateStep($lockedWorkstation, $step);
                 });
             })->values();
         }
@@ -187,21 +187,23 @@ class WorkstationController extends Controller
         }
 
         $weekFilter = $request->query('week');
-        $query = WorkOrder::where('line_id', $lineId)
+        $workstationLocked = $this->workstationContext->isLocked($request->user());
+        $query = WorkOrder::query()
+            ->when(! $workstationLocked, fn ($query) => $query->where('line_id', $lineId))
             ->whereNotIn('status', [WorkOrder::STATUS_REJECTED, WorkOrder::STATUS_CANCELLED]);
 
         if ($weekFilter && $weekFilter !== 'all') {
             $query->where('week_number', (int) $weekFilter);
         }
 
-        if ($this->workstationContext->isLocked($request->user())) {
-            $workstationId = $this->workstationContext->workstation($request)?->id;
+        if ($workstationLocked) {
+            $workstation = $this->workstationContext->workstation($request);
             $query->with('batches.steps');
-            $orders = $query->get()->filter(function (WorkOrder $workOrder) use ($workstationId) {
-                return $workOrder->batches->contains(function ($batch) use ($workstationId) {
+            $orders = $query->get()->filter(function (WorkOrder $workOrder) use ($workstation) {
+                return $workstation && $workOrder->batches->contains(function ($batch) use ($workstation) {
                     $step = $batch->currentStep();
 
-                    return $step && (int) $step->workstation_id === (int) $workstationId;
+                    return $step && $this->workstationContext->workstationCanOperateStep($workstation, $step);
                 });
             })->values();
         } else {

@@ -109,16 +109,45 @@ class WorkstationContext
             ->first();
     }
 
+    /**
+     * Determine whether a concrete workstation may execute the current step.
+     *
+     * Explicit assignments remain authoritative and may target a shared station
+     * on another line. An unassigned equipment-pool step is claimable only by an
+     * active workstation of the required type on the work order's own line.
+     */
+    public function workstationCanOperateStep(Workstation $workstation, BatchStep $step): bool
+    {
+        if (! $workstation->is_active) {
+            return false;
+        }
+
+        if ($step->workstation_id !== null) {
+            return (int) $step->workstation_id === (int) $workstation->id;
+        }
+
+        if ($step->workstation_type_id === null
+            || (int) $step->workstation_type_id !== (int) $workstation->workstation_type_id) {
+            return false;
+        }
+
+        $step->loadMissing('batch.workOrder');
+
+        return (int) $step->batch?->workOrder?->line_id === (int) $workstation->line_id;
+    }
+
     public function canAccessStep(Request $request, BatchStep $step): bool
     {
         $step->loadMissing('batch.workOrder');
 
         if ($this->isLocked($request->user())) {
             $currentStep = $step->batch?->currentStep();
+            $workstation = $this->workstation($request);
 
             return $currentStep
                 && (int) $currentStep->id === (int) $step->id
-                && (int) $step->workstation_id === (int) $this->workstation($request)?->id;
+                && $workstation
+                && $this->workstationCanOperateStep($workstation, $step);
         }
 
         $lineId = $request->session()->get('selected_line_id');
@@ -134,10 +163,12 @@ class WorkstationContext
             return (int) $batch->workOrder?->line_id === (int) $request->session()->get('selected_line_id');
         }
 
-        $workstationId = $this->workstation($request)?->id;
+        $workstation = $this->workstation($request);
         $step = $batch->currentStep();
 
-        return $step && (int) $step->workstation_id === (int) $workstationId;
+        return $step
+            && $workstation
+            && $this->workstationCanOperateStep($workstation, $step);
     }
 
     public function canReleaseBatch(Request $request, Batch $batch): bool
@@ -169,13 +200,13 @@ class WorkstationContext
             return (int) $workOrder->line_id === (int) $request->session()->get('selected_line_id');
         }
 
-        $workstationId = $this->workstation($request)?->id;
+        $workstation = $this->workstation($request);
         $workOrder->loadMissing('batches.steps');
 
-        return $workOrder->batches->contains(function (Batch $batch) use ($workstationId) {
+        return $workstation && $workOrder->batches->contains(function (Batch $batch) use ($workstation) {
             $step = $batch->currentStep();
 
-            return $step && (int) $step->workstation_id === (int) $workstationId;
+            return $step && $this->workstationCanOperateStep($workstation, $step);
         });
     }
 }

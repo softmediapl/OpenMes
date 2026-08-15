@@ -42,6 +42,8 @@ class BatchService
         return DB::transaction(function () use ($step, $user, $picksByMaterial, $transportUnitLoads) {
             $step = BatchStep::query()->lockForUpdate()->findOrFail($step->getKey());
 
+            $this->claimPooledStepForTerminal($step, $user);
+
             // Enforce workstation routing (if enabled)
             $this->guardWorkstationRouting($step, $user);
 
@@ -516,6 +518,40 @@ class BatchService
         }
 
         return round($quantity, 4);
+    }
+
+    /**
+     * Atomically bind an eligible equipment-pool operation to the fixed terminal
+     * that starts it. The caller already holds a row lock on the batch step, so a
+     * concurrent terminal can never overwrite the winning assignment.
+     */
+    private function claimPooledStepForTerminal(BatchStep $step, User $user): void
+    {
+        if (! $user->isWorkstationAccount() || $step->workstation_id !== null) {
+            return;
+        }
+
+        $workstation = Workstation::query()
+            ->whereKey($user->workstation_id)
+            ->where('is_active', true)
+            ->first();
+
+        $step->loadMissing('batch.workOrder');
+        $eligible = $workstation
+            && $step->workstation_type_id !== null
+            && (int) $workstation->workstation_type_id === (int) $step->workstation_type_id
+            && (int) $workstation->line_id === (int) $step->batch?->workOrder?->line_id;
+
+        if (! $eligible) {
+            throw new \Exception(__('This terminal cannot claim this pooled operation because its workstation type or production line does not match.'));
+        }
+
+        $step->update([
+            'workstation_id' => $workstation->id,
+            'assigned_by_id' => $user->id,
+            'assigned_at' => now(),
+        ]);
+        $step->unsetRelation('workstation');
     }
 
     /**

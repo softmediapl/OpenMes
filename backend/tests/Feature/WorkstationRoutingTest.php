@@ -8,6 +8,7 @@ use App\Models\Line;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
+use App\Models\WorkstationType;
 use App\Services\WorkOrder\BatchService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -169,6 +170,83 @@ class WorkstationRoutingTest extends TestCase
 
         $this->expectException(\Exception::class);
         app(BatchService::class)->startStep($step->fresh(), $this->operatorB);
+    }
+
+    public function test_workstation_account_atomically_claims_a_matching_pool_step(): void
+    {
+        $this->setRouting(true);
+        $type = WorkstationType::factory()->create();
+        $this->stationA->update(['workstation_type_id' => $type->id]);
+        $step = $this->makeStep($this->stationA->id);
+        $step->update([
+            'workstation_id' => null,
+            'workstation_type_id' => $type->id,
+        ]);
+
+        $result = app(BatchService::class)->startStep($step->fresh(), $this->operatorA);
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $result->status);
+        $this->assertSame($this->stationA->id, $result->workstation_id);
+        $this->assertSame($this->operatorA->id, $result->assigned_by_id);
+        $this->assertNotNull($result->assigned_at);
+    }
+
+    public function test_workstation_account_cannot_claim_a_pool_step_from_another_line(): void
+    {
+        $this->setRouting(true);
+        $type = WorkstationType::factory()->create();
+        $this->stationA->update(['workstation_type_id' => $type->id]);
+        $step = $this->makeStep($this->stationA->id);
+        $step->update([
+            'workstation_id' => null,
+            'workstation_type_id' => $type->id,
+        ]);
+
+        $otherLine = Line::factory()->create();
+        $otherStation = Workstation::factory()->create([
+            'line_id' => $otherLine->id,
+            'workstation_type_id' => $type->id,
+        ]);
+        $otherTerminal = User::factory()->create([
+            'account_type' => 'workstation',
+            'workstation_id' => $otherStation->id,
+        ]);
+        $otherTerminal->assignRole('Operator');
+
+        try {
+            app(BatchService::class)->startStep($step->fresh(), $otherTerminal);
+            $this->fail('A terminal on another line claimed the pooled step.');
+        } catch (\Exception $exception) {
+            $this->assertStringContainsString('production line does not match', $exception->getMessage());
+        }
+
+        $this->assertNull($step->fresh()->workstation_id);
+        $this->assertSame(BatchStep::STATUS_PENDING, $step->fresh()->status);
+    }
+
+    public function test_a_pool_step_cannot_be_reclaimed_after_another_terminal_starts_it(): void
+    {
+        $this->setRouting(true);
+        $type = WorkstationType::factory()->create();
+        $this->stationA->update(['workstation_type_id' => $type->id]);
+        $this->stationB->update(['workstation_type_id' => $type->id]);
+        $step = $this->makeStep($this->stationA->id);
+        $step->update([
+            'workstation_id' => null,
+            'workstation_type_id' => $type->id,
+        ]);
+
+        app(BatchService::class)->startStep($step->fresh(), $this->operatorA);
+
+        try {
+            app(BatchService::class)->startStep($step->fresh(), $this->operatorB);
+            $this->fail('A claimed pool step was reassigned to another terminal.');
+        } catch (\Exception $exception) {
+            $this->assertStringContainsString('Station A', $exception->getMessage());
+        }
+
+        $this->assertSame($this->stationA->id, $step->fresh()->workstation_id);
+        $this->assertSame($this->operatorA->id, $step->fresh()->started_by_id);
     }
 
     public function test_optional_routing_setting_still_applies_only_to_human_operators(): void

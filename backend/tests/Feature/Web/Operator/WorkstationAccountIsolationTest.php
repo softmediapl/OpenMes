@@ -13,6 +13,7 @@ use App\Models\TransportUnitType;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
+use App\Models\WorkstationType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -203,6 +204,74 @@ class WorkstationAccountIsolationTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->has('workOrders', 1)
                 ->where('workOrders.0.id', $workOrder->id)
+            );
+    }
+
+    public function test_terminal_queue_and_detail_include_a_claimable_pool_step(): void
+    {
+        $type = WorkstationType::factory()->create();
+        $this->assignedStation->update(['workstation_type_id' => $type->id]);
+        $workOrder = WorkOrder::factory()->inProgress()->create(['line_id' => $this->line->id]);
+        $batch = Batch::factory()->inProgress()->create(['work_order_id' => $workOrder->id]);
+        $step = BatchStep::factory()->create([
+            'batch_id' => $batch->id,
+            'step_number' => 1,
+            'workstation_id' => null,
+            'workstation_type_id' => $type->id,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('operator.queue'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('workstationQueue', 1)
+                ->where('workstationQueue.0.id', $workOrder->id)
+            );
+
+        $this->actingAs($this->terminal)
+            ->get(route('operator.work-order.detail', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('workOrder.batches', 1)
+                ->has('workOrder.batches.0.steps', 1)
+                ->where('workOrder.batches.0.steps.0.id', $step->id)
+            );
+    }
+
+    public function test_terminal_does_not_see_pool_steps_for_another_type_or_line(): void
+    {
+        $terminalType = WorkstationType::factory()->create();
+        $otherType = WorkstationType::factory()->create();
+        $this->assignedStation->update(['workstation_type_id' => $terminalType->id]);
+
+        $wrongTypeOrder = WorkOrder::factory()->inProgress()->create(['line_id' => $this->line->id]);
+        $wrongTypeBatch = Batch::factory()->inProgress()->create(['work_order_id' => $wrongTypeOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $wrongTypeBatch->id,
+            'step_number' => 1,
+            'workstation_id' => null,
+            'workstation_type_id' => $otherType->id,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $otherLine = Line::factory()->create();
+        $wrongLineOrder = WorkOrder::factory()->inProgress()->create(['line_id' => $otherLine->id]);
+        $wrongLineBatch = Batch::factory()->inProgress()->create(['work_order_id' => $wrongLineOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $wrongLineBatch->id,
+            'step_number' => 1,
+            'workstation_id' => null,
+            'workstation_type_id' => $terminalType->id,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('operator.queue'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('workstationQueue', 0)
+                ->has('activeWorkOrders', 0)
             );
     }
 
