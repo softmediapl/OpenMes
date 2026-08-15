@@ -2,9 +2,9 @@ import { Head } from '@inertiajs/react';
 import { __ } from '../../../lib/i18n';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceForm from '../../../components/ResourceForm';
-import { PRODUCT_TYPE_FIELDS } from './fields';
+import { productTypeFields } from './fields';
 
-export default function ProductTypeCreate({ customFields = [] }) {
+export default function ProductTypeCreate({ customFields = [], unitsOfMeasure = [] }) {
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={__("New Product Type")} />
@@ -18,7 +18,7 @@ export default function ProductTypeCreate({ customFields = [] }) {
                 backHref="/admin/product-types"
                 action="/admin/product-types"
                 method="post"
-                fields={PRODUCT_TYPE_FIELDS}
+                fields={productTypeFields(unitsOfMeasure)}
                 customFields={customFields}
                 initial={{ code: '', name: '', description: '', unit_of_measure: 'pcs', is_active: true, custom_fields: {} }}
                 submitLabel={__("Create")}

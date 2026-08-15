@@ -29,11 +29,32 @@ class ProductType extends Model
         'tenant_id',
     ];
 
+    protected $appends = [
+        'quantity_precision',
+    ];
+
     protected function casts(): array
     {
         return [
             'is_active' => 'boolean',
         ];
+    }
+
+    public function quantityPrecision(): int
+    {
+        $unit = UnitOfMeasure::withoutGlobalScopes()
+            ->where('tenant_id', $this->tenant_id)
+            ->where('code', $this->unit_of_measure)
+            ->first();
+
+        return $unit
+            ? max(0, min(4, (int) $unit->quantity_precision))
+            : UnitOfMeasure::inferredPrecision($this->unit_of_measure);
+    }
+
+    public function getQuantityPrecisionAttribute(): int
+    {
+        return $this->quantityPrecision();
     }
 
     /**

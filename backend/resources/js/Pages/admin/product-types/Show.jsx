@@ -135,7 +135,10 @@ export default function ProductTypeShow({
                     )}
                     {productType.unit_of_measure && (
                         <p className="text-sm text-om-muted mt-1">
-                            Unit: <span className="font-medium">{productType.unit_of_measure}</span>
+                            {__('Unit of Measure')}: <span className="font-medium">{productType.unit_of_measure}</span>
+                            <span className="ml-2 text-om-faint">
+                                ({__('Quantity precision')}: {productType.quantity_precision})
+                            </span>
                         </p>
                     )}
                 </div>

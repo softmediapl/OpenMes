@@ -158,6 +158,22 @@ class OperationQuantityBalanceTest extends TestCase
         $this->assertDatabaseCount('scrap_entries', 0);
     }
 
+    public function test_whole_piece_product_rejects_fractional_operation_output(): void
+    {
+        $this->workOrder->productType()->update(['unit_of_measure' => 'pcs']);
+        $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();
+        app(BatchService::class)->startStep($first, $this->operator);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('allows at most 0 decimal places');
+
+        app(BatchService::class)->completeStep($first->fresh(), $this->operator, [
+            'good_quantity' => 99.5,
+            'rework_quantity' => 0.5,
+            'scrap_quantity' => 0,
+        ]);
+    }
+
     public function test_scrap_requires_an_active_reason(): void
     {
         $first = $this->batch->steps()->where('step_number', 1)->firstOrFail();

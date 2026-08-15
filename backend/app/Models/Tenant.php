@@ -19,6 +19,11 @@ class Tenant extends Model
         'expires_at' => 'datetime',
     ];
 
+    protected static function booted(): void
+    {
+        static::created(fn (Tenant $tenant) => UnitOfMeasure::seedDefaultsForTenant($tenant->id));
+    }
+
     public function users(): HasMany
     {
         return $this->hasMany(User::class);

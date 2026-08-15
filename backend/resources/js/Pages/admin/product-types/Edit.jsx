@@ -2,9 +2,9 @@ import { Head } from '@inertiajs/react';
 import { __ } from '../../../lib/i18n';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceForm from '../../../components/ResourceForm';
-import { PRODUCT_TYPE_FIELDS } from './fields';
+import { productTypeFields } from './fields';
 
-export default function ProductTypeEdit({ productType, customFields = [] }) {
+export default function ProductTypeEdit({ productType, customFields = [], unitsOfMeasure = [] }) {
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={`${__("Edit")} ${productType.name}`} />
@@ -19,7 +19,7 @@ export default function ProductTypeEdit({ productType, customFields = [] }) {
                 backHref="/admin/product-types"
                 action={`/admin/product-types/${productType.id}`}
                 method="put"
-                fields={PRODUCT_TYPE_FIELDS}
+                fields={productTypeFields(unitsOfMeasure)}
                 customFields={customFields}
                 initial={{
                     code: productType.code ?? '',

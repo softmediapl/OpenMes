@@ -540,6 +540,12 @@ Route::middleware('auth')->group(function () {
         Route::resource('product-types', \App\Http\Controllers\Web\Admin\ProductTypeManagementController::class);
         Route::post('/product-types/{product_type}/toggle-active', [\App\Http\Controllers\Web\Admin\ProductTypeManagementController::class, 'toggleActive'])->name('product-types.toggle-active');
 
+        // Units of measure dictionary shared by products, materials and ERP codes.
+        Route::resource('units-of-measure', \App\Http\Controllers\Web\Admin\UnitOfMeasureController::class)
+            ->parameters(['units-of-measure' => 'unitOfMeasure'])
+            ->except(['show']);
+        Route::post('/units-of-measure/{unitOfMeasure}/toggle-active', [\App\Http\Controllers\Web\Admin\UnitOfMeasureController::class, 'toggleActive'])->name('units-of-measure.toggle-active');
+
         // Process Templates Management (nested under product types)
         Route::prefix('product-types/{product_type}/process-templates')->name('product-types.process-templates.')->group(function () {
             Route::get('/', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'index'])->name('index');

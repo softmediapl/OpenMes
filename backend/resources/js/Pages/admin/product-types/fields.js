@@ -1,6 +1,6 @@
 import { __ } from '../../../lib/i18n';
 
-export const PRODUCT_TYPE_FIELDS = [
+export const productTypeFields = (unitsOfMeasure = []) => [
     {
         name: 'code',
         label: __('Product Code'),
@@ -23,8 +23,14 @@ export const PRODUCT_TYPE_FIELDS = [
     {
         name: 'unit_of_measure',
         label: __('Unit of Measure'),
-        placeholder: __('e.g., pcs, kg, m (optional)'),
+        type: 'select',
+        required: true,
+        placeholder: __('Select unit of measure…'),
         help: __('How this product is counted or measured'),
+        options: unitsOfMeasure.map((unit) => ({
+            value: unit.code,
+            label: `${unit.code} — ${__(unit.name)} (${unit.quantity_precision})`,
+        })),
     },
     {
         name: 'is_active',

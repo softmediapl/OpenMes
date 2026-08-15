@@ -4,6 +4,7 @@ namespace App\Services\Erp;
 
 use App\Models\Material;
 use App\Models\MaterialType;
+use App\Models\UnitOfMeasure;
 use App\Services\Erp\Concerns\ReportsImportRows;
 
 /**
@@ -63,6 +64,7 @@ class MaterialImportService
                 'supplier_code' => $row['supplier_code'] ?? null,
                 'ean' => $row['ean'] ?? null,
             ];
+            UnitOfMeasure::ensureCode($attributes['unit_of_measure']);
 
             // The ERP classification has no dedicated column on materials — it is
             // the material type, which is what OpenMES groups materials by.

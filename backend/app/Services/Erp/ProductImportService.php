@@ -3,6 +3,7 @@
 namespace App\Services\Erp;
 
 use App\Models\ProductType;
+use App\Models\UnitOfMeasure;
 use App\Services\Erp\Concerns\ReportsImportRows;
 
 /**
@@ -59,6 +60,7 @@ class ProductImportService
                 'external_code' => $row['external_code'] ?? $code,
                 'external_system' => $row['external_system'] ?? $system,
             ];
+            UnitOfMeasure::ensureCode($attributes['unit_of_measure']);
 
             // A row that omits is_active leaves the current flag alone on update
             // and defaults to active on create.

@@ -530,6 +530,7 @@ class BatchService
             $good = array_key_exists('produced_qty', $data)
                 ? $this->nonNegativeFiniteQuantity($data['produced_qty'], 'Produced quantity')
                 : $input;
+            $this->guardProductQuantityPrecision($step, ['Produced quantity' => $good]);
 
             return [
                 'input_quantity' => $input,
@@ -553,6 +554,11 @@ class BatchService
         $good = $this->nonNegativeFiniteQuantity($data['good_quantity'], 'Good quantity');
         $rework = $this->nonNegativeFiniteQuantity($data['rework_quantity'], 'Rework quantity');
         $scrap = $this->nonNegativeFiniteQuantity($data['scrap_quantity'], 'Scrap quantity');
+        $this->guardProductQuantityPrecision($step, [
+            'Good quantity' => $good,
+            'Rework quantity' => $rework,
+            'Scrap quantity' => $scrap,
+        ]);
 
         if (abs($input - $good - $rework - $scrap) > 0.0001) {
             throw new \DomainException(__(
@@ -603,6 +609,7 @@ class BatchService
 
             $reasonId = (int) $entry['scrap_reason_id'];
             $quantity = $this->nonNegativeFiniteQuantity($entry['quantity'], 'Scrap quantity');
+            $this->guardProductQuantityPrecision($step, ['Scrap quantity' => $quantity]);
             if ($quantity <= 0) {
                 throw new \DomainException(__('Every scrap breakdown quantity must be greater than zero.'));
             }
@@ -650,6 +657,28 @@ class BatchService
         }
 
         return round($quantity, 4);
+    }
+
+    /**
+     * Product outputs use the precision configured on their product type. This
+     * keeps workstation input, API completion and persisted balances aligned.
+     *
+     * @param  array<string, float>  $quantities
+     */
+    private function guardProductQuantityPrecision(BatchStep $step, array $quantities): void
+    {
+        $step->loadMissing('batch.workOrder.productType');
+        $precision = $step->batch?->workOrder?->productType?->quantityPrecision() ?? 4;
+        $factor = 10 ** $precision;
+
+        foreach ($quantities as $label => $quantity) {
+            if (abs($quantity * $factor - round($quantity * $factor)) > 0.000001) {
+                throw new \DomainException(__(
+                    ':label allows at most :precision decimal places for this product.',
+                    ['label' => $label, 'precision' => $precision],
+                ));
+            }
+        }
     }
 
     /**

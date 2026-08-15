@@ -13,7 +13,7 @@ import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
 import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
-import { operationDerivedOutput } from '../../lib/operationQuantity';
+import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdownValid } from '../../lib/operationQuantity';
 import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
@@ -650,7 +650,7 @@ function ProductionControls({ batch }) {
 // Single Batch card
 // ---------------------------------------------------------------------------
 
-function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
+function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
     const [expanded, setExpanded] = useState(defaultOpen);
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
 
@@ -673,7 +673,7 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
                         </h3>
                         <StatusPill status={pillStatus(batch.status)} label={statusLabel(batch.status)} />
                         <span className="font-mono text-[13px] text-om-muted">
-                            {fmtQty(batch.produced_qty)} / {fmtQty(batch.target_qty)}
+                            {fmtQty(batch.produced_qty, quantityPrecision)} / {fmtQty(batch.target_qty, quantityPrecision)}
                         </span>
                     </div>
                     <svg
@@ -722,6 +722,8 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
                     {/* Steps */}
                     <BatchStepList
                         steps={batch.steps ?? []}
+                        quantityUnit={quantityUnit}
+                        quantityPrecision={quantityPrecision}
                         labelTemplates={labelTemplates}
                         stepPhotos={stepPhotos}
                         stepMedia={stepMedia}
@@ -742,7 +744,7 @@ function BatchCard({ batch, defaultOpen, labelTemplates = [], stepPhotos = {}, s
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false }) {
+function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
@@ -1060,6 +1062,8 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
             {completeModal && (
                 <CompleteOperationModal
                     step={completeModal.step}
+                    quantityUnit={quantityUnit}
+                    quantityPrecision={quantityPrecision}
                     scrapReasons={scrapReasons}
                     canOverrideOperationHold={canOverrideOperationHold}
                     onClose={() => setCompleteModal(null)}
@@ -1392,9 +1396,10 @@ function PalletizationSummary({ step }) {
  * steps must account for their full WIP input; timed steps additionally capture
  * operator-confirmed actuals introduced by #52.
  */
-function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationHold = false, onClose }) {
+function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapReasons = [], canOverrideOperationHold = false, onClose }) {
     const inputQuantity = Number(step.input_quantity ?? 0);
     const reportsQuantity = !!step.quantity_reporting_required;
+    const quantityInput = operationQuantityInput(quantityPrecision, quantityUnit);
     const applicableScrapReasons = scrapReasons.filter((reason) => {
         const workstationTypeIds = reason.workstation_type_ids ?? [];
         return workstationTypeIds.length === 0 || workstationTypeIds.includes(Number(step.workstation_type_id));
@@ -1438,18 +1443,17 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
         input: inputQuantity,
         rework: form.data.rework_quantity,
         scrapEntries: form.data.scrap_entries,
+        precision: quantityInput.precision,
     });
     const {
         goodQuantity,
         reworkQuantity,
         scrapQuantity,
     } = derivedOutput;
-    const scrapBreakdownInvalid = form.data.scrap_entries.some((entry) => {
-        const quantity = Number(entry.quantity);
-        return !Number.isFinite(quantity)
-            || quantity < 0
-            || (quantity > 0 && !entry.scrap_reason_id);
-    });
+    const scrapBreakdownInvalid = !operationScrapBreakdownValid(
+        form.data.scrap_entries,
+        quantityInput.precision,
+    );
     const quantityInvalid = reportsQuantity && (
         !derivedOutput.valid
         || scrapBreakdownInvalid
@@ -1517,26 +1521,28 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                     <section className="space-y-3">
                         <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
                             <span className={labelCls}>{__('Input quantity')}</span>
-                            <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, 4)}</span>
+                            <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, quantityInput.precision)}</span>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                             <div>
                                 <label className={labelCls}>{__('Good quantity')}</label>
-                                <input type="number" min="0" step="0.0001" value={Number.isFinite(goodQuantity) ? goodQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
+                                <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(goodQuantity) ? goodQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Rework quantity')}</label>
-                                <input type="number" min="0" step="0.0001" value={form.data.rework_quantity} onChange={(e) => form.setData('rework_quantity', e.target.value)} className={inputCls} />
+                                <input type="number" min="0" step={quantityInput.step} inputMode={quantityInput.inputMode} value={form.data.rework_quantity} onChange={(e) => form.setData('rework_quantity', e.target.value)} className={inputCls} />
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
-                                <input type="number" min="0" step="0.0001" value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
+                                <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                         </div>
-                        <div className={`rounded-om-sm border px-3 py-2 text-xs ${derivedOutput.valid ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
-                            {derivedOutput.valid
-                                ? __('Quantity balance is complete.')
-                                : derivedOutput.overReported
+                        <div className={`rounded-om-sm border px-3 py-2 text-xs ${derivedOutput.valid && !scrapBreakdownInvalid ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
+                            {scrapBreakdownInvalid
+                                ? __('Every selected scrap reason requires a quantity greater than zero.')
+                                : derivedOutput.valid
+                                    ? __('Quantity balance is complete.')
+                                    : derivedOutput.overReported
                                     ? __('Rework and scrap cannot exceed the input quantity.')
                                     : __('Enter valid quantities for the complete balance.')}
                         </div>
@@ -1576,7 +1582,8 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
                                         <input
                                             type="number"
                                             min="0"
-                                            step="0.0001"
+                                            step={quantityInput.step}
+                                            inputMode={quantityInput.inputMode}
                                             value={entry.quantity}
                                             onChange={(event) => updateScrapEntry(index, 'quantity', event.target.value)}
                                             className={inputCls}
@@ -2123,6 +2130,10 @@ function round4(n) {
 
 function CreateBatchModal({ workOrder, workstations, defaultWorkstationId, onClose }) {
     const remaining = Math.max((workOrder.planned_qty ?? 0) - (workOrder.produced_qty ?? 0), 0);
+    const quantityInput = operationQuantityInput(
+        workOrder.product_type?.quantity_precision,
+        workOrder.product_type?.unit_of_measure,
+    );
 
     const form = useForm({
         work_order_id: workOrder.id,
@@ -2148,15 +2159,16 @@ function CreateBatchModal({ workOrder, workstations, defaultWorkstationId, onClo
                         </label>
                         <input
                             type="number"
-                            step="0.01"
-                            min="0.01"
+                            step={quantityInput.step}
+                            min={quantityInput.step}
+                            inputMode={quantityInput.inputMode}
                             max={remaining}
                             value={form.data.target_qty}
                             onChange={(e) => form.setData('target_qty', e.target.value)}
                             className={`${inputCls} font-mono text-[15px]`}
                             required
                         />
-                        <p className="mt-1 font-mono text-[11px] text-om-faint">{__('Remaining')}: {fmtQty(remaining)}</p>
+                        <p className="mt-1 font-mono text-[11px] text-om-faint">{__('Remaining')}: {fmtQty(remaining, quantityInput.precision)}</p>
                         {form.errors.target_qty && (
                             <p className={errorCls}>{form.errors.target_qty}</p>
                         )}
@@ -2523,6 +2535,7 @@ export default function WorkOrderDetail() {
 
     const plannedQty = workOrder.planned_qty ?? 0;
     const producedQty = workOrder.produced_qty ?? 0;
+    const quantityPrecision = workOrder.product_type?.quantity_precision ?? 4;
     const remaining = Math.max(plannedQty - producedQty, 0);
     const pct = plannedQty > 0 ? Math.min((producedQty / plannedQty) * 100, 100) : 0;
 
@@ -2612,13 +2625,13 @@ export default function WorkOrderDetail() {
 
                                 <div>
                                     <p className={fieldLabelCls}>{__('PLANNED QUANTITY')}</p>
-                                    <p className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(plannedQty)}</p>
+                                    <p className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(plannedQty, quantityPrecision)}</p>
                                 </div>
 
                                 <div>
                                     <p className={fieldLabelCls}>{__('PRODUCED QUANTITY')}</p>
                                     <p className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">
-                                        {fmtQty(producedQty)}
+                                        {fmtQty(producedQty, quantityPrecision)}
                                         {plannedQty > 0 && (
                                             <span className="font-mono text-[13px] text-om-faint ml-1">
                                                 ({fmtQty((producedQty / plannedQty) * 100, 1)}%)
@@ -2683,6 +2696,8 @@ export default function WorkOrderDetail() {
                                             key={batch.id}
                                             batch={batch}
                                             defaultOpen={idx === 0}
+                                            quantityUnit={workOrder.product_type?.unit_of_measure}
+                                            quantityPrecision={workOrder.product_type?.quantity_precision}
                                             labelTemplates={labelTemplates}
                                             stepPhotos={stepPhotos}
                                             stepMedia={stepMedia}
@@ -2712,15 +2727,15 @@ export default function WorkOrderDetail() {
                             <div className="space-y-3 pt-4 border-t border-om-line2">
                                 <div className="flex justify-between items-baseline">
                                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('PLANNED:')}</span>
-                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(plannedQty)}</span>
+                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(plannedQty, quantityPrecision)}</span>
                                 </div>
                                 <div className="flex justify-between items-baseline">
                                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('PRODUCED:')}</span>
-                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(producedQty)}</span>
+                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-ink">{fmtQty(producedQty, quantityPrecision)}</span>
                                 </div>
                                 <div className="flex justify-between items-baseline">
                                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('REMAINING:')}</span>
-                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-accent">{fmtQty(remaining)}</span>
+                                    <span className="font-mono text-[22px] font-medium tracking-[-0.02em] text-om-accent">{fmtQty(remaining, quantityPrecision)}</span>
                                 </div>
                             </div>
                         </div>

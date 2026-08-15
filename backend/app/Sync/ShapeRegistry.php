@@ -8,6 +8,7 @@ use App\Sync\Shapes\LinesActiveShape;
 use App\Sync\Shapes\OeeRecordsRecentShape;
 use App\Sync\Shapes\PalletMovementsRecentShape;
 use App\Sync\Shapes\ProductTypesShape;
+use App\Sync\Shapes\UnitsOfMeasureShape;
 use App\Sync\Shapes\WorkOrdersActiveShape;
 
 /**
@@ -29,6 +30,7 @@ class ShapeRegistry
         'lines_active' => LinesActiveShape::class,
         'issue_types' => IssueTypesShape::class,
         'product_types' => ProductTypesShape::class,
+        'units_of_measure' => UnitsOfMeasureShape::class,
 
         // Simple admin lookup tables — inline config.
         'skills' => [

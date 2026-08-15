@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\BatchStepLotConsumption;
 use App\Models\ProductType;
 use App\Models\SerialUnit;
+use App\Models\UnitOfMeasure;
 use App\Services\CustomFieldService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProductTypeManagementController extends Controller
@@ -41,6 +43,7 @@ class ProductTypeManagementController extends Controller
     {
         return Inertia::render('admin/product-types/Create', [
             'customFields' => $cf->clientConfig('product_type'),
+            'unitsOfMeasure' => UnitOfMeasure::query()->where('is_active', true)->orderBy('code')->get(),
         ]);
     }
 
@@ -53,7 +56,12 @@ class ProductTypeManagementController extends Controller
             'code' => 'required|string|max:50|unique:product_types',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'unit_of_measure' => 'nullable|string|max:50',
+            'unit_of_measure' => [
+                'required', 'string', 'max:20',
+                Rule::exists('units_of_measure', 'code')
+                    ->where('tenant_id', $request->user()->tenant_id)
+                    ->where('is_active', true),
+            ],
             'is_active' => 'boolean',
         ], $cf->rules('product_type')), [], $cf->attributeNames('product_type'));
 
@@ -105,6 +113,7 @@ class ProductTypeManagementController extends Controller
                 'name' => $productType->name,
                 'description' => $productType->description,
                 'unit_of_measure' => $productType->unit_of_measure,
+                'quantity_precision' => $productType->quantity_precision,
                 'is_active' => $productType->is_active,
                 'custom_fields' => $productType->custom_fields,
                 'process_templates' => $productType->processTemplates->map(fn ($t) => [
@@ -220,6 +229,10 @@ class ProductTypeManagementController extends Controller
             'productType' => $productType->only(
                 'id', 'code', 'name', 'description', 'unit_of_measure', 'is_active', 'custom_fields'
             ),
+            'unitsOfMeasure' => UnitOfMeasure::query()
+                ->where(fn ($query) => $query->where('is_active', true)->orWhere('code', $productType->unit_of_measure))
+                ->orderBy('code')
+                ->get(),
             'customFields' => $cf->clientConfig('product_type'),
         ]);
     }
@@ -233,7 +246,15 @@ class ProductTypeManagementController extends Controller
             'code' => 'required|string|max:50|unique:product_types,code,'.$productType->id,
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'unit_of_measure' => 'nullable|string|max:50',
+            'unit_of_measure' => [
+                'required', 'string', 'max:20',
+                Rule::exists('units_of_measure', 'code')->where(function ($query) use ($request, $productType) {
+                    $query->where('tenant_id', $request->user()->tenant_id)
+                        ->where(fn ($units) => $units
+                            ->where('is_active', true)
+                            ->orWhere('code', $productType->unit_of_measure));
+                }),
+            ],
             'is_active' => 'boolean',
         ], $cf->rules('product_type')), [], $cf->attributeNames('product_type'));
 

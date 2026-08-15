@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { operationDerivedOutput, operationQuantityBalance, parseOperationQuantity } from './operationQuantity';
+import {
+    operationDerivedOutput,
+    operationQuantityBalance,
+    operationQuantityInput,
+    operationScrapBreakdownValid,
+    parseOperationQuantity,
+} from './operationQuantity';
 
 describe('operation quantity balance', () => {
     it('balances good, rework, and scrap against the operation input', () => {
@@ -52,4 +58,35 @@ describe('operation quantity balance', () => {
             scrapEntries: [{ quantity: '4' }],
         })).toMatchObject({ goodQuantity: 0, overReported: true, valid: false });
     });
+
+    it('requires a positive quantity for every selected scrap reason', () => {
+        expect(operationScrapBreakdownValid([{ scrap_reason_id: '4', quantity: '0' }], 0)).toBe(false);
+        expect(operationScrapBreakdownValid([{ scrap_reason_id: '', quantity: '0' }], 0)).toBe(true);
+        expect(operationScrapBreakdownValid([{ scrap_reason_id: '4', quantity: '1' }], 0)).toBe(true);
+    });
+
+    it('rejects quantities exceeding the configured precision', () => {
+        expect(operationDerivedOutput({
+            input: 200,
+            rework: '0',
+            scrapEntries: [{ quantity: '0.0002' }],
+            precision: 0,
+        }).valid).toBe(false);
+    });
+
+    it.each(['pcs', 'PC', 'szt.', 'sztuki', 'units'])(
+        'uses whole-unit controls for %s',
+        (unit) => expect(operationQuantityInput(null, unit)).toEqual({ precision: 0, step: 1, inputMode: 'numeric' }),
+    );
+
+    it.each(['kg', 'l', 'm', null])(
+        'keeps decimal controls for %s',
+        (unit) => expect(operationQuantityInput(null, unit)).toEqual({ precision: 4, step: 0.0001, inputMode: 'decimal' }),
+    );
+
+    it.each([[0, 1, 'numeric'], [1, 0.1, 'decimal'], [2, 0.01, 'decimal'], [4, 0.0001, 'decimal']])(
+        'uses configured precision %i instead of inferring it from the unit',
+        (precision, step, inputMode) => expect(operationQuantityInput(precision, 'pcs'))
+            .toEqual({ precision, step, inputMode }),
+    );
 });

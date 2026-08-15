@@ -77,7 +77,7 @@ export const ADMIN_GROUPS = [
         label: 'Production',
         icon: 'beaker',
         match: [
-            '/admin/product-types', '/admin/product-revisions', '/admin/materials', '/admin/material-lots',
+            '/admin/product-types', '/admin/product-revisions', '/admin/units-of-measure', '/admin/materials', '/admin/material-lots',
             '/admin/traceability', '/admin/lot-sequences', '/admin/process-segments', '/admin/lines',
             '/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents', '/admin/workstation-materials',
             '/admin/line-statuses', '/admin/view-templates', '/admin/shifts',
@@ -85,6 +85,7 @@ export const ADMIN_GROUPS = [
         ],
         children: [
             { label: 'Product Types', href: '/admin/product-types', match: ['/admin/product-types'] },
+            { label: 'Units of Measure', href: '/admin/units-of-measure', match: ['/admin/units-of-measure'] },
             // Fine-grained feature toggles: each renders under this (core) Production
             // group but is gated by its own module so it can be switched off alone.
             { label: 'Product Revisions', href: '/admin/product-revisions', match: ['/admin/product-revisions'], tab: 'product_engineering' },
