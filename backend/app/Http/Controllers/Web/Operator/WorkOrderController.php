@@ -14,6 +14,7 @@ use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Operator\WorkstationContext;
 use App\Services\Quality\OperationQualityService;
+use App\Services\Material\BomService;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class WorkOrderController extends Controller
         protected WorkOrderService $workOrderService,
         protected WorkstationContext $workstationContext,
         protected OperationQualityService $operationQualityService,
+        protected BomService $bomService,
     ) {}
 
     /**
@@ -309,6 +311,11 @@ class WorkOrderController extends Controller
             $workOrder->setRelation('batches', $visibleBatches);
         }
 
+        [$materialRequirements, $materialRequirementQuantity] = $this->materialRequirements(
+            $workOrder,
+            $workstationLocked,
+        );
+
         $workOrder->batches->flatMap->steps->each(function (BatchStep $step) {
             $step->setAttribute('quality_gate_status', $this->operationQualityService->status($step));
         });
@@ -427,7 +434,67 @@ class WorkOrderController extends Controller
 
         $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
 
-        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+    }
+
+    /**
+     * Resolve material requirements for the operator's current scope.
+     *
+     * Fixed terminals receive only requirements for their actionable operation.
+     * Each batch is calculated independently so package rounding remains correct.
+     *
+     * @return array{0: array<int, array<string, mixed>>, 1: float}
+     */
+    private function materialRequirements(WorkOrder $workOrder, bool $workstationLocked): array
+    {
+        $snapshot = $workOrder->process_snapshot ?? [];
+
+        if (! $workstationLocked) {
+            $quantity = (float) $workOrder->planned_qty;
+
+            return [$this->bomService->calculateFromSnapshot($snapshot, $quantity), $quantity];
+        }
+
+        $requirements = [];
+        $productionQuantity = 0.0;
+
+        foreach ($workOrder->batches as $batch) {
+            /** @var BatchStep|null $step */
+            $step = $batch->steps->first();
+            if (! $step) {
+                continue;
+            }
+
+            $quantity = (float) ($step->input_quantity ?? $batch->target_qty);
+            $productionQuantity += $quantity;
+
+            $operationSnapshot = $snapshot;
+            $operationSnapshot['bom'] = array_values(array_filter(
+                $snapshot['bom'] ?? [],
+                fn (array $item) => (int) ($item['step_number'] ?? 0) === $step->step_number,
+            ));
+
+            foreach ($this->bomService->calculateFromSnapshot($operationSnapshot, $quantity) as $item) {
+                $key = implode(':', [
+                    $item['material_id'] ?? $item['material_code'] ?? 'unknown',
+                    $item['step_number'] ?? 'general',
+                ]);
+
+                if (! isset($requirements[$key])) {
+                    $requirements[$key] = array_merge($item, [
+                        'required_qty' => 0.0,
+                        'base_qty' => 0.0,
+                        'scrap_qty' => 0.0,
+                    ]);
+                }
+
+                foreach (['required_qty', 'base_qty', 'scrap_qty'] as $field) {
+                    $requirements[$key][$field] += (float) ($item[$field] ?? 0);
+                }
+            }
+        }
+
+        return [array_values($requirements), $productionQuantity];
     }
 
     private function currentLoadedStep(Batch $batch): ?BatchStep

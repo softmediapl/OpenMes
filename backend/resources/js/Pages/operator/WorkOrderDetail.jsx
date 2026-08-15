@@ -11,6 +11,7 @@ import StepInstructions from '../../components/operator/StepInstructions';
 import { packageMeta, isInteractive, formatBytes } from '../../components/engineeringDocuments';
 import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
+import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationQuantityBalance } from '../../lib/operationQuantity';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
@@ -127,9 +128,9 @@ const modalFooterCls = 'flex justify-end gap-[9px] border-t border-om-line2 bg-o
 // BOM accordion
 // ---------------------------------------------------------------------------
 
-function BomSection({ workOrder }) {
+function BomSection({ materialRequirements, productionQuantity }) {
     const [open, setOpen] = useState(false);
-    const bom = workOrder.process_snapshot?.bom;
+    const bom = materialRequirements;
 
     const columns = useMemo(() => [
         {
@@ -157,31 +158,25 @@ function BomSection({ workOrder }) {
         },
         {
             id: 'per_unit',
-            accessorFn: (r) => r.quantity_per_unit,
-            header: __('Per Unit'),
+            accessorFn: (r) => formatQuantityRule(r),
+            header: __('Quantity rule'),
             meta: { align: 'right' },
             cell: ({ row }) => (
                 <span className="font-mono text-om-ink">
-                    {row.original.quantity_per_unit} {row.original.unit_of_measure}
+                    {formatQuantityRule(row.original)}
                 </span>
             ),
         },
         {
             id: 'total',
-            accessorFn: (r) => {
-                const base = r.quantity_per_unit * workOrder.planned_qty;
-                return base + base * (r.scrap_percentage / 100);
-            },
-            header: `${__('Total')} (${Math.round(workOrder.planned_qty)} ${__('pcs')})`,
+            accessorFn: (r) => r.required_qty,
+            header: `${__('Required')} (${fmtQty(productionQuantity)} ${__('pcs')})`,
             meta: { align: 'right' },
             cell: ({ row }) => {
                 const item = row.original;
-                const base = item.quantity_per_unit * workOrder.planned_qty;
-                const scrap = base * (item.scrap_percentage / 100);
-                const total = base + scrap;
                 return (
                     <span className="font-mono font-medium text-om-ink">
-                        {fmtQty(total)} {item.unit_of_measure}
+                        {fmtQty(item.required_qty, 4)} {item.unit_of_measure}
                         {item.scrap_percentage > 0 && (
                             <span className="text-xs text-om-faint ml-1">(+{item.scrap_percentage}% {__('scrap')})</span>
                         )}
@@ -200,7 +195,7 @@ function BomSection({ workOrder }) {
                 </span>
             ),
         },
-    ], [workOrder.planned_qty]);
+    ], [productionQuantity]);
 
     if (!bom || bom.length === 0) return null;
 
@@ -2391,7 +2386,7 @@ function EngineeringDocsSection({ docs = [], onView }) {
 // ---------------------------------------------------------------------------
 
 export default function WorkOrderDetail() {
-    const { auth, workOrder, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false, canOverrideOperationHold = false } = usePage().props;
+    const { auth, workOrder, materialRequirements = [], materialRequirementQuantity = 0, issueTypes = [], scrapReasons = [], workstations = [], issueCustomFields = [], defaultWorkstationId, line, labelTemplates = [], processPhotos = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, engineeringDocuments = [], workstationLocked = false, canOverrideOperationHold = false } = usePage().props;
 
     const [engViewer, setEngViewer] = useState(null); // { url, title } for the sandboxed viewer
 
@@ -2533,7 +2528,10 @@ export default function WorkOrderDetail() {
                         </div>
 
                         {/* Recipe / BOM */}
-                        <BomSection workOrder={workOrder} />
+                        <BomSection
+                            materialRequirements={materialRequirements}
+                            productionQuantity={materialRequirementQuantity}
+                        />
 
                         {/* Process reference photos (work instructions) */}
                         <ProcessPhotosSection photos={processPhotos} />

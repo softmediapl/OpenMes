@@ -8,7 +8,7 @@ import {
     formatQuantityRule,
     formatRoundingRule,
     quantityRuleMode,
-} from './bomQuantityRule';
+} from '../../../lib/bomQuantityRule';
 
 const TYPE_COLORS = {
     raw_material:  'bg-om-downtime-bg text-om-downtime',

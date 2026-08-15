@@ -145,6 +145,58 @@ class WorkstationAccountIsolationTest extends TestCase
             ->assertSessionHas('error');
     }
 
+    public function test_terminal_receives_material_requirements_only_for_its_current_batches(): void
+    {
+        [$workOrder, $batch, $step] = $this->workAt($this->assignedStation, 2);
+        $batch->update(['target_qty' => 200]);
+        $step->update(['input_quantity' => 198]);
+        $workOrder->update([
+            'planned_qty' => 1000,
+            'process_snapshot' => [
+                'bom' => [
+                    [
+                        'material_id' => 10,
+                        'material_code' => 'CARTON-12',
+                        'material_name' => 'Carton for 12 units',
+                        'material_type' => 'packaging',
+                        'unit_of_measure' => 'pcs',
+                        'quantity_per_unit' => 0.0833,
+                        'component_quantity' => 1,
+                        'output_quantity' => 12,
+                        'scrap_percentage' => 2,
+                        'rounding_mode' => 'up',
+                        'rounding_multiple' => 1,
+                        'step_number' => 2,
+                    ],
+                    [
+                        'material_id' => 11,
+                        'material_code' => 'FUTURE-MAT',
+                        'material_name' => 'Future material',
+                        'material_type' => 'raw_material',
+                        'unit_of_measure' => 'kg',
+                        'quantity_per_unit' => 1,
+                        'component_quantity' => null,
+                        'output_quantity' => null,
+                        'scrap_percentage' => 0,
+                        'rounding_mode' => 'none',
+                        'rounding_multiple' => 1,
+                        'step_number' => 3,
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('operator.work-order.detail', $workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('materialRequirementQuantity', 198)
+                ->has('materialRequirements', 1)
+                ->where('materialRequirements.0.material_code', 'CARTON-12')
+                ->where('materialRequirements.0.required_qty', 17)
+            );
+    }
+
     public function test_terminal_detail_contains_the_current_transport_unit_load(): void
     {
         [$workOrder, , $step] = $this->workAt($this->assignedStation);
