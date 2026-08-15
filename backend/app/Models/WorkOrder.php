@@ -424,7 +424,9 @@ class WorkOrder extends Model
     /** Committed finite-capacity reservations for released process operations. */
     public function operationPlans(): HasMany
     {
-        return $this->hasMany(WorkOrderOperationPlan::class)->orderBy('step_number');
+        return $this->hasMany(WorkOrderOperationPlan::class)
+            ->orderBy('step_number')
+            ->orderBy('segment_number');
     }
 
     /**

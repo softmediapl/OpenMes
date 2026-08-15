@@ -22,10 +22,12 @@ class WorkOrderOperationPlan extends Model
         'line_id',
         'workstation_id',
         'step_number',
+        'segment_number',
         'slot_number',
         'planned_start_at',
         'planned_end_at',
         'duration_minutes',
+        'planned_quantity',
         'source',
         'scheduled_by_id',
         'plan_metadata',
@@ -35,10 +37,12 @@ class WorkOrderOperationPlan extends Model
     {
         return [
             'step_number' => 'integer',
+            'segment_number' => 'integer',
             'slot_number' => 'integer',
             'planned_start_at' => 'datetime',
             'planned_end_at' => 'datetime',
             'duration_minutes' => 'integer',
+            'planned_quantity' => 'decimal:4',
             'plan_metadata' => 'array',
         ];
     }
