@@ -348,6 +348,11 @@ class WorkOrderService
      */
     protected function mergeBomRows(array $a, array $b): array
     {
+        $a['calculation_components'] = array_merge(
+            $this->calculationComponents($a),
+            $this->calculationComponents($b),
+        );
+
         $qtyA = (float) ($a['quantity_per_unit'] ?? 0);
         $qtyB = (float) ($b['quantity_per_unit'] ?? 0);
         $scrapA = (float) ($a['scrap_percentage'] ?? 0);
@@ -382,6 +387,29 @@ class WorkOrderService
         }
 
         return $a;
+    }
+
+    /**
+     * Preserve each source line's nonlinear rounding rule when several BOMs use
+     * the same material. The legacy aggregate fields remain for display and API
+     * compatibility; quantity engines use these components when present.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function calculationComponents(array $row): array
+    {
+        if (! empty($row['calculation_components'])) {
+            return $row['calculation_components'];
+        }
+
+        return [[
+            'quantity_per_unit' => (float) ($row['quantity_per_unit'] ?? 0),
+            'component_quantity' => $row['component_quantity'] ?? null,
+            'output_quantity' => $row['output_quantity'] ?? null,
+            'scrap_percentage' => (float) ($row['scrap_percentage'] ?? 0),
+            'rounding_mode' => $row['rounding_mode'] ?? 'none',
+            'rounding_multiple' => (float) ($row['rounding_multiple'] ?? 1),
+        ]];
     }
 
     /**

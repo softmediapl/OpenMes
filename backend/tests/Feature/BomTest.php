@@ -456,6 +456,34 @@ class BomTest extends TestCase
         $this->assertEquals(55.0, $response->json('data.0.required_qty'));
     }
 
+    public function test_api_accepts_exact_ratio_and_discrete_rounding(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $material = Material::factory()->create(['material_type_id' => $this->rawMaterial->id]);
+
+        $response = $this->actingAs($this->admin, 'sanctum')
+            ->postJson("/api/v1/process-templates/{$template->id}/bom-items", [
+                'material_id' => $material->id,
+                'component_quantity' => 1,
+                'output_quantity' => 12,
+                'rounding_mode' => 'up',
+                'rounding_multiple' => 1,
+            ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.quantity_per_unit', '0.0833')
+            ->assertJsonPath('data.component_quantity', '1.0000')
+            ->assertJsonPath('data.output_quantity', '12.0000');
+
+        $requirements = $this->actingAs($this->admin, 'sanctum')
+            ->getJson("/api/v1/process-templates/{$template->id}/bom-items/requirements?quantity=10000");
+
+        $requirements->assertOk()
+            ->assertJsonPath('data.0.base_qty', 833.3333)
+            ->assertJsonPath('data.0.rounding_qty', 0.6667)
+            ->assertJsonPath('data.0.required_qty', 834);
+    }
+
     // ── Default Scrap Inheritance ───────────────────────────────
 
     public function test_bom_inherits_default_scrap_from_material(): void

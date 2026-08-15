@@ -7,8 +7,10 @@ use App\Models\BomItem;
 use App\Models\Material;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
+use App\Services\Material\BomQuantityCalculator;
 use App\Services\Material\BomService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class BomManagementController extends Controller
@@ -47,7 +49,11 @@ class BomManagementController extends Controller
                 'step_number' => $item->templateStep?->step_number,
                 'step_name' => $item->templateStep?->name,
                 'quantity_per_unit' => $item->quantity_per_unit,
+                'component_quantity' => $item->component_quantity,
+                'output_quantity' => $item->output_quantity,
                 'scrap_percentage' => $item->scrap_percentage,
+                'rounding_mode' => $item->rounding_mode,
+                'rounding_multiple' => $item->rounding_multiple,
                 'consumed_at' => $item->consumed_at,
                 'notes' => $item->notes,
             ]),
@@ -76,8 +82,12 @@ class BomManagementController extends Controller
         $validated = $request->validate([
             'material_id' => 'required|exists:materials,id|unique:bom_items,material_id,NULL,id,process_template_id,'.$processTemplate->id,
             'template_step_id' => 'nullable|exists:template_steps,id',
-            'quantity_per_unit' => 'required|numeric|gt:0',
+            'quantity_per_unit' => 'nullable|required_without_all:component_quantity,output_quantity|numeric|gt:0',
+            'component_quantity' => 'nullable|required_with:output_quantity|numeric|gt:0',
+            'output_quantity' => 'nullable|required_with:component_quantity|numeric|gt:0',
             'scrap_percentage' => 'nullable|numeric|min:0|max:100',
+            'rounding_mode' => ['nullable', Rule::in(BomQuantityCalculator::ROUNDING_MODES)],
+            'rounding_multiple' => 'nullable|numeric|gt:0',
             'consumed_at' => 'nullable|in:start,during,end',
             'notes' => 'nullable|string',
         ]);
@@ -96,8 +106,12 @@ class BomManagementController extends Controller
 
         $validated = $request->validate([
             'template_step_id' => 'nullable|exists:template_steps,id',
-            'quantity_per_unit' => 'required|numeric|gt:0',
+            'quantity_per_unit' => 'nullable|required_without_all:component_quantity,output_quantity|numeric|gt:0',
+            'component_quantity' => 'nullable|required_with:output_quantity|numeric|gt:0',
+            'output_quantity' => 'nullable|required_with:component_quantity|numeric|gt:0',
             'scrap_percentage' => 'nullable|numeric|min:0|max:100',
+            'rounding_mode' => ['nullable', Rule::in(BomQuantityCalculator::ROUNDING_MODES)],
+            'rounding_multiple' => 'nullable|numeric|gt:0',
             'consumed_at' => 'nullable|in:start,during,end',
             'notes' => 'nullable|string',
         ]);

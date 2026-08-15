@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderChangeRequest;
 use App\Models\WorkOrderSnapshot;
+use App\Services\Material\BomQuantityCalculator;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,6 +23,8 @@ use Illuminate\Support\Facades\DB;
  */
 class WorkOrderSnapshotService
 {
+    public function __construct(private readonly BomQuantityCalculator $bomQuantities) {}
+
     /**
      * Make sure the order has a version 1 recording the configuration it was
      * released with. Idempotent, and safe to call on orders created before change
@@ -135,13 +138,13 @@ class WorkOrderSnapshotService
             ->filter(fn (array $row) => isset($row['material_id']))
             ->map(function (array $row) use ($remaining) {
                 $perUnit = (float) ($row['quantity_per_unit'] ?? 0);
-                $scrap = (float) ($row['scrap_percentage'] ?? 0);
+                $calculated = $this->bomQuantities->calculate($row, $remaining);
 
                 return [
                     'material_id' => (int) $row['material_id'],
                     'material_code' => $row['material_code'] ?? null,
                     'quantity_per_unit' => $perUnit,
-                    'remaining_qty' => round($remaining * $perUnit * (1 + $scrap / 100), 4),
+                    'remaining_qty' => $calculated['required_qty'],
                     'consumed_at' => $row['consumed_at'] ?? 'start',
                     'step_number' => $row['step_number'] ?? null,
                 ];

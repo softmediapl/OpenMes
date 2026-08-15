@@ -2,14 +2,15 @@
 
 namespace App\Http\Requests\Api\V1\Erp;
 
+use App\Services\Material\BomQuantityCalculator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
  * Validates an ERP recipe (bill of materials) payload (#212).
  *
- * Component quantities are per ONE unit of the finished product, matching how
- * ERPs store recipes and how bom_items.quantity_per_unit is defined.
+ * Component quantities can be provided per one finished unit or as an exact
+ * component-to-output ratio with an optional package rounding rule.
  */
 class ImportBomsRequest extends FormRequest
 {
@@ -34,8 +35,12 @@ class ImportBomsRequest extends FormRequest
             'recipes.*.process_template_version' => ['nullable', 'integer', 'min:1'],
             'recipes.*.components' => ['required', 'array', 'min:1', 'max:'.self::MAX_COMPONENTS],
             'recipes.*.components.*.material_code' => ['required', 'string', 'max:50'],
-            'recipes.*.components.*.quantity_per_unit' => ['required', 'numeric', 'gt:0', 'max:99999999'],
+            'recipes.*.components.*.quantity_per_unit' => ['nullable', 'required_without_all:recipes.*.components.*.component_quantity,recipes.*.components.*.output_quantity', 'numeric', 'gt:0', 'max:99999999'],
+            'recipes.*.components.*.component_quantity' => ['nullable', 'required_with:recipes.*.components.*.output_quantity', 'numeric', 'gt:0', 'max:99999999'],
+            'recipes.*.components.*.output_quantity' => ['nullable', 'required_with:recipes.*.components.*.component_quantity', 'numeric', 'gt:0', 'max:99999999'],
             'recipes.*.components.*.scrap_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'recipes.*.components.*.rounding_mode' => ['nullable', Rule::in(BomQuantityCalculator::ROUNDING_MODES)],
+            'recipes.*.components.*.rounding_multiple' => ['nullable', 'numeric', 'gt:0'],
             'recipes.*.components.*.sort_order' => ['nullable', 'integer', 'min:0'],
             'recipes.*.components.*.notes' => ['nullable', 'string', 'max:1000'],
         ];

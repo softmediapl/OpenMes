@@ -81,6 +81,26 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertSame(MaterialAllocation::STATUS_ALLOCATED, $allocs->first()->status);
     }
 
+    public function test_allocate_uses_exact_ratio_and_discrete_rounding(): void
+    {
+        $workOrder = $this->batch->workOrder;
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['bom'][0] = array_merge($snapshot['bom'][0], [
+            'quantity_per_unit' => 0.0833,
+            'component_quantity' => 1,
+            'output_quantity' => 12,
+            'scrap_percentage' => 0,
+            'rounding_mode' => 'up',
+            'rounding_multiple' => 1,
+        ]);
+        $workOrder->update(['process_snapshot' => $snapshot]);
+        $this->batch->update(['target_qty' => 10_000]);
+
+        $allocation = $this->service->allocateForBatch($this->batch->fresh(), $this->user)->firstOrFail();
+
+        $this->assertEqualsWithDelta(834, (float) $allocation->allocated_qty, 0.0001);
+    }
+
     public function test_double_allocate_is_idempotent_thanks_to_unique_constraint(): void
     {
         $first = $this->service->allocateForBatch($this->batch, $this->user);

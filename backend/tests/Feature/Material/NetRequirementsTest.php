@@ -137,6 +137,24 @@ class NetRequirementsTest extends TestCase
         $this->assertEqualsWithDelta(110, $row['required_qty'], 0.001);
     }
 
+    public function test_discrete_rounding_is_applied_per_work_order(): void
+    {
+        $material = Material::factory()->create(['stock_quantity' => 0]);
+        $product = $this->productWithBom([['material' => $material, 'qty' => 0.0833]]);
+        $item = $product->processTemplates()->firstOrFail()->bomItems()->firstOrFail();
+        $item->update([
+            'component_quantity' => 1,
+            'output_quantity' => 12,
+            'rounding_mode' => 'up',
+        ]);
+        $this->plannedWo($product, 10);
+        $this->plannedWo($product, 10);
+
+        $row = $this->rowFor($this->service->report($this->from, $this->to), $material->id);
+
+        $this->assertEqualsWithDelta(2, $row['required_qty'], 0.001);
+    }
+
     public function test_demand_from_multiple_work_orders_aggregates_and_lists_them(): void
     {
         $material = Material::factory()->create(['stock_quantity' => 0]);

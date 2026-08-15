@@ -7,6 +7,7 @@ use App\Models\Material;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
+use App\Services\Material\BomQuantityCalculator;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -137,6 +138,38 @@ class WorkOrderMultiBomTest extends TestCase
         // 10*(1+0) + 10*(1+0.5) = 25, scrap folded to 0 so the total required stays exact.
         $this->assertSame(25.0, $row['quantity_per_unit']);
         $this->assertSame(0.0, $row['scrap_percentage']);
+    }
+
+    public function test_shared_material_preserves_each_bom_rounding_rule(): void
+    {
+        $productType = ProductType::factory()->create();
+        [$a, $b] = ProcessTemplate::factory()->count(2)
+            ->sequence(['version' => 1], ['version' => 2])
+            ->create(['product_type_id' => $productType->id]);
+        $carton = Material::factory()->create();
+
+        BomItem::factory()->create([
+            'process_template_id' => $a->id,
+            'material_id' => $carton->id,
+            'quantity_per_unit' => 0.0833,
+            'component_quantity' => 1,
+            'output_quantity' => 12,
+            'rounding_mode' => 'up',
+        ]);
+        BomItem::factory()->create([
+            'process_template_id' => $b->id,
+            'material_id' => $carton->id,
+            'quantity_per_unit' => 0.1,
+            'rounding_mode' => 'up',
+            'rounding_multiple' => 5,
+        ]);
+
+        $snapshot = $this->service->buildProcessSnapshot($productType->id, [$a->id, $b->id]);
+        $row = $this->row($snapshot, $carton->id);
+        $calculated = app(BomQuantityCalculator::class)->calculate($row, 100);
+
+        $this->assertCount(2, $row['calculation_components']);
+        $this->assertSame(19.0, $calculated['required_qty']);
     }
 
     public function test_shared_material_collapses_to_earliest_consumption_timing(): void

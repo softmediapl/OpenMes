@@ -23,6 +23,7 @@ class MaterialAllocationService
         protected StockMovementService $stockMovements,
         protected LotPickingService $lotPicking,
         protected WorkstationMaterialStockService $workstationStocks,
+        protected BomQuantityCalculator $bomQuantities,
     ) {}
 
     /**
@@ -955,10 +956,7 @@ class MaterialAllocationService
 
     private function calculateRequiredQty(array $bomItem, float $targetQty): float
     {
-        $baseQty = ($bomItem['quantity_per_unit'] ?? 0) * $targetQty;
-        $scrapQty = $baseQty * (($bomItem['scrap_percentage'] ?? 0) / 100);
-
-        return round($baseQty + $scrapQty, 4);
+        return $this->bomQuantities->calculate($bomItem, $targetQty)['required_qty'];
     }
 
     private function blockNegativeStockEnabled(): bool

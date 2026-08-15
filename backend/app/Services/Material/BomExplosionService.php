@@ -14,10 +14,9 @@ use App\Models\ProcessTemplate;
  * into that template's own BOM, recursively. A material that is purchased — or
  * manufactured but without a template yet — is a leaf.
  *
- * Quantities and scrap compound down the tree: a line's requirement is
- * `quantity_per_unit × parent requirement × (1 + scrap%)`, and that result
- * becomes the parent quantity for the level below. So scrap on a subassembly
- * correctly inflates the demand for everything it is made of.
+ * Quantities, scrap and package rounding compound down the tree. The resolved
+ * requirement of one level becomes the parent quantity for the next, so exact
+ * ratios and discrete packaging remain correct through subassemblies.
  *
  * Single-level BOMs (no manufactured components) explode to exactly the same
  * numbers the flat calculation produced, which is what keeps existing data and
@@ -31,6 +30,8 @@ class BomExplosionService
      * must not be able to hang a request.
      */
     public const MAX_DEPTH = 20;
+
+    public function __construct(private readonly BomQuantityCalculator $quantities) {}
 
     /**
      * Nested tree of the template's structure, quantities resolved for
@@ -117,9 +118,8 @@ class BomExplosionService
         return $items->map(function (BomItem $item) use ($quantity, $depth, $stack) {
             $material = $item->material;
 
-            $baseQty = round((float) $item->quantity_per_unit * $quantity, 4);
-            $scrapQty = round($baseQty * ((float) $item->scrap_percentage / 100), 4);
-            $requiredQty = round($baseQty + $scrapQty, 4);
+            $calculated = $this->quantities->calculate($item, $quantity);
+            $requiredQty = $calculated['required_qty'];
 
             $explodable = $material->isExplodable();
 
@@ -131,10 +131,12 @@ class BomExplosionService
                 'material_type' => $material->materialType?->code,
                 'unit_of_measure' => $material->unit_of_measure,
                 'quantity_per_unit' => (float) $item->quantity_per_unit,
+                'component_quantity' => $item->component_quantity !== null ? (float) $item->component_quantity : null,
+                'output_quantity' => $item->output_quantity !== null ? (float) $item->output_quantity : null,
                 'scrap_percentage' => (float) $item->scrap_percentage,
-                'base_qty' => $baseQty,
-                'scrap_qty' => $scrapQty,
-                'required_qty' => $requiredQty,
+                'rounding_mode' => $item->rounding_mode,
+                'rounding_multiple' => (float) $item->rounding_multiple,
+                ...$calculated,
                 'step_number' => $item->templateStep?->step_number,
                 'consumed_at' => $item->consumed_at,
                 'is_manufactured' => (bool) $material->is_manufactured,
@@ -165,6 +167,7 @@ class BomExplosionService
             if (isset($totals[$id])) {
                 $totals[$id]['base_qty'] = round($totals[$id]['base_qty'] + $node['base_qty'], 4);
                 $totals[$id]['scrap_qty'] = round($totals[$id]['scrap_qty'] + $node['scrap_qty'], 4);
+                $totals[$id]['rounding_qty'] = round($totals[$id]['rounding_qty'] + $node['rounding_qty'], 4);
                 $totals[$id]['required_qty'] = round($totals[$id]['required_qty'] + $node['required_qty'], 4);
 
                 continue;
@@ -178,6 +181,7 @@ class BomExplosionService
                 'unit_of_measure' => $node['unit_of_measure'],
                 'base_qty' => $node['base_qty'],
                 'scrap_qty' => $node['scrap_qty'],
+                'rounding_qty' => $node['rounding_qty'],
                 'required_qty' => $node['required_qty'],
                 'is_manufactured' => $node['is_manufactured'],
             ];

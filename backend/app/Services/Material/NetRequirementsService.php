@@ -45,19 +45,21 @@ class NetRequirementsService
             ->when($lineId, fn ($q) => $q->where('line_id', $lineId))
             ->get(['id', 'order_no', 'product_type_id', 'planned_qty', 'line_id', 'due_date']);
 
-        // BOM per product type, exploded through every subassembly level to the
-        // materials that actually have to be bought or drawn from stock.
-        $bomByProductType = $this->bomByProductType($workOrders->pluck('product_type_id')->unique()->filter());
+        $templatesByProductType = $this->templatesByProductType(
+            $workOrders->pluck('product_type_id')->unique()->filter(),
+        );
 
         // Accumulate gross requirement + the driving work orders, per material.
         $gross = [];          // material_id => qty
         $relatedWos = [];     // material_id => [order_no => true]
         foreach ($workOrders as $wo) {
-            $lines = $bomByProductType->get($wo->product_type_id, collect());
+            $template = $templatesByProductType->get($wo->product_type_id);
+            $lines = $template
+                ? $this->explosion->leafRequirements($template, (float) $wo->planned_qty)
+                : [];
+
             foreach ($lines as $line) {
-                // required_per_unit already carries the scrap compounded through
-                // every level of the explosion, so it only needs scaling here.
-                $required = round((float) $line['required_per_unit'] * (float) $wo->planned_qty, 4);
+                $required = (float) $line['required_qty'];
                 if ($required <= 0) {
                     continue;
                 }
@@ -114,13 +116,13 @@ class NetRequirementsService
     }
 
     /**
-     * Build a map of product_type_id => collection of leaf requirement lines
-     * (material_id, required_per_unit) from each type's active template,
-     * exploded through every subassembly level.
+     * Build a map of product_type_id => active process template. Requirements
+     * are exploded for each work order's full quantity so exact ratios and
+     * package rounding are applied once per order, not approximated per unit.
      *
-     * @return Collection<int, Collection<int, array<string, mixed>>>
+     * @return Collection<int, ProcessTemplate>
      */
-    private function bomByProductType(Collection $productTypeIds): Collection
+    private function templatesByProductType(Collection $productTypeIds): Collection
     {
         if ($productTypeIds->isEmpty()) {
             return collect();
@@ -138,29 +140,11 @@ class NetRequirementsService
             return collect();
         }
 
-        // Explode each template for a single unit: leaf quantities come back
-        // with scrap already compounded through every level, so the caller only
-        // scales by planned_qty. Subassemblies are resolved into what they are
-        // made of rather than counted as demand themselves — netting a
-        // manufactured item against its own stock is a separate MRP concern.
         $templates = ProcessTemplate::whereIn('id', $templateIds->values())->get()->keyBy('id');
-        $productTypeByTemplate = $templateIds->flip();
 
-        return $templateIds->values()
-            ->mapWithKeys(function (int $templateId) use ($templates, $productTypeByTemplate) {
-                $template = $templates->get($templateId);
-
-                $lines = $template
-                    ? collect($this->explosion->leafRequirements($template, 1.0))
-                        ->map(fn (array $leaf) => [
-                            'material_id' => $leaf['material_id'],
-                            'required_per_unit' => (float) $leaf['required_qty'],
-                        ])
-                    : collect();
-
-                return [$productTypeByTemplate->get($templateId) => $lines];
-            })
-            ->filter(fn ($lines) => $lines->isNotEmpty());
+        return $templateIds
+            ->map(fn (int $templateId) => $templates->get($templateId))
+            ->filter();
     }
 
     private function emptyReport(Carbon $from, Carbon $to, ?int $lineId, int $woCount): array

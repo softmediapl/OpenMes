@@ -4,11 +4,14 @@ namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Batch;
+use App\Services\Material\BomQuantityCalculator;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Inertia\Inertia;
 
 class BatchReportController extends Controller
 {
+    public function __construct(private readonly BomQuantityCalculator $bomQuantities) {}
+
     public function show(Batch $batch)
     {
         $data = $this->gatherReportData($batch);
@@ -48,11 +51,10 @@ class BatchReportController extends Controller
         $bom = $snapshot['bom'] ?? [];
 
         $bomWithTotals = array_map(function ($item) use ($batch) {
-            $baseQty = $item['quantity_per_unit'] * (float) $batch->produced_qty;
-            $scrapQty = $baseQty * ($item['scrap_percentage'] / 100);
+            $calculated = $this->bomQuantities->calculate($item, (float) $batch->produced_qty);
 
             return array_merge($item, [
-                'total_qty' => round($baseQty + $scrapQty, 2),
+                'total_qty' => $calculated['required_qty'],
             ]);
         }, $bom);
 

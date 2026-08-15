@@ -12,10 +12,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * ERP → OpenMES recipe (bill of materials) import (#212).
  *
- * ERPs express a recipe as component quantities per ONE unit of the finished
- * product — total consumption is that times the produced quantity — which is
- * exactly what bom_items.quantity_per_unit means, so quantities pass through
- * unscaled.
+ * ERPs can express a recipe either per one finished unit or as an exact
+ * component-to-output ratio. Exact ratios are retained so package rounding is
+ * not distorted by the four-decimal compatibility quantity.
  *
  * A recipe attaches to the product's process template (BOM items hang off the
  * template, not the product), resolved by version or the active one. In the
@@ -74,7 +73,11 @@ class BomImportService
                     return $this->error('components', __("Material ':code' not found", ['code' => $materialCode]));
                 }
 
-                $quantity = (float) ($component['quantity_per_unit'] ?? 0);
+                $componentQuantity = $component['component_quantity'] ?? null;
+                $outputQuantity = $component['output_quantity'] ?? null;
+                $quantity = $componentQuantity !== null && $outputQuantity !== null
+                    ? (float) $componentQuantity / (float) $outputQuantity
+                    : (float) ($component['quantity_per_unit'] ?? 0);
 
                 if ($quantity <= 0) {
                     return $this->error('components', __("Quantity per unit for ':code' must be greater than 0", [
@@ -90,7 +93,11 @@ class BomImportService
 
                 $resolved[$material->id] = [
                     'quantity_per_unit' => $quantity,
+                    'component_quantity' => $componentQuantity,
+                    'output_quantity' => $outputQuantity,
                     'scrap_percentage' => (float) ($component['scrap_percentage'] ?? 0),
+                    'rounding_mode' => $component['rounding_mode'] ?? 'none',
+                    'rounding_multiple' => (float) ($component['rounding_multiple'] ?? 1),
                     'notes' => $component['notes'] ?? null,
                     'sort_order' => (int) ($component['sort_order'] ?? $position),
                 ];

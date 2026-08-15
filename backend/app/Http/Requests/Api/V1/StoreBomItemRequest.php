@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Api\V1;
 
+use App\Services\Material\BomQuantityCalculator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,8 +26,12 @@ class StoreBomItemRequest extends FormRequest
                 }),
             ],
             'template_step_id' => ['nullable', 'exists:template_steps,id'],
-            'quantity_per_unit' => ['required', 'numeric', 'gt:0'],
+            'quantity_per_unit' => ['nullable', 'required_without_all:component_quantity,output_quantity', 'numeric', 'gt:0'],
+            'component_quantity' => ['nullable', 'required_with:output_quantity', 'numeric', 'gt:0'],
+            'output_quantity' => ['nullable', 'required_with:component_quantity', 'numeric', 'gt:0'],
             'scrap_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'rounding_mode' => ['nullable', Rule::in(BomQuantityCalculator::ROUNDING_MODES)],
+            'rounding_multiple' => ['nullable', 'numeric', 'gt:0'],
             'consumed_at' => ['nullable', 'string', 'in:start,during,end'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'extra_data' => ['nullable', 'array'],

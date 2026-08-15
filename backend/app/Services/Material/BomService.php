@@ -10,7 +10,10 @@ use Illuminate\Validation\ValidationException;
 
 class BomService
 {
-    public function __construct(private readonly BomExplosionService $explosion) {}
+    public function __construct(
+        private readonly BomExplosionService $explosion,
+        private readonly BomQuantityCalculator $quantities,
+    ) {}
 
     /**
      * Get all BOM items for a process template.
@@ -26,6 +29,7 @@ class BomService
     public function addItem(ProcessTemplate $template, array $data): BomItem
     {
         $data['process_template_id'] = $template->id;
+        $data = $this->normalizeQuantityRule($data);
 
         $this->guardAgainstCycle($template, $data['material_id'] ?? null);
 
@@ -41,12 +45,15 @@ class BomService
         // explicitly, tripping the constraint. Fall back to the column defaults.
         $data['scrap_percentage'] ??= 0;
         $data['consumed_at'] ??= 'start';
+        $data['rounding_mode'] ??= 'none';
+        $data['rounding_multiple'] ??= 1;
 
         return BomItem::create($data);
     }
 
     public function updateItem(BomItem $item, array $data): BomItem
     {
+        $data = $this->normalizeQuantityRule($data, $item);
         // Swapping the material can introduce a loop just as adding one can.
         if (array_key_exists('material_id', $data) && (int) $data['material_id'] !== (int) $item->material_id) {
             $this->guardAgainstCycle($item->processTemplate, $data['material_id']);
@@ -56,10 +63,36 @@ class BomService
         // rather than passing an explicit null (which trips the constraint).
         $data['scrap_percentage'] ??= $item->scrap_percentage;
         $data['consumed_at'] ??= $item->consumed_at;
+        $data['rounding_mode'] ??= $item->rounding_mode;
+        $data['rounding_multiple'] ??= $item->rounding_multiple;
 
         $item->update($data);
 
         return $item->fresh(['material.materialType', 'templateStep']);
+    }
+
+    private function normalizeQuantityRule(array $data, ?BomItem $item = null): array
+    {
+        $ruleIsBeingChanged = array_key_exists('component_quantity', $data)
+            || array_key_exists('output_quantity', $data);
+        $component = $ruleIsBeingChanged
+            ? ($data['component_quantity'] ?? null)
+            : $item?->component_quantity;
+        $output = $ruleIsBeingChanged
+            ? ($data['output_quantity'] ?? null)
+            : $item?->output_quantity;
+
+        if ($component !== null && $component !== '' && $output !== null && $output !== '') {
+            $data['component_quantity'] = $component;
+            $data['output_quantity'] = $output;
+            $data['quantity_per_unit'] = round((float) $component / (float) $output, 4);
+        } elseif ($ruleIsBeingChanged) {
+            $data['component_quantity'] = null;
+            $data['output_quantity'] = null;
+            $data['quantity_per_unit'] ??= $item?->quantity_per_unit;
+        }
+
+        return $data;
     }
 
     public function removeItem(BomItem $item): void
@@ -107,8 +140,7 @@ class BomService
         $items = $this->listForTemplate($template);
 
         return $items->map(function (BomItem $item) use ($productionQty) {
-            $baseQty = round($item->quantity_per_unit * $productionQty, 4);
-            $scrapQty = round($baseQty * ($item->scrap_percentage / 100), 4);
+            $calculated = $this->quantities->calculate($item, $productionQty);
 
             return [
                 'material_id' => $item->material_id,
@@ -117,9 +149,12 @@ class BomService
                 'material_type' => $item->material->materialType?->code,
                 'unit_of_measure' => $item->material->unit_of_measure,
                 'quantity_per_unit' => (float) $item->quantity_per_unit,
-                'base_qty' => $baseQty,
-                'scrap_qty' => $scrapQty,
-                'required_qty' => $baseQty + $scrapQty,
+                'component_quantity' => $item->component_quantity !== null ? (float) $item->component_quantity : null,
+                'output_quantity' => $item->output_quantity !== null ? (float) $item->output_quantity : null,
+                'scrap_percentage' => (float) $item->scrap_percentage,
+                'rounding_mode' => $item->rounding_mode,
+                'rounding_multiple' => (float) $item->rounding_multiple,
+                ...$calculated,
                 'step_number' => $item->templateStep?->step_number,
                 'consumed_at' => $item->consumed_at,
             ];
@@ -134,14 +169,7 @@ class BomService
         $bom = $snapshot['bom'] ?? [];
 
         return array_map(function ($item) use ($productionQty) {
-            $baseQty = round($item['quantity_per_unit'] * $productionQty, 4);
-            $scrapQty = round($baseQty * ($item['scrap_percentage'] / 100), 4);
-
-            return array_merge($item, [
-                'base_qty' => $baseQty,
-                'scrap_qty' => $scrapQty,
-                'required_qty' => $baseQty + $scrapQty,
-            ]);
+            return array_merge($item, $this->quantities->calculate($item, $productionQty));
         }, $bom);
     }
 }

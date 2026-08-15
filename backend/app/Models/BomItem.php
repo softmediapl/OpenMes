@@ -17,7 +17,11 @@ class BomItem extends Model
         'template_step_id',
         'material_id',
         'quantity_per_unit',
+        'component_quantity',
+        'output_quantity',
         'scrap_percentage',
+        'rounding_mode',
+        'rounding_multiple',
         'consumed_at',
         'sort_order',
         'extra_data',
@@ -28,7 +32,10 @@ class BomItem extends Model
     {
         return [
             'quantity_per_unit' => 'decimal:4',
+            'component_quantity' => 'decimal:4',
+            'output_quantity' => 'decimal:4',
             'scrap_percentage' => 'decimal:2',
+            'rounding_multiple' => 'decimal:4',
             'sort_order' => 'integer',
             'extra_data' => 'array',
         ];
@@ -54,9 +61,7 @@ class BomItem extends Model
      */
     public function calculateRequiredQuantity(float $productionQty): float
     {
-        $base = $this->quantity_per_unit * $productionQty;
-        $scrap = $base * ($this->scrap_percentage / 100);
-
-        return round($base + $scrap, 4);
+        return app(\App\Services\Material\BomQuantityCalculator::class)
+            ->calculate($this, $productionQty)['required_qty'];
     }
 }

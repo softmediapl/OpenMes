@@ -4,6 +4,7 @@ namespace App\Services\Production;
 
 use App\Models\Material;
 use App\Models\WorkOrder;
+use App\Services\Material\BomQuantityCalculator;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,8 +28,11 @@ class ProductionCostService
 
     private ?float $defaultPayRate;
 
-    public function __construct()
+    private BomQuantityCalculator $bomQuantities;
+
+    public function __construct(?BomQuantityCalculator $bomQuantities = null)
     {
+        $this->bomQuantities = $bomQuantities ?? new BomQuantityCalculator;
         // Editable in Settings → System (stored in system_settings); the
         // config/env values are the fallback default.
         $this->defaultCurrency = (string) $this->setting('default_currency', config('openmmes.default_currency', 'PLN'));
@@ -260,9 +264,7 @@ class ProductionCostService
 
         return $bom->map(function ($line) use ($producedQty, $materials) {
             $material = $materials->get($line['material_id'] ?? null);
-            $qtyPerUnit = (float) ($line['quantity_per_unit'] ?? 0);
-            $scrapPct = (float) ($line['scrap_percentage'] ?? 0);
-            $qty = $qtyPerUnit * $producedQty * (1 + $scrapPct / 100);
+            $qty = $this->bomQuantities->calculate($line, $producedQty)['required_qty'];
             $unitPrice = (float) ($material?->unit_price ?? 0);
 
             return [

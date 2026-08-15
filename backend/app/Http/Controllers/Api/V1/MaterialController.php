@@ -73,7 +73,11 @@ class MaterialController extends Controller
         $bomUsage = $material->bomItems->map(fn ($item) => [
             'id' => $item->id,
             'quantity_per_unit' => $item->quantity_per_unit,
+            'component_quantity' => $item->component_quantity,
+            'output_quantity' => $item->output_quantity,
             'scrap_percentage' => $item->scrap_percentage,
+            'rounding_mode' => $item->rounding_mode,
+            'rounding_multiple' => $item->rounding_multiple,
             'process_template' => $item->processTemplate ? [
                 'name' => $item->processTemplate->name,
                 'product_type' => $item->processTemplate->productType
