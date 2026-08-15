@@ -9,6 +9,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
 use App\Services\Workforce\LaborAvailabilityCalendar;
+use App\Services\WorkOrder\BatchSizingService;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -31,6 +32,7 @@ final class FiniteCapacityScheduler
     public function __construct(
         private readonly ShiftCalendar $shiftCalendar,
         private readonly LaborAvailabilityCalendar $laborCalendar,
+        private readonly BatchSizingService $batchSizing,
     ) {}
 
     public function propose(
@@ -55,29 +57,30 @@ final class FiniteCapacityScheduler
         $this->laborBlockCache = [];
         $quantity = (float) $workOrder->planned_qty;
         $segments = [];
-        $stepEnds = [];
+        $stepSegmentEnds = [];
 
         foreach ($graph->topologicalOrder as $stepNumber) {
             $step = $graph->stepsByNumber[$stepNumber];
-            $dependencyReady = $start;
-            foreach ($graph->incoming[$stepNumber] as $dependency) {
-                $predecessorEnd = $stepEnds[$dependency['predecessor']] ?? null;
-                if ($predecessorEnd !== null) {
-                    $candidate = $predecessorEnd->addMinutes($dependency['lag_minutes']);
-                    if ($candidate->greaterThan($dependencyReady)) {
-                        $dependencyReady = $candidate;
-                    }
-                }
-            }
-
             $workstations = $this->eligibleWorkstations($step, $lineId);
             if ($workstations->isEmpty()) {
                 throw UnableToBuildSchedule::missingWorkstation($stepNumber);
             }
 
-            $operationSegments = $this->operationSegments($step, $quantity, $stepNumber);
-            $latestEnd = $dependencyReady;
+            $operationSegments = $this->operationSegments(
+                $step,
+                $quantity,
+                $stepNumber,
+                $workOrder->process_snapshot['batch_policy'] ?? null,
+            );
+            $currentSegmentEnds = [];
             foreach ($operationSegments as $operationSegment) {
+                $dependencyReady = $this->dependencyReadyForSegment(
+                    $start,
+                    $operationSegment,
+                    $operationSegments,
+                    $graph->incoming[$stepNumber],
+                    $stepSegmentEnds,
+                );
                 $this->laborConstraintEncountered = false;
                 $placement = $this->earliestPlacement(
                     $workOrder,
@@ -131,11 +134,12 @@ final class FiniteCapacityScheduler
                         'end' => $assignment['ends_at'],
                     ];
                 }
-                if ($placement['end']->greaterThan($latestEnd)) {
-                    $latestEnd = $placement['end'];
-                }
+                $currentSegmentEnds[$operationSegment['segment_number']] = [
+                    'end' => $placement['end'],
+                    'cumulative_quantity' => $operationSegment['cumulative_quantity'],
+                ];
             }
-            $stepEnds[$stepNumber] = $latestEnd;
+            $stepSegmentEnds[$stepNumber] = $currentSegmentEnds;
         }
 
         $plannedStart = $segments[0]->startsAt;
@@ -180,20 +184,35 @@ final class FiniteCapacityScheduler
 
     /**
      * @param  array<string, mixed>  $step
-     * @return list<array{segment_number: int, duration_minutes: int, planned_quantity: float|null, calendar_mode: string}>
+     * @param  array<string, mixed>|null  $batchPolicy
+     * @return list<array{segment_number: int, duration_minutes: int, planned_quantity: float|null, cumulative_quantity: float|null, calendar_mode: string}>
      */
-    private function operationSegments(array $step, float $quantity, int $stepNumber): array
-    {
+    private function operationSegments(
+        array $step,
+        float $quantity,
+        int $stepNumber,
+        ?array $batchPolicy,
+    ): array {
+        $mode = OperationExecutionMode::tryFrom((string) ($step['execution_mode'] ?? ''));
+
+        if (in_array($mode, [OperationExecutionMode::PerUnit, OperationExecutionMode::PerBatch], true)) {
+            $batchQuantities = $this->batchSizing->split($quantity, $batchPolicy);
+            if ($batchQuantities !== []) {
+                return $this->quantitySegments($step, $batchQuantities, $stepNumber, 'working_time');
+            }
+        }
+
         $duration = OperationDurationCalculator::planningMinutes($step, $quantity);
         if ($duration === null) {
             throw UnableToBuildSchedule::incompleteDuration($stepNumber);
         }
 
-        if (($step['execution_mode'] ?? null) !== OperationExecutionMode::FixedHold->value) {
+        if ($mode !== OperationExecutionMode::FixedHold) {
             return [[
                 'segment_number' => 1,
                 'duration_minutes' => $duration,
                 'planned_quantity' => $quantity,
+                'cumulative_quantity' => $quantity,
                 'calendar_mode' => 'working_time',
             ]];
         }
@@ -203,6 +222,7 @@ final class FiniteCapacityScheduler
             : 0.0;
         $loads = $capacity > 0 ? max(1, (int) ceil(max(0.0, $quantity) / $capacity)) : 1;
         $remaining = max(0.0, $quantity);
+        $cumulative = 0.0;
         $segments = [];
         for ($segment = 1; $segment <= $loads; $segment++) {
             $plannedQuantity = $capacity > 0 ? min($capacity, $remaining) : $quantity;
@@ -210,12 +230,114 @@ final class FiniteCapacityScheduler
                 'segment_number' => $segment,
                 'duration_minutes' => $duration,
                 'planned_quantity' => $plannedQuantity,
+                'cumulative_quantity' => $cumulative += $plannedQuantity,
                 'calendar_mode' => 'continuous',
             ];
             $remaining = max(0.0, $remaining - $plannedQuantity);
         }
 
         return $segments;
+    }
+
+    /**
+     * @param  array<string, mixed>  $step
+     * @param  list<float>  $quantities
+     * @return list<array{segment_number: int, duration_minutes: int, planned_quantity: float, cumulative_quantity: float, calendar_mode: string}>
+     */
+    private function quantitySegments(
+        array $step,
+        array $quantities,
+        int $stepNumber,
+        string $calendarMode,
+    ): array {
+        $segments = [];
+        $cumulative = 0.0;
+        foreach ($quantities as $index => $plannedQuantity) {
+            $duration = OperationDurationCalculator::planningMinutes($step, $plannedQuantity);
+            if ($duration === null) {
+                throw UnableToBuildSchedule::incompleteDuration($stepNumber);
+            }
+
+            $segments[] = [
+                'segment_number' => $index + 1,
+                'duration_minutes' => $duration,
+                'planned_quantity' => $plannedQuantity,
+                'cumulative_quantity' => $cumulative += $plannedQuantity,
+                'calendar_mode' => $calendarMode,
+            ];
+        }
+
+        return $segments;
+    }
+
+    /**
+     * Resolve finish-to-start dependencies at transfer-batch granularity. A
+     * downstream segment waits only for the predecessor output that covers its
+     * cumulative quantity; single final operations still wait for all input.
+     *
+     * @param  array{segment_number: int, cumulative_quantity: float|null}  $segment
+     * @param  list<array{segment_number: int, cumulative_quantity: float|null}>  $segments
+     * @param  list<array{predecessor: int, lag_minutes: int}>  $dependencies
+     * @param  array<int, array<int, array{end: CarbonImmutable, cumulative_quantity: float|null}>>  $stepSegmentEnds
+     */
+    private function dependencyReadyForSegment(
+        CarbonImmutable $start,
+        array $segment,
+        array $segments,
+        array $dependencies,
+        array $stepSegmentEnds,
+    ): CarbonImmutable {
+        $ready = $start;
+        foreach ($dependencies as $dependency) {
+            $predecessorSegments = $stepSegmentEnds[$dependency['predecessor']] ?? [];
+            $predecessorEnd = $this->predecessorEndForSegment(
+                $segment,
+                $segments,
+                $predecessorSegments,
+            );
+            if ($predecessorEnd === null) {
+                continue;
+            }
+
+            $candidate = $predecessorEnd->addMinutes($dependency['lag_minutes']);
+            if ($candidate->greaterThan($ready)) {
+                $ready = $candidate;
+            }
+        }
+
+        return $ready;
+    }
+
+    /**
+     * @param  array{segment_number: int, cumulative_quantity: float|null}  $segment
+     * @param  list<array{segment_number: int, cumulative_quantity: float|null}>  $segments
+     * @param  array<int, array{end: CarbonImmutable, cumulative_quantity: float|null}>  $predecessorSegments
+     */
+    private function predecessorEndForSegment(
+        array $segment,
+        array $segments,
+        array $predecessorSegments,
+    ): ?CarbonImmutable {
+        if ($predecessorSegments === []) {
+            return null;
+        }
+
+        $targetQuantity = count($segments) === 1
+            ? null
+            : $segment['cumulative_quantity'];
+        if ($targetQuantity !== null) {
+            foreach ($predecessorSegments as $predecessorSegment) {
+                $availableQuantity = $predecessorSegment['cumulative_quantity'];
+                if ($availableQuantity !== null && $availableQuantity >= $targetQuantity) {
+                    return $predecessorSegment['end'];
+                }
+            }
+        }
+
+        return collect($predecessorSegments)
+            ->pluck('end')
+            ->sortBy(fn (CarbonImmutable $end): int => $end->getTimestamp())
+            ->last();
     }
 
     /**

@@ -11,6 +11,7 @@ use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
+use App\Models\WorkstationType;
 use App\Services\Schedule\FiniteCapacityScheduler;
 use App\Services\Schedule\UnableToBuildSchedule;
 use Carbon\CarbonImmutable;
@@ -74,6 +75,78 @@ class FiniteCapacitySchedulerTest extends TestCase
             array_map(fn ($segment) => $segment->startsAt->format('H:i'), $proposal->segments),
         );
         $this->assertSame('2026-08-17 07:30', $proposal->endsAt->format('Y-m-d H:i'));
+    }
+
+    public function test_it_pipelines_released_batches_between_sequential_operations(): void
+    {
+        $line = $this->lineWithCalendar();
+        $forming = Workstation::factory()->create(['line_id' => $line->id]);
+        $inspection = Workstation::factory()->create(['line_id' => $line->id]);
+        $workOrder = $this->workOrder(
+            $line,
+            [
+                array_merge($this->step(1, $forming, 0, 'per_unit'), [
+                    'setup_time_minutes' => 0,
+                    'run_time_per_unit_minutes' => 0.5,
+                    'labor_mode' => 'unattended',
+                ]),
+                array_merge($this->step(2, $inspection, 30), [
+                    'labor_mode' => 'unattended',
+                ]),
+            ],
+            null,
+            400,
+            false,
+            $this->batchPolicy(200),
+        );
+
+        $proposal = $this->scheduler()->propose($workOrder, CarbonImmutable::parse('2026-08-17 06:00'));
+
+        $formingSegments = collect($proposal->segments)->where('stepNumber', 1)->values();
+        $inspectionSegments = collect($proposal->segments)->where('stepNumber', 2)->values();
+        $this->assertSame(['06:00', '07:40'], $formingSegments->map(fn ($segment) => $segment->startsAt->format('H:i'))->all());
+        $this->assertSame(['07:40', '09:20'], $inspectionSegments->map(fn ($segment) => $segment->startsAt->format('H:i'))->all());
+        $this->assertSame('2026-08-17 09:50', $proposal->endsAt->format('Y-m-d H:i'));
+    }
+
+    public function test_it_spreads_batch_segments_across_an_eligible_workstation_pool(): void
+    {
+        $line = $this->lineWithCalendar();
+        $type = WorkstationType::factory()->create();
+        Workstation::factory()->count(2)->create([
+            'line_id' => $line->id,
+            'workstation_type_id' => $type->id,
+            'capacity_slots' => 1,
+        ]);
+        $workOrder = $this->workOrder(
+            $line,
+            [[
+                'step_number' => 1,
+                'name' => 'Pooled forming',
+                'execution_mode' => 'per_unit',
+                'setup_time_minutes' => 0,
+                'run_time_per_unit_minutes' => 0.5,
+                'workstation_id' => null,
+                'workstation_type_id' => $type->id,
+                'labor_mode' => 'unattended',
+                'required_operators' => 1,
+                'required_skill_ids' => [],
+            ]],
+            null,
+            600,
+            false,
+            $this->batchPolicy(200),
+        );
+
+        $proposal = $this->scheduler()->propose($workOrder, CarbonImmutable::parse('2026-08-17 06:00'));
+
+        $this->assertCount(3, $proposal->segments);
+        $this->assertSame(['06:00', '06:00', '07:40'], array_map(
+            fn ($segment) => $segment->startsAt->format('H:i'),
+            $proposal->segments,
+        ));
+        $this->assertCount(2, collect($proposal->segments)->pluck('workstationId')->unique());
+        $this->assertSame('2026-08-17 09:20', $proposal->endsAt->format('Y-m-d H:i'));
     }
 
     public function test_working_time_pauses_between_shifts(): void
@@ -251,10 +324,14 @@ class FiniteCapacitySchedulerTest extends TestCase
         ?array $dependencies = null,
         float $quantity = 100,
         bool $createLabor = true,
+        ?array $batchPolicy = null,
     ): WorkOrder {
         $snapshot = ['steps' => $steps];
         if ($dependencies !== null) {
             $snapshot['dependencies'] = $dependencies;
+        }
+        if ($batchPolicy !== null) {
+            $snapshot['batch_policy'] = $batchPolicy;
         }
 
         $workOrder = WorkOrder::factory()->create([
@@ -297,6 +374,18 @@ class FiniteCapacitySchedulerTest extends TestCase
             'labor_mode' => $mode === 'fixed_hold' ? 'unattended' : 'attended',
             'required_operators' => 1,
             'required_skill_ids' => [],
+        ];
+    }
+
+    /** @return array<string, float|bool|null> */
+    private function batchPolicy(float $quantity): array
+    {
+        return [
+            'preferred_quantity' => $quantity,
+            'minimum_quantity' => $quantity,
+            'maximum_quantity' => $quantity,
+            'quantity_multiple' => $quantity,
+            'allow_partial_final_batch' => true,
         ];
     }
 }
