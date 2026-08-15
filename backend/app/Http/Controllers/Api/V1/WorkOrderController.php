@@ -165,8 +165,18 @@ class WorkOrderController extends Controller
 
     public function accept(WorkOrder $workOrder): JsonResponse
     {
-        return $this->transition($workOrder, WorkOrder::STATUS_ACCEPTED, [WorkOrder::STATUS_PENDING],
-            'Only PENDING work orders can be accepted.');
+        $this->authorize('update', $workOrder);
+
+        try {
+            $accepted = $this->workOrderService->acceptWorkOrder($workOrder);
+        } catch (\DomainException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        return response()->json([
+            'message' => 'Work order status set to '.WorkOrder::STATUS_ACCEPTED,
+            'data' => $accepted->loadMissing(['line', 'productType', 'batches']),
+        ]);
     }
 
     public function reject(WorkOrder $workOrder): JsonResponse

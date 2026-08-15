@@ -63,6 +63,7 @@ class SnapshotService
             'product_type_id' => $template->product_type_id,
             'dependency_mode' => $dependencyMode,
             'dependencies' => $dependencies->toArray(),
+            'batch_policy' => $template->batchPolicySnapshot(),
             'steps' => $template->steps->map(function ($step) {
                 return [
                     'step_number' => $step->step_number,

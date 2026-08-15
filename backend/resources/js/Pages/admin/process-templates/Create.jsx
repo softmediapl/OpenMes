@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { __ } from '../../../lib/i18n';
 import { Button, Checkbox } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
+import BatchPolicyFields from './BatchPolicyFields';
 
 export default function ProcessTemplatesCreate() {
     const { productType } = usePage().props;
@@ -9,6 +10,11 @@ export default function ProcessTemplatesCreate() {
     const form = useForm({
         name: '',
         is_active: true,
+        preferred_batch_quantity: '',
+        min_batch_quantity: '',
+        max_batch_quantity: '',
+        batch_quantity_multiple: '',
+        allow_partial_final_batch: true,
     });
 
     const { data, setData, errors, processing } = form;
@@ -54,6 +60,8 @@ export default function ProcessTemplatesCreate() {
                             <p className="text-sm text-om-muted mt-1">{__("Descriptive name for this manufacturing process")}</p>
                             {errors.name && <p className="text-om-blocked text-sm mt-1">{errors.name}</p>}
                         </div>
+
+                        <BatchPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="mb-6 p-4 bg-om-chip border border-om-line rounded-om-sm">
                             <p className="text-sm text-om-accent">

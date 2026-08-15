@@ -1084,6 +1084,18 @@ export default function ProcessTemplatesShow() {
                             <p className="text-sm text-om-muted mt-1">
                                 {productType.name} &bull; {steps.length} steps
                             </p>
+                            {processTemplate.batch_policy && (
+                                <p className="text-sm text-om-muted mt-1">
+                                    {__('Preferred batch')}: {processTemplate.batch_policy.preferred_quantity}
+                                    {processTemplate.batch_policy.quantity_multiple != null
+                                        ? ` · ${__('increment')} ${processTemplate.batch_policy.quantity_multiple}`
+                                        : ''}
+                                    {' · '}
+                                    {processTemplate.batch_policy.allow_partial_final_batch
+                                        ? __('smaller final batch allowed')
+                                        : __('exact division required')}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex gap-2">

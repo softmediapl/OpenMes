@@ -481,10 +481,11 @@ class WorkOrderManagementController extends Controller
 
     public function accept(WorkOrder $workOrder)
     {
-        if ($workOrder->status !== WorkOrder::STATUS_PENDING) {
-            return redirect()->back()->with('error', 'Only PENDING work orders can be accepted.');
+        try {
+            $this->workOrderService->acceptWorkOrder($workOrder);
+        } catch (\DomainException $e) {
+            return redirect()->back()->with('error', $e->getMessage());
         }
-        $workOrder->update(['status' => WorkOrder::STATUS_ACCEPTED]);
 
         return redirect()->back()->with('success', "Work order {$workOrder->order_no} accepted.");
     }

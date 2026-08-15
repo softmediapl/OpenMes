@@ -1,11 +1,11 @@
 <?php
 
-namespace App\Http\Requests\Api\V1;
+namespace App\Http\Requests\Web\Admin;
 
 use App\Http\Requests\Concerns\ValidatesProcessTemplateBatchPolicy;
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreProcessTemplateRequest extends FormRequest
+class UpsertProcessTemplateRequest extends FormRequest
 {
     use ValidatesProcessTemplateBatchPolicy;
 
@@ -18,8 +18,7 @@ class StoreProcessTemplateRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'version' => ['nullable', 'integer', 'min:1'],
-            'is_active' => ['nullable', 'boolean'],
+            'is_active' => ['boolean'],
             ...$this->batchPolicyRules(),
         ];
     }

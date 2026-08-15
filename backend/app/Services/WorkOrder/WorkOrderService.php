@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\DB;
 
 class WorkOrderService
 {
+    public function __construct(private readonly BatchSizingService $batchSizing) {}
+
     /**
      * Create a new work order with process snapshot.
      *
@@ -525,6 +527,39 @@ class WorkOrderService
         ]);
 
         return $workOrder->fresh();
+    }
+
+    /**
+     * Accept an order and atomically materialize its released production batches.
+     * Existing batches are preserved so legacy/manual preparation remains valid.
+     */
+    public function acceptWorkOrder(WorkOrder $workOrder): WorkOrder
+    {
+        return DB::transaction(function () use ($workOrder) {
+            $locked = WorkOrder::whereKey($workOrder->getKey())
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            if ($locked->status !== WorkOrder::STATUS_PENDING) {
+                throw new \DomainException('Only PENDING work orders can be accepted.');
+            }
+
+            $targets = [];
+            if (! $locked->batches()->exists()) {
+                $targets = $this->batchSizing->split(
+                    (float) $locked->planned_qty,
+                    $locked->process_snapshot['batch_policy'] ?? null,
+                );
+            }
+
+            $locked->update(['status' => WorkOrder::STATUS_ACCEPTED]);
+
+            foreach ($targets as $target) {
+                $this->createBatch($locked, $target);
+            }
+
+            return $locked->fresh(['batches.steps']);
+        });
     }
 
     /**

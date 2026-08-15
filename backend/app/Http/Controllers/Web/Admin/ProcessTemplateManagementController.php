@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\Admin\StoreTemplateStepRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepDependenciesRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepRequest;
+use App\Http\Requests\Web\Admin\UpsertProcessTemplateRequest;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
@@ -53,18 +54,16 @@ class ProcessTemplateManagementController extends Controller
     /**
      * Store a newly created process template
      */
-    public function store(Request $request, ProductType $productType)
+    public function store(UpsertProcessTemplateRequest $request, ProductType $productType)
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'is_active' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         // Get the next version number
         $latestVersion = $productType->processTemplates()->max('version') ?? 0;
         $validated['version'] = $latestVersion + 1;
         $validated['product_type_id'] = $productType->id;
         $validated['is_active'] = $request->boolean('is_active', true);
+        $validated['allow_partial_final_batch'] = $request->boolean('allow_partial_final_batch', true);
 
         $template = ProcessTemplate::create($validated);
 
@@ -106,6 +105,7 @@ class ProcessTemplateManagementController extends Controller
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
                 'is_active' => (bool) $processTemplate->is_active,
+                'batch_policy' => $processTemplate->batchPolicySnapshot(),
                 'dependency_mode' => $processTemplate->dependency_mode,
                 'dependencies' => $processTemplate->dependencies->map(fn ($dependency) => [
                     'predecessor_step_id' => $dependency->predecessor_step_id,
@@ -215,6 +215,11 @@ class ProcessTemplateManagementController extends Controller
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
                 'is_active' => (bool) $processTemplate->is_active,
+                'preferred_batch_quantity' => $processTemplate->preferred_batch_quantity,
+                'min_batch_quantity' => $processTemplate->min_batch_quantity,
+                'max_batch_quantity' => $processTemplate->max_batch_quantity,
+                'batch_quantity_multiple' => $processTemplate->batch_quantity_multiple,
+                'allow_partial_final_batch' => (bool) $processTemplate->allow_partial_final_batch,
             ],
         ]);
     }
@@ -222,19 +227,17 @@ class ProcessTemplateManagementController extends Controller
     /**
      * Update the specified process template
      */
-    public function update(Request $request, ProductType $productType, ProcessTemplate $processTemplate)
+    public function update(UpsertProcessTemplateRequest $request, ProductType $productType, ProcessTemplate $processTemplate)
     {
         // Ensure template belongs to this product type
         if ($processTemplate->product_type_id !== $productType->id) {
             abort(404);
         }
 
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'is_active' => 'boolean',
-        ]);
+        $validated = $request->validated();
 
         $validated['is_active'] = $request->boolean('is_active');
+        $validated['allow_partial_final_batch'] = $request->boolean('allow_partial_final_batch', true);
 
         $processTemplate->update($validated);
 

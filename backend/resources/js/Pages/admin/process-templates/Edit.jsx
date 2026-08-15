@@ -2,6 +2,7 @@ import { Head, useForm, usePage } from '@inertiajs/react';
 import { __ } from '../../../lib/i18n';
 import { Button, Checkbox } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
+import BatchPolicyFields from './BatchPolicyFields';
 
 export default function ProcessTemplatesEdit() {
     const { productType, processTemplate } = usePage().props;
@@ -9,6 +10,11 @@ export default function ProcessTemplatesEdit() {
     const form = useForm({
         name: processTemplate.name ?? '',
         is_active: !!processTemplate.is_active,
+        preferred_batch_quantity: processTemplate.preferred_batch_quantity ?? '',
+        min_batch_quantity: processTemplate.min_batch_quantity ?? '',
+        max_batch_quantity: processTemplate.max_batch_quantity ?? '',
+        batch_quantity_multiple: processTemplate.batch_quantity_multiple ?? '',
+        allow_partial_final_batch: !!processTemplate.allow_partial_final_batch,
     });
 
     const { data, setData, errors, processing } = form;
@@ -66,6 +72,8 @@ export default function ProcessTemplatesEdit() {
                                 label={__("Active (template is ready for use in work orders)")}
                             />
                         </div>
+
+                        <BatchPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="flex justify-end gap-3">
                             <a

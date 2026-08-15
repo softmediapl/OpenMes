@@ -69,6 +69,47 @@ class ProcessTemplateApiTest extends TestCase
             ->assertJsonPath('data.version', 1);
     }
 
+    public function test_admin_can_create_and_partially_update_a_batch_policy(): void
+    {
+        $productType = ProductType::factory()->create();
+
+        $created = $this->authAdmin()->postJson("/api/v1/product-types/{$productType->id}/process-templates", [
+            'name' => 'Rack process',
+            'preferred_batch_quantity' => 200,
+            'min_batch_quantity' => 100,
+            'max_batch_quantity' => 200,
+            'batch_quantity_multiple' => 50,
+            'allow_partial_final_batch' => true,
+        ])->assertCreated()
+            ->assertJsonPath('data.preferred_batch_quantity', '200.0000');
+
+        $templateId = $created->json('data.id');
+        $this->authAdmin()->patchJson("/api/v1/process-templates/{$templateId}", [
+            'max_batch_quantity' => 250,
+        ])->assertOk()
+            ->assertJsonPath('data.preferred_batch_quantity', '200.0000')
+            ->assertJsonPath('data.max_batch_quantity', '250.0000')
+            ->assertJsonPath('data.batch_quantity_multiple', '50.0000');
+    }
+
+    public function test_api_rejects_an_inconsistent_batch_policy(): void
+    {
+        $productType = ProductType::factory()->create();
+
+        $this->authAdmin()->postJson("/api/v1/product-types/{$productType->id}/process-templates", [
+            'name' => 'Invalid process',
+            'preferred_batch_quantity' => 200,
+            'min_batch_quantity' => 250,
+            'max_batch_quantity' => 150,
+            'batch_quantity_multiple' => 30,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'min_batch_quantity',
+                'max_batch_quantity',
+                'preferred_batch_quantity',
+            ]);
+    }
+
     public function test_create_template_auto_bumps_version(): void
     {
         $pt = ProductType::factory()->create();

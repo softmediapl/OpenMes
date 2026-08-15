@@ -132,6 +132,76 @@ class WorkOrderServiceTest extends TestCase
         $this->assertEquals(3, $batch3->batch_number);
     }
 
+    public function test_acceptance_materializes_batches_from_the_frozen_policy(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 3000]);
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['batch_policy'] = [
+            'preferred_quantity' => 200,
+            'minimum_quantity' => 100,
+            'maximum_quantity' => 200,
+            'quantity_multiple' => 50,
+            'allow_partial_final_batch' => true,
+        ];
+        $workOrder->update(['process_snapshot' => $snapshot]);
+
+        $accepted = $this->service->acceptWorkOrder($workOrder->fresh());
+
+        $this->assertSame(WorkOrder::STATUS_ACCEPTED, $accepted->status);
+        $this->assertCount(15, $accepted->batches);
+        $this->assertSame(range(1, 15), $accepted->batches->pluck('batch_number')->all());
+        $this->assertSame(array_fill(0, 15, 200.0), $accepted->batches
+            ->map(fn (Batch $batch) => (float) $batch->target_qty)
+            ->all());
+        $this->assertTrue($accepted->batches->every(fn (Batch $batch) => $batch->steps->count() === 3));
+    }
+
+    public function test_acceptance_without_a_policy_preserves_manual_batch_workflow(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 3000]);
+
+        $accepted = $this->service->acceptWorkOrder($workOrder);
+
+        $this->assertSame(WorkOrder::STATUS_ACCEPTED, $accepted->status);
+        $this->assertCount(0, $accepted->batches);
+    }
+
+    public function test_acceptance_preserves_batches_prepared_manually_before_release(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 400]);
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['batch_policy'] = [
+            'preferred_quantity' => 200,
+            'allow_partial_final_batch' => true,
+        ];
+        $workOrder->update(['process_snapshot' => $snapshot]);
+        $manual = $this->service->createBatch($workOrder->fresh(), 100);
+
+        $accepted = $this->service->acceptWorkOrder($workOrder->fresh());
+
+        $this->assertCount(1, $accepted->batches);
+        $this->assertSame($manual->id, $accepted->batches->first()->id);
+    }
+
+    public function test_invalid_batch_policy_rolls_back_acceptance(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 3050]);
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['batch_policy'] = [
+            'preferred_quantity' => 200,
+            'allow_partial_final_batch' => false,
+        ];
+        $workOrder->update(['process_snapshot' => $snapshot]);
+
+        try {
+            $this->service->acceptWorkOrder($workOrder->fresh());
+            $this->fail('Expected invalid batch policy to reject acceptance.');
+        } catch (\DomainException) {
+            $this->assertSame(WorkOrder::STATUS_PENDING, $workOrder->fresh()->status);
+            $this->assertSame(0, $workOrder->batches()->count());
+        }
+    }
+
     public function test_update_work_order_status_sets_blocked_when_blocking_issues_exist(): void
     {
         $this->seed(\Database\Seeders\IssueTypesSeeder::class);

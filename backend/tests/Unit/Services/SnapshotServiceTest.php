@@ -50,6 +50,28 @@ class SnapshotServiceTest extends TestCase
         $this->assertEquals($template->product_type_id, $snapshot['product_type_id']);
     }
 
+    public function test_snapshot_freezes_the_batch_policy(): void
+    {
+        $template = ProcessTemplate::factory()->create([
+            'preferred_batch_quantity' => 200,
+            'min_batch_quantity' => 100,
+            'max_batch_quantity' => 200,
+            'batch_quantity_multiple' => 50,
+            'allow_partial_final_batch' => false,
+        ]);
+
+        $snapshot = $this->service->createSnapshot($template);
+        $template->update(['preferred_batch_quantity' => 500]);
+
+        $this->assertSame([
+            'preferred_quantity' => 200.0,
+            'minimum_quantity' => 100.0,
+            'maximum_quantity' => 200.0,
+            'quantity_multiple' => 50.0,
+            'allow_partial_final_batch' => false,
+        ], $snapshot['batch_policy']);
+    }
+
     public function test_model_and_import_service_use_the_same_snapshot_contract(): void
     {
         $template = ProcessTemplate::factory()->withSteps(2)->create();

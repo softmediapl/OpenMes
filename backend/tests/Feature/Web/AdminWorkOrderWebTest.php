@@ -197,6 +197,32 @@ class AdminWorkOrderWebTest extends TestCase
         ]);
     }
 
+    public function test_accepting_a_configured_order_creates_released_batches(): void
+    {
+        $workOrder = WorkOrder::factory()->create([
+            'status' => WorkOrder::STATUS_PENDING,
+            'planned_qty' => 450,
+        ]);
+        $snapshot = $workOrder->process_snapshot;
+        $snapshot['batch_policy'] = [
+            'preferred_quantity' => 200,
+            'allow_partial_final_batch' => true,
+        ];
+        $workOrder->update(['process_snapshot' => $snapshot]);
+
+        $this->actingAs($this->admin)
+            ->post("/admin/work-orders/{$workOrder->id}/accept")
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $this->assertSame(
+            [200.0, 200.0, 50.0],
+            $workOrder->batches()->orderBy('batch_number')->get()
+                ->map(fn ($batch) => (float) $batch->target_qty)
+                ->all(),
+        );
+    }
+
     /**
      * A failing live-sync broadcast (e.g. Reverb unreachable) must never break
      * the originating write — the status change still persists and no 500 is
