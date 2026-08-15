@@ -107,6 +107,7 @@ class ProcessTemplateManagementController extends Controller
                 'version' => $processTemplate->version,
                 'is_active' => (bool) $processTemplate->is_active,
                 'batch_policy' => $processTemplate->batchPolicySnapshot(),
+                'packaging_policy' => $processTemplate->packagingPolicySnapshot(),
                 'dependency_mode' => $processTemplate->dependency_mode,
                 'dependencies' => $processTemplate->dependencies->map(fn ($dependency) => [
                     'predecessor_step_id' => $dependency->predecessor_step_id,
@@ -230,6 +231,7 @@ class ProcessTemplateManagementController extends Controller
                 'max_batch_quantity' => $processTemplate->max_batch_quantity,
                 'batch_quantity_multiple' => $processTemplate->batch_quantity_multiple,
                 'allow_partial_final_batch' => (bool) $processTemplate->allow_partial_final_batch,
+                'pallet_capacity_quantity' => $processTemplate->pallet_capacity_quantity,
             ],
         ]);
     }

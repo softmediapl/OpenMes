@@ -81,8 +81,10 @@ class ProcessTemplateApiTest extends TestCase
             'max_batch_quantity' => 200,
             'batch_quantity_multiple' => 50,
             'allow_partial_final_batch' => true,
+            'pallet_capacity_quantity' => 4800,
         ])->assertCreated()
-            ->assertJsonPath('data.preferred_batch_quantity', '200.0000');
+            ->assertJsonPath('data.preferred_batch_quantity', '200.0000')
+            ->assertJsonPath('data.pallet_capacity_quantity', 4800);
 
         $templateId = $created->json('data.id');
         $this->authAdmin()->patchJson("/api/v1/process-templates/{$templateId}", [

@@ -36,6 +36,7 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
                 'max_batch_quantity' => 200,
                 'batch_quantity_multiple' => 50,
                 'allow_partial_final_batch' => true,
+                'pallet_capacity_quantity' => 4800,
             ])
             ->assertRedirect();
 
@@ -46,6 +47,7 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
             'max_batch_quantity' => 200,
             'batch_quantity_multiple' => 50,
             'allow_partial_final_batch' => true,
+            'pallet_capacity_quantity' => 4800,
         ]);
     }
 
@@ -82,6 +84,7 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
             'max_batch_quantity' => 200,
             'batch_quantity_multiple' => 50,
             'allow_partial_final_batch' => false,
+            'pallet_capacity_quantity' => 4800,
         ]);
 
         $this->actingAs($this->admin)
@@ -91,6 +94,7 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
                 ->component('admin/process-templates/Edit')
                 ->where('processTemplate.preferred_batch_quantity', '200.0000')
                 ->where('processTemplate.batch_quantity_multiple', '50.0000')
-                ->where('processTemplate.allow_partial_final_batch', false));
+                ->where('processTemplate.allow_partial_final_batch', false)
+                ->where('processTemplate.pallet_capacity_quantity', 4800));
     }
 }

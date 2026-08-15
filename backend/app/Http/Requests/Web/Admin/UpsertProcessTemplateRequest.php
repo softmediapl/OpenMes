@@ -19,6 +19,7 @@ class UpsertProcessTemplateRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'is_active' => ['boolean'],
+            'pallet_capacity_quantity' => ['nullable', 'integer', 'min:1'],
             ...$this->batchPolicyRules(),
         ];
     }

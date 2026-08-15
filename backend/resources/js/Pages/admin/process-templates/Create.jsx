@@ -3,6 +3,7 @@ import { __ } from '../../../lib/i18n';
 import { Button, Checkbox } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import BatchPolicyFields from './BatchPolicyFields';
+import PackagingPolicyFields from './PackagingPolicyFields';
 
 export default function ProcessTemplatesCreate() {
     const { productType } = usePage().props;
@@ -15,6 +16,7 @@ export default function ProcessTemplatesCreate() {
         max_batch_quantity: '',
         batch_quantity_multiple: '',
         allow_partial_final_batch: true,
+        pallet_capacity_quantity: '',
     });
 
     const { data, setData, errors, processing } = form;
@@ -62,6 +64,7 @@ export default function ProcessTemplatesCreate() {
                         </div>
 
                         <BatchPolicyFields data={data} setData={setData} errors={errors} />
+                        <PackagingPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="mb-6 p-4 bg-om-chip border border-om-line rounded-om-sm">
                             <p className="text-sm text-om-accent">

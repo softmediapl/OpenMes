@@ -19,6 +19,7 @@ class UpdateProcessTemplateRequest extends FormRequest
         return [
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
+            'pallet_capacity_quantity' => ['sometimes', 'nullable', 'integer', 'min:1'],
             ...$this->batchPolicyRules(),
         ];
     }

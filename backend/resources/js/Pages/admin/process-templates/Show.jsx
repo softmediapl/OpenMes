@@ -1162,6 +1162,11 @@ export default function ProcessTemplatesShow() {
                                         : __('exact division required')}
                                 </p>
                             )}
+                            {processTemplate.packaging_policy && (
+                                <p className="text-sm text-om-muted mt-1">
+                                    {__('Pallet capacity')}: {processTemplate.packaging_policy.pallet_capacity_quantity} {__('pcs')}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex gap-2">

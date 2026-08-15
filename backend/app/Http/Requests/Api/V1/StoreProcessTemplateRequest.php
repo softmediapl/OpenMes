@@ -20,6 +20,7 @@ class StoreProcessTemplateRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'version' => ['nullable', 'integer', 'min:1'],
             'is_active' => ['nullable', 'boolean'],
+            'pallet_capacity_quantity' => ['nullable', 'integer', 'min:1'],
             ...$this->batchPolicyRules(),
         ];
     }

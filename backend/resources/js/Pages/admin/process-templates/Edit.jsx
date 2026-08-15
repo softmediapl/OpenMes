@@ -3,6 +3,7 @@ import { __ } from '../../../lib/i18n';
 import { Button, Checkbox } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import BatchPolicyFields from './BatchPolicyFields';
+import PackagingPolicyFields from './PackagingPolicyFields';
 
 export default function ProcessTemplatesEdit() {
     const { productType, processTemplate } = usePage().props;
@@ -15,6 +16,7 @@ export default function ProcessTemplatesEdit() {
         max_batch_quantity: processTemplate.max_batch_quantity ?? '',
         batch_quantity_multiple: processTemplate.batch_quantity_multiple ?? '',
         allow_partial_final_batch: !!processTemplate.allow_partial_final_batch,
+        pallet_capacity_quantity: processTemplate.pallet_capacity_quantity ?? '',
     });
 
     const { data, setData, errors, processing } = form;
@@ -74,6 +76,7 @@ export default function ProcessTemplatesEdit() {
                         </div>
 
                         <BatchPolicyFields data={data} setData={setData} errors={errors} />
+                        <PackagingPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="flex justify-end gap-3">
                             <a

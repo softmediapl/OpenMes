@@ -26,6 +26,7 @@ class ProcessTemplate extends Model
         'max_batch_quantity',
         'batch_quantity_multiple',
         'allow_partial_final_batch',
+        'pallet_capacity_quantity',
         'is_active',
         'tenant_id',
     ];
@@ -41,6 +42,7 @@ class ProcessTemplate extends Model
             'max_batch_quantity' => 'decimal:4',
             'batch_quantity_multiple' => 'decimal:4',
             'allow_partial_final_batch' => 'boolean',
+            'pallet_capacity_quantity' => 'integer',
         ];
     }
 
@@ -57,6 +59,18 @@ class ProcessTemplate extends Model
             'maximum_quantity' => $this->max_batch_quantity !== null ? (float) $this->max_batch_quantity : null,
             'quantity_multiple' => $this->batch_quantity_multiple !== null ? (float) $this->batch_quantity_multiple : null,
             'allow_partial_final_batch' => (bool) $this->allow_partial_final_batch,
+        ];
+    }
+
+    /** @return array{pallet_capacity_quantity: int}|null */
+    public function packagingPolicySnapshot(): ?array
+    {
+        if ($this->pallet_capacity_quantity === null) {
+            return null;
+        }
+
+        return [
+            'pallet_capacity_quantity' => (int) $this->pallet_capacity_quantity,
         ];
     }
 
