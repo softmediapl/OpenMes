@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Line;
 use App\Models\User;
+use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
@@ -89,5 +90,52 @@ class WorkOrderOperationPlanTest extends TestCase
         WorkOrderOperationPlan::create($base + ['segment_number' => 2, 'slot_number' => 2]);
 
         $this->assertSame([1, 2], $workOrder->operationPlans()->pluck('segment_number')->all());
+    }
+
+    public function test_an_operation_segment_reserves_a_distinct_worker_team(): void
+    {
+        $line = Line::factory()->create();
+        $workstation = Workstation::factory()->create(['line_id' => $line->id]);
+        $workOrder = WorkOrder::factory()->create(['line_id' => $line->id]);
+        $plan = WorkOrderOperationPlan::create([
+            'work_order_id' => $workOrder->id,
+            'line_id' => $line->id,
+            'workstation_id' => $workstation->id,
+            'step_number' => 1,
+            'segment_number' => 1,
+            'planned_start_at' => '2026-08-17 06:00:00',
+            'planned_end_at' => '2026-08-17 07:00:00',
+            'duration_minutes' => 60,
+        ]);
+        $workers = Worker::factory()->count(2)->create();
+
+        $plan->plannedWorkers()->attach($workers->modelKeys());
+
+        $this->assertSame(
+            $workers->modelKeys(),
+            $plan->plannedWorkers()->orderBy('workers.id')->pluck('workers.id')->all(),
+        );
+        $this->assertTrue($workers[0]->plannedOperations()->whereKey($plan->id)->exists());
+        $this->assertDatabaseCount('work_order_operation_plan_workers', 2);
+    }
+
+    public function test_a_worker_cannot_be_duplicated_within_one_operation_segment(): void
+    {
+        $line = Line::factory()->create();
+        $workstation = Workstation::factory()->create(['line_id' => $line->id]);
+        $plan = WorkOrderOperationPlan::create([
+            'work_order_id' => WorkOrder::factory()->create(['line_id' => $line->id])->id,
+            'line_id' => $line->id,
+            'workstation_id' => $workstation->id,
+            'step_number' => 1,
+            'planned_start_at' => '2026-08-17 06:00:00',
+            'planned_end_at' => '2026-08-17 07:00:00',
+            'duration_minutes' => 60,
+        ]);
+        $worker = Worker::factory()->create();
+        $plan->plannedWorkers()->attach($worker);
+
+        $this->expectException(\Illuminate\Database\QueryException::class);
+        $plan->plannedWorkers()->attach($worker);
     }
 }

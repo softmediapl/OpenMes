@@ -63,6 +63,17 @@ class Worker extends Model
     }
 
     /**
+     * Committed operation segments for which this worker is reserved.
+     */
+    public function plannedOperations(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            WorkOrderOperationPlan::class,
+            'work_order_operation_plan_workers',
+        )->withTimestamps();
+    }
+
+    /**
      * Get the crew this worker belongs to.
      */
     public function crew(): BelongsTo

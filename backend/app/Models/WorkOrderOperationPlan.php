@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 /**
  * A committed reservation of one released operation on a workstation slot.
@@ -65,5 +66,16 @@ class WorkOrderOperationPlan extends Model
     public function scheduledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'scheduled_by_id');
+    }
+
+    /**
+     * Workers reserved to execute this operation segment.
+     */
+    public function plannedWorkers(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Worker::class,
+            'work_order_operation_plan_workers',
+        )->withTimestamps();
     }
 }
