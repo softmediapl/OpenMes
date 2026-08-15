@@ -22,6 +22,47 @@ final class LaborAvailabilityCalendar
     ];
 
     /**
+     * Return instants at which qualified labor availability may change.
+     *
+     * The scheduler uses these boundaries instead of polling every minute.
+     * Daily boundaries cover certification and authorization date changes;
+     * activity, absence, break and reservation boundaries cover intraday
+     * changes.
+     *
+     * @param  list<int>  $requiredSkillIds
+     * @param  array<int, list<array{start: CarbonInterface, end: CarbonInterface}>>  $proposedBlocks
+     * @return list<CarbonImmutable>
+     */
+    public function candidateStarts(
+        Workstation $workstation,
+        CarbonInterface $start,
+        CarbonInterface $end,
+        array $requiredSkillIds = [],
+        ?int $excludedWorkOrderId = null,
+        array $proposedBlocks = [],
+    ): array {
+        $rangeStart = CarbonImmutable::instance($start)->setTimezone(config('app.timezone'));
+        $rangeEnd = CarbonImmutable::instance($end)->setTimezone(config('app.timezone'));
+        $skills = collect($requiredSkillIds)
+            ->filter(fn ($skillId) => is_numeric($skillId))
+            ->map(fn ($skillId) => (int) $skillId)
+            ->unique()
+            ->values()
+            ->all();
+        $workers = $this->candidates(
+            $workstation,
+            $rangeStart,
+            $rangeEnd,
+            $skills,
+            $excludedWorkOrderId,
+        );
+
+        return $workers->isEmpty()
+            ? []
+            : $this->boundaries($workers, $rangeStart, $rangeEnd, $proposedBlocks);
+    }
+
+    /**
      * @param  list<int>  $requiredSkillIds
      * @param  array<int, list<array{start: CarbonInterface, end: CarbonInterface}>>  $proposedBlocks
      * @return list<array{worker_id: int, worker_name: string, starts_at: CarbonImmutable, ends_at: CarbonImmutable}>|null
@@ -105,7 +146,7 @@ final class LaborAvailabilityCalendar
         array $requiredSkillIds,
         ?int $excludedWorkOrderId,
     ): Collection {
-        return Worker::query()
+        $query = Worker::query()
             ->active()
             ->where(function ($query) use ($workstation) {
                 $query->where('workstation_id', $workstation->id)
@@ -136,9 +177,13 @@ final class LaborAvailabilityCalendar
                         ),
                     )
                     ->with('operationPlan:id,work_order_id'),
-            ])
-            ->orderBy('id')
-            ->get();
+            ]);
+
+        foreach ($requiredSkillIds as $skillId) {
+            $query->whereHas('skills', fn ($skills) => $skills->where('skills.id', $skillId));
+        }
+
+        return $query->orderBy('id')->get();
     }
 
     /**

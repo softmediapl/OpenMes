@@ -20,4 +20,9 @@ final class UnableToBuildSchedule extends RuntimeException
     {
         return new self("Process step {$stepNumber} cannot be placed within the scheduling horizon.");
     }
+
+    public static function noQualifiedLabor(int $stepNumber): self
+    {
+        return new self("Process step {$stepNumber} has no qualified labor coverage within the scheduling horizon.");
+    }
 }

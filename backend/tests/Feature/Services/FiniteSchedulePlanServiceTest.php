@@ -6,6 +6,7 @@ use App\Events\Schedule\WorkOrderScheduled;
 use App\Models\Line;
 use App\Models\Shift;
 use App\Models\User;
+use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
@@ -24,7 +25,7 @@ class FiniteSchedulePlanServiceTest extends TestCase
     public function test_it_commits_a_server_calculated_proposal_without_changing_customer_deadline(): void
     {
         Event::fake([WorkOrderScheduled::class]);
-        [$line, $station, $workOrder] = $this->fixture();
+        [$line, $station, $worker, $workOrder] = $this->fixture();
         $scheduler = app(FiniteCapacityScheduler::class);
         $start = CarbonImmutable::parse('2026-08-17 06:00');
         $preview = $scheduler->propose($workOrder, $start, $line->id);
@@ -50,12 +51,17 @@ class FiniteSchedulePlanServiceTest extends TestCase
             'source' => WorkOrderOperationPlan::SOURCE_APS,
             'scheduled_by_id' => $user->id,
         ]);
+        $this->assertDatabaseHas('work_order_operation_plan_workers', [
+            'worker_id' => $worker->id,
+            'reserved_start_at' => '2026-08-17 06:00:00',
+            'reserved_end_at' => '2026-08-17 07:00:00',
+        ]);
         Event::assertDispatched(WorkOrderScheduled::class);
     }
 
     public function test_it_rejects_a_stale_proposal_after_resource_plan_changes(): void
     {
-        [$line, $station, $workOrder] = $this->fixture();
+        [$line, $station, , $workOrder] = $this->fixture();
         $scheduler = app(FiniteCapacityScheduler::class);
         $start = CarbonImmutable::parse('2026-08-17 06:00');
         $preview = $scheduler->propose($workOrder, $start, $line->id);
@@ -82,7 +88,7 @@ class FiniteSchedulePlanServiceTest extends TestCase
         );
     }
 
-    /** @return array{Line, Workstation, WorkOrder} */
+    /** @return array{Line, Workstation, Worker, WorkOrder} */
     private function fixture(): array
     {
         $line = Line::factory()->create();
@@ -97,6 +103,8 @@ class FiniteSchedulePlanServiceTest extends TestCase
             'sort_order' => 1,
         ]);
         $station = Workstation::factory()->create(['line_id' => $line->id]);
+        $worker = Worker::factory()->create();
+        $worker->authorizedWorkstations()->attach($station);
         $workOrder = WorkOrder::factory()->create([
             'line_id' => $line->id,
             'planned_qty' => 100,
@@ -108,9 +116,11 @@ class FiniteSchedulePlanServiceTest extends TestCase
                 'estimated_duration_minutes' => 60,
                 'workstation_id' => $station->id,
                 'workstation_capacity_slots' => 1,
+                'labor_mode' => 'attended',
+                'required_operators' => 1,
             ]]],
         ]);
 
-        return [$line, $station, $workOrder];
+        return [$line, $station, $worker, $workOrder];
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Services\Schedule;
 
 use App\Events\Schedule\WorkOrderScheduled;
+use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
@@ -34,8 +35,21 @@ final class FiniteSchedulePlanService
 
             // Serialize APS applications per line. This prevents two planners
             // from committing overlapping slots after parallel previews.
-            Workstation::query()
+            $workstationIds = Workstation::query()
                 ->where('line_id', $lineId)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->pluck('id');
+
+            // A worker may be authorized on more than one line. Lock all
+            // candidates in a stable order so concurrent line plans cannot
+            // reserve the same person for overlapping operation windows.
+            Worker::query()
+                ->where(function ($query) use ($workstationIds) {
+                    $query->whereIn('workstation_id', $workstationIds)
+                        ->orWhereHas('authorizedWorkstations', fn ($authorization) => $authorization
+                            ->whereIn('workstations.id', $workstationIds));
+                })
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get(['id']);
@@ -47,7 +61,7 @@ final class FiniteSchedulePlanService
 
             $lockedWorkOrder->operationPlans()->delete();
             foreach ($proposal->segments as $segment) {
-                $lockedWorkOrder->operationPlans()->create([
+                $operationPlan = $lockedWorkOrder->operationPlans()->create([
                     'line_id' => $segment->lineId,
                     'workstation_id' => $segment->workstationId,
                     'step_number' => $segment->stepNumber,
@@ -64,6 +78,13 @@ final class FiniteSchedulePlanService
                         'reason_codes' => $segment->reasonCodes,
                     ],
                 ]);
+                foreach ($segment->workerAssignments as $assignment) {
+                    $operationPlan->workerAssignments()->create([
+                        'worker_id' => $assignment['worker_id'],
+                        'reserved_start_at' => $assignment['starts_at'],
+                        'reserved_end_at' => $assignment['ends_at'],
+                    ]);
+                }
             }
 
             $lockedWorkOrder->update([

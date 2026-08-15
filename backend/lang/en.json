@@ -5519,7 +5519,7 @@
     "Time estimate is incomplete": "Time estimate is incomplete",
     "Missing time standards for steps": "Missing time standards for steps",
     "Finite-capacity plan": "Finite-capacity plan",
-    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.",
+    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Checks dependencies, shifts, maintenance, workstation capacity and qualified labor without changing the schedule.",
     "Calculating...": "Calculating...",
     "Calculate capacity plan": "Calculate capacity plan",
     "Proposed start": "Proposed start",
@@ -5534,6 +5534,8 @@
     "Select a production line, planned start and start shift.": "Select a production line, planned start and start shift.",
     "The plan changed. Calculate a fresh proposal before applying it.": "The plan changed. Calculate a fresh proposal before applying it.",
     "Authorized workers": "Authorized workers",
+    "Qualified crew": "Qualified crew",
+    "No operator required": "No operator required",
     "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Workers qualified to operate this workstation. Their primary workstation is managed separately.",
     "(primary: :station)": "(primary: :station)"
 }

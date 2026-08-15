@@ -181,6 +181,34 @@ class LaborAvailabilityCalendarTest extends TestCase
         $this->assertNull($coverage);
     }
 
+    public function test_candidate_starts_include_activity_and_proposed_reservation_boundaries(): void
+    {
+        $worker = $this->authorizedWorker();
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'starts_at' => $this->at('2026-08-17 08:00'),
+            'ends_at' => $this->at('2026-08-17 14:00'),
+        ]);
+
+        $starts = $this->calendar->candidateStarts(
+            $this->workstation,
+            $this->at('2026-08-17 06:00'),
+            $this->at('2026-08-17 16:00'),
+            [],
+            null,
+            [$worker->id => [[
+                'start' => $this->at('2026-08-17 09:00'),
+                'end' => $this->at('2026-08-17 10:00'),
+            ]]],
+        );
+
+        $this->assertSame(
+            ['06:00', '08:00', '09:00', '10:00', '14:00', '16:00'],
+            array_map(fn (CarbonImmutable $start) => $start->format('H:i'), $starts),
+        );
+    }
+
     private function authorizedWorker(array $attributes = []): Worker
     {
         $worker = Worker::factory()->create($attributes);

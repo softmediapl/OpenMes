@@ -5519,7 +5519,7 @@
     "Time estimate is incomplete": "Estymacja czasu jest niekompletna",
     "Missing time standards for steps": "Brak norm czasu dla kroków",
     "Finite-capacity plan": "Plan o skończonej zdolności",
-    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Sprawdza zależności, zmiany, utrzymanie ruchu i pojemność stanowisk bez zmiany harmonogramu.",
+    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Sprawdza zależności, zmiany, utrzymanie ruchu, pojemność stanowisk i dostępność wykwalifikowanej obsady bez zmiany harmonogramu.",
     "Calculating...": "Obliczanie...",
     "Calculate capacity plan": "Oblicz plan zdolności",
     "Proposed start": "Proponowany start",
@@ -5534,6 +5534,8 @@
     "Select a production line, planned start and start shift.": "Wybierz linię produkcyjną, planowany start i zmianę początkową.",
     "The plan changed. Calculate a fresh proposal before applying it.": "Plan uległ zmianie. Przed zastosowaniem oblicz nową propozycję.",
     "Authorized workers": "Uprawnieni pracownicy",
+    "Qualified crew": "Wykwalifikowana obsada",
+    "No operator required": "Operator nie jest wymagany",
     "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Pracownicy uprawnieni do obsługi tego stanowiska. Ich stanowisko podstawowe jest zarządzane oddzielnie.",
     "(primary: :station)": "(podstawowe: :station)"
 }

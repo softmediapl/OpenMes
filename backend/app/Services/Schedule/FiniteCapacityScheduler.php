@@ -3,10 +3,12 @@
 namespace App\Services\Schedule;
 
 use App\Enums\OperationExecutionMode;
+use App\Enums\OperationLaborMode;
 use App\Models\MaintenanceEvent;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
 use App\Models\Workstation;
+use App\Services\Workforce\LaborAvailabilityCalendar;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -21,7 +23,15 @@ final class FiniteCapacityScheduler
     /** @var array<string, list<array{start: CarbonImmutable, end: CarbonImmutable}>> */
     private array $blockCache = [];
 
-    public function __construct(private readonly ShiftCalendar $shiftCalendar) {}
+    /** @var array<int, list<array{start: CarbonImmutable, end: CarbonImmutable}>> */
+    private array $laborBlockCache = [];
+
+    private bool $laborConstraintEncountered = false;
+
+    public function __construct(
+        private readonly ShiftCalendar $shiftCalendar,
+        private readonly LaborAvailabilityCalendar $laborCalendar,
+    ) {}
 
     public function propose(
         WorkOrder $workOrder,
@@ -42,6 +52,7 @@ final class FiniteCapacityScheduler
         }
 
         $this->blockCache = [];
+        $this->laborBlockCache = [];
         $quantity = (float) $workOrder->planned_qty;
         $segments = [];
         $stepEnds = [];
@@ -67,8 +78,10 @@ final class FiniteCapacityScheduler
             $operationSegments = $this->operationSegments($step, $quantity, $stepNumber);
             $latestEnd = $dependencyReady;
             foreach ($operationSegments as $operationSegment) {
+                $this->laborConstraintEncountered = false;
                 $placement = $this->earliestPlacement(
                     $workOrder,
+                    $step,
                     $workstations,
                     $lineId,
                     $dependencyReady,
@@ -78,12 +91,18 @@ final class FiniteCapacityScheduler
                     $horizonEnd,
                 );
                 if ($placement === null) {
+                    if ($this->laborConstraintEncountered) {
+                        throw UnableToBuildSchedule::noQualifiedLabor($stepNumber);
+                    }
                     throw UnableToBuildSchedule::noCalendarWindow($stepNumber);
                 }
 
                 $reasonCodes = ['dependency_ready'];
                 if ($placement['start']->greaterThan($dependencyReady)) {
                     $reasonCodes[] = 'calendar_or_resource_wait';
+                }
+                if ($placement['labor_wait']) {
+                    $reasonCodes[] = 'qualified_labor_wait';
                 }
                 $segment = new OperationScheduleSegment(
                     $stepNumber,
@@ -99,12 +118,19 @@ final class FiniteCapacityScheduler
                     $operationSegment['planned_quantity'],
                     $operationSegment['calendar_mode'],
                     $reasonCodes,
+                    $placement['worker_assignments'],
                 );
                 $segments[] = $segment;
                 $this->blockCache[$this->slotKey($placement['workstation']->id, $placement['slot_number'])][] = [
                     'start' => $placement['start'],
                     'end' => $placement['end'],
                 ];
+                foreach ($placement['worker_assignments'] as $assignment) {
+                    $this->laborBlockCache[$assignment['worker_id']][] = [
+                        'start' => $assignment['starts_at'],
+                        'end' => $assignment['ends_at'],
+                    ];
+                }
                 if ($placement['end']->greaterThan($latestEnd)) {
                     $latestEnd = $placement['end'];
                 }
@@ -195,10 +221,12 @@ final class FiniteCapacityScheduler
     /**
      * @param  Collection<int, Workstation>  $workstations
      * @param  list<array{start: CarbonImmutable, end: CarbonImmutable}>  $windows
-     * @return array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable}|null
+     * @param  array<string, mixed>  $step
+     * @return array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable, worker_assignments: list<array{worker_id: int, worker_name: string, starts_at: CarbonImmutable, ends_at: CarbonImmutable}>, labor_wait: bool}|null
      */
     private function earliestPlacement(
         WorkOrder $workOrder,
+        array $step,
         Collection $workstations,
         int $lineId,
         CarbonImmutable $earliest,
@@ -208,31 +236,83 @@ final class FiniteCapacityScheduler
         CarbonImmutable $horizonEnd,
     ): ?array {
         $best = null;
+        $laborMode = OperationLaborMode::tryFrom((string) ($step['labor_mode'] ?? ''))
+            ?? OperationLaborMode::Attended;
+        $requiredOperators = max(1, (int) ($step['required_operators'] ?? 1));
+        $requiredSkillIds = collect($step['required_skill_ids'] ?? [])
+            ->filter(fn ($skillId) => is_numeric($skillId))
+            ->map(fn ($skillId) => (int) $skillId)
+            ->unique()
+            ->values()
+            ->all();
+
         foreach ($workstations as $workstation) {
-            for ($slot = 1; $slot <= max(1, $workstation->capacity_slots); $slot++) {
-                $blocks = $this->blocks(
-                    $workOrder->id,
-                    $lineId,
-                    $workstation->id,
-                    $slot,
+            $laborStarts = $laborMode === OperationLaborMode::Unattended
+                ? [$earliest]
+                : $this->laborCalendar->candidateStarts(
+                    $workstation,
                     $earliest,
                     $horizonEnd,
+                    $requiredSkillIds,
+                    $workOrder->id,
+                    $this->laborBlockCache,
                 );
-                $window = $calendarMode === 'continuous'
-                    ? $this->continuousWindow($earliest, $durationMinutes, $windows, $blocks)
-                    : $this->workingWindow($earliest, $durationMinutes, $windows, $blocks);
-                if ($window === null) {
-                    continue;
-                }
 
-                $candidate = [
-                    'workstation' => $workstation,
-                    'slot_number' => $slot,
-                    'start' => $window['start'],
-                    'end' => $window['end'],
-                ];
-                if ($best === null || $this->isEarlier($candidate, $best)) {
-                    $best = $candidate;
+            for ($slot = 1; $slot <= max(1, $workstation->capacity_slots); $slot++) {
+                $candidateEarliest = $earliest;
+                $laborWait = false;
+                while ($candidateEarliest->lessThan($horizonEnd)) {
+                    $blocks = $this->blocks(
+                        $workOrder->id,
+                        $lineId,
+                        $workstation->id,
+                        $slot,
+                        $candidateEarliest,
+                        $horizonEnd,
+                    );
+                    $window = $calendarMode === 'continuous'
+                        ? $this->continuousWindow($candidateEarliest, $durationMinutes, $windows, $blocks)
+                        : $this->workingWindow($candidateEarliest, $durationMinutes, $windows, $blocks);
+                    if ($window === null) {
+                        break;
+                    }
+
+                    $assignments = $laborMode === OperationLaborMode::Unattended
+                        ? []
+                        : $this->laborAssignments(
+                            $workOrder,
+                            $workstation,
+                            $window['start'],
+                            $window['end'],
+                            $calendarMode,
+                            $windows,
+                            $requiredOperators,
+                            $requiredSkillIds,
+                        );
+                    if ($assignments !== null) {
+                        $candidate = [
+                            'workstation' => $workstation,
+                            'slot_number' => $slot,
+                            'start' => $window['start'],
+                            'end' => $window['end'],
+                            'worker_assignments' => $assignments,
+                            'labor_wait' => $laborWait,
+                        ];
+                        if ($best === null || $this->isEarlier($candidate, $best)) {
+                            $best = $candidate;
+                        }
+                        break;
+                    }
+
+                    $this->laborConstraintEncountered = true;
+                    $laborWait = true;
+                    $nextStart = collect($laborStarts)->first(
+                        fn (CarbonImmutable $candidate) => $candidate->greaterThan($window['start']),
+                    );
+                    if ($nextStart === null) {
+                        break;
+                    }
+                    $candidateEarliest = $nextStart;
                 }
             }
         }
@@ -241,8 +321,71 @@ final class FiniteCapacityScheduler
     }
 
     /**
-     * @param  array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable}  $candidate
-     * @param  array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable}  $best
+     * @param  list<array{start: CarbonImmutable, end: CarbonImmutable}>  $windows
+     * @param  list<int>  $requiredSkillIds
+     * @return list<array{worker_id: int, worker_name: string, starts_at: CarbonImmutable, ends_at: CarbonImmutable}>|null
+     */
+    private function laborAssignments(
+        WorkOrder $workOrder,
+        Workstation $workstation,
+        CarbonImmutable $start,
+        CarbonImmutable $end,
+        string $calendarMode,
+        array $windows,
+        int $requiredOperators,
+        array $requiredSkillIds,
+    ): ?array {
+        $assignments = [];
+        foreach ($this->activeLaborSlices($start, $end, $calendarMode, $windows) as $slice) {
+            $coverage = $this->laborCalendar->cover(
+                $workstation,
+                $slice['start'],
+                $slice['end'],
+                $requiredOperators,
+                $requiredSkillIds,
+                $workOrder->id,
+                $this->laborBlockCache,
+            );
+            if ($coverage === null) {
+                return null;
+            }
+            foreach ($coverage as $assignment) {
+                $assignments[] = $assignment;
+            }
+        }
+
+        return $assignments;
+    }
+
+    /**
+     * @param  list<array{start: CarbonImmutable, end: CarbonImmutable}>  $windows
+     * @return list<array{start: CarbonImmutable, end: CarbonImmutable}>
+     */
+    private function activeLaborSlices(
+        CarbonImmutable $start,
+        CarbonImmutable $end,
+        string $calendarMode,
+        array $windows,
+    ): array {
+        if ($calendarMode === 'continuous') {
+            return $end->greaterThan($start) ? [['start' => $start, 'end' => $end]] : [];
+        }
+
+        $slices = [];
+        foreach ($windows as $window) {
+            $sliceStart = $window['start']->greaterThan($start) ? $window['start'] : $start;
+            $sliceEnd = $window['end']->lessThan($end) ? $window['end'] : $end;
+            if ($sliceEnd->greaterThan($sliceStart)) {
+                $slices[] = ['start' => $sliceStart, 'end' => $sliceEnd];
+            }
+        }
+
+        return $slices;
+    }
+
+    /**
+     * @param  array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable, worker_assignments: array, labor_wait: bool}  $candidate
+     * @param  array{workstation: Workstation, slot_number: int, start: CarbonImmutable, end: CarbonImmutable, worker_assignments: array, labor_wait: bool}  $best
      */
     private function isEarlier(array $candidate, array $best): bool
     {

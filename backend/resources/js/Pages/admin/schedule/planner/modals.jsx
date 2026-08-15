@@ -213,6 +213,15 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                                                     <span>{formatDateTime(segment.planned_start_at)} → {formatDateTime(segment.planned_end_at)}</span>
                                                     <span>{fmtDurationMinutes(segment.duration_minutes)}</span>
                                                     {segment.planned_quantity != null && <span>{fmtQty(segment.planned_quantity)} {__('pcs')}</span>}
+                                                    {segment.worker_assignments?.length > 0 ? (
+                                                        <span>
+                                                            {__('Qualified crew')}: {segment.worker_assignments.map((assignment) => (
+                                                                `${assignment.worker_name} (${formatDateTime(assignment.reserved_start_at)} → ${formatDateTime(assignment.reserved_end_at)})`
+                                                            )).join(', ')}
+                                                        </span>
+                                                    ) : (
+                                                        <span>{__('No operator required')}</span>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>

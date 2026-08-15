@@ -6,7 +6,10 @@ use Carbon\CarbonImmutable;
 
 final class OperationScheduleSegment
 {
-    /** @param list<string> $reasonCodes */
+    /**
+     * @param  list<string>  $reasonCodes
+     * @param  list<array{worker_id: int, worker_name: string, starts_at: CarbonImmutable, ends_at: CarbonImmutable}>  $workerAssignments
+     */
     public function __construct(
         public readonly int $stepNumber,
         public readonly int $segmentNumber,
@@ -21,6 +24,7 @@ final class OperationScheduleSegment
         public readonly ?float $plannedQuantity,
         public readonly string $calendarMode,
         public readonly array $reasonCodes,
+        public readonly array $workerAssignments = [],
     ) {}
 
     /** @return array<string, mixed> */
@@ -40,6 +44,12 @@ final class OperationScheduleSegment
             'planned_quantity' => $this->plannedQuantity,
             'calendar_mode' => $this->calendarMode,
             'reason_codes' => $this->reasonCodes,
+            'worker_assignments' => array_map(fn (array $assignment): array => [
+                'worker_id' => $assignment['worker_id'],
+                'worker_name' => $assignment['worker_name'],
+                'reserved_start_at' => $assignment['starts_at']->toIso8601String(),
+                'reserved_end_at' => $assignment['ends_at']->toIso8601String(),
+            ], $this->workerAssignments),
         ];
     }
 }

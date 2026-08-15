@@ -770,7 +770,10 @@ class SchedulePlannerController extends Controller
         if (array_key_exists('operation_plans', $s)) {
             $workOrder->operationPlans()->delete();
             foreach ($s['operation_plans'] as $operationPlan) {
-                $workOrder->operationPlans()->create($operationPlan);
+                $workerAssignments = $operationPlan['worker_assignments'] ?? [];
+                unset($operationPlan['worker_assignments']);
+                $restoredPlan = $workOrder->operationPlans()->create($operationPlan);
+                $restoredPlan->workerAssignments()->createMany($workerAssignments);
             }
         }
 
@@ -811,7 +814,7 @@ class SchedulePlannerController extends Controller
                 'end_date' => $p->end_date?->format('Y-m-d'),
                 'end_shift_number' => $p->end_shift_number,
             ])->values()->all(),
-            'operation_plans' => $workOrder->operationPlans()->get()->map(fn ($plan) => [
+            'operation_plans' => $workOrder->operationPlans()->with('workerAssignments')->get()->map(fn ($plan) => [
                 'line_id' => $plan->line_id,
                 'workstation_id' => $plan->workstation_id,
                 'step_number' => $plan->step_number,
@@ -824,6 +827,11 @@ class SchedulePlannerController extends Controller
                 'source' => $plan->source,
                 'scheduled_by_id' => $plan->scheduled_by_id,
                 'plan_metadata' => $plan->plan_metadata,
+                'worker_assignments' => $plan->workerAssignments->map(fn ($assignment) => [
+                    'worker_id' => $assignment->worker_id,
+                    'reserved_start_at' => $assignment->reserved_start_at->toIso8601String(),
+                    'reserved_end_at' => $assignment->reserved_end_at->toIso8601String(),
+                ])->values()->all(),
             ])->values()->all(),
         ];
     }
