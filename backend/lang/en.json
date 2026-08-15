@@ -5605,5 +5605,12 @@
     "Qualified labor wait": "Qualified labor wait",
     "Finite-capacity baseline": "Finite-capacity baseline",
     "Production complete": "Production complete",
-    "Yield loss observed": "Yield loss observed"
+    "Yield loss observed": "Yield loss observed",
+    "Require an operation quality gate": "Require an operation quality gate",
+    "Quality-check template": "Quality-check template",
+    "— Select a quality-check template —": "— Select a quality-check template —",
+    "The operation cannot be completed until all required checks pass and blocking non-conformances are resolved.": "The operation cannot be completed until all required checks pass and blocking non-conformances are resolved.",
+    "Quality gate": "Quality gate",
+    "Select a quality-check template for the required operation gate.": "Select a quality-check template for the required operation gate.",
+    "The selected quality-check template does not belong to this process template.": "The selected quality-check template does not belong to this process template."
 }

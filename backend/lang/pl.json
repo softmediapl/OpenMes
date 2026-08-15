@@ -5605,5 +5605,12 @@
     "Qualified labor wait": "Oczekiwanie na wykwalifikowaną obsadę",
     "Finite-capacity baseline": "Bazowy plan o skończonej zdolności",
     "Production complete": "Produkcja zakończona",
-    "Yield loss observed": "Wykryto stratę uzysku"
+    "Yield loss observed": "Wykryto stratę uzysku",
+    "Require an operation quality gate": "Wymagaj bramki jakościowej operacji",
+    "Quality-check template": "Szablon kontroli jakości",
+    "— Select a quality-check template —": "— Wybierz szablon kontroli jakości —",
+    "The operation cannot be completed until all required checks pass and blocking non-conformances are resolved.": "Operacji nie można zakończyć, dopóki wszystkie wymagane kontrole nie zostaną zaliczone, a blokujące niezgodności rozwiązane.",
+    "Quality gate": "Bramka jakościowa",
+    "Select a quality-check template for the required operation gate.": "Wybierz szablon kontroli jakości dla wymaganej bramki operacji.",
+    "The selected quality-check template does not belong to this process template.": "Wybrany szablon kontroli jakości nie należy do tego szablonu procesu."
 }

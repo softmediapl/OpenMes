@@ -86,6 +86,7 @@ class ProcessTemplateManagementController extends Controller
             'steps.workstation.line',
             'steps.processSegment',
             'steps.transportUnitType',
+            'steps.qualityCheckTemplate',
             'photos.uploadedBy',
             'stepMedia',
             'checklistItems',
@@ -129,6 +130,8 @@ class ProcessTemplateManagementController extends Controller
                     'workstation_id' => $s->workstation_id,
                     'workstation_type_id' => $s->workstation_type_id,
                     'transport_unit_type_id' => $s->transport_unit_type_id,
+                    'quality_check_template_id' => $s->quality_check_template_id,
+                    'quality_gate_required' => (bool) $s->quality_gate_required,
                     'process_segment_id' => $s->process_segment_id,
                     'is_optional' => (bool) $s->is_optional,
                     'variant_group' => $s->variant_group,
@@ -146,6 +149,10 @@ class ProcessTemplateManagementController extends Controller
                         'id' => $s->transportUnitType->id,
                         'code' => $s->transportUnitType->code,
                         'name' => $s->transportUnitType->name,
+                    ] : null,
+                    'quality_check_template' => $s->qualityCheckTemplate ? [
+                        'id' => $s->qualityCheckTemplate->id,
+                        'name' => $s->qualityCheckTemplate->name,
                     ] : null,
                 ]),
                 'photos' => $processTemplate->photos->map(fn ($p) => [
@@ -186,6 +193,9 @@ class ProcessTemplateManagementController extends Controller
                 ->active()
                 ->orderBy('name')
                 ->get(['id', 'code', 'name', 'default_capacity_quantity', 'unit_of_measure']),
+            'qualityCheckTemplates' => $processTemplate->qualityCheckTemplates()
+                ->orderBy('name')
+                ->get(['id', 'name', 'min_checks_per_batch', 'samples_per_check']),
             'processSegments' => $processSegments->map(fn ($s) => [
                 'id' => $s->id,
                 'code' => $s->code,
@@ -354,6 +364,10 @@ class ProcessTemplateManagementController extends Controller
         $data = $request->validated();
         $data['requires_confirmation'] = $request->boolean('requires_confirmation');
         $data['quantity_reporting_required'] = $request->boolean('quantity_reporting_required');
+        $data['quality_gate_required'] = $request->boolean('quality_gate_required');
+        $data['quality_check_template_id'] = $data['quality_gate_required']
+            ? ($data['quality_check_template_id'] ?? null)
+            : null;
         $data['is_optional'] = $request->boolean('is_optional');
         $data['variant_group'] = $request->filled('variant_group') ? $request->input('variant_group') : null;
         $data['is_default_variant'] = $data['variant_group'] !== null && $request->boolean('is_default_variant');

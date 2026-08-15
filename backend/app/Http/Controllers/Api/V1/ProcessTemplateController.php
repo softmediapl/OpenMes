@@ -19,7 +19,7 @@ class ProcessTemplateController extends Controller
     public function index(Request $request, ProductType $productType): JsonResponse
     {
         $query = $productType->processTemplates()->with('steps.workstation');
-        if (!$request->boolean('include_inactive')) {
+        if (! $request->boolean('include_inactive')) {
             $query->where('is_active', true);
         }
 
@@ -32,6 +32,7 @@ class ProcessTemplateController extends Controller
     {
         $this->authorize('view', $processTemplate);
         $processTemplate->load(['productType', 'steps.workstation']);
+
         return response()->json(['data' => $processTemplate]);
     }
 
@@ -44,7 +45,7 @@ class ProcessTemplateController extends Controller
         $data['is_active'] = $data['is_active'] ?? true;
 
         // Auto-bump version if not provided
-        if (!isset($data['version'])) {
+        if (! isset($data['version'])) {
             $maxVersion = $productType->processTemplates()->max('version') ?? 0;
             $data['version'] = $maxVersion + 1;
         }
@@ -61,6 +62,7 @@ class ProcessTemplateController extends Controller
     {
         $this->authorize('update', $processTemplate);
         $processTemplate->update($request->validated());
+
         return response()->json([
             'message' => 'Process template updated',
             'data' => $processTemplate->fresh(['steps']),
@@ -74,13 +76,15 @@ class ProcessTemplateController extends Controller
         // Optional: prevent deletion if used by work orders
         // (work orders snapshot the template so this is safe, but warn anyway)
         $processTemplate->delete();
+
         return response()->json(['message' => 'Process template deleted']);
     }
 
     public function toggleActive(ProcessTemplate $processTemplate): JsonResponse
     {
         $this->authorize('update', $processTemplate);
-        $processTemplate->update(['is_active' => !$processTemplate->is_active]);
+        $processTemplate->update(['is_active' => ! $processTemplate->is_active]);
+
         return response()->json([
             'message' => $processTemplate->is_active ? 'Activated' : 'Deactivated',
             'data' => $processTemplate,
@@ -94,7 +98,11 @@ class ProcessTemplateController extends Controller
         $this->authorize('update', $processTemplate);
 
         $data = $request->validated();
-        if (!isset($data['step_number'])) {
+        $data['quality_gate_required'] = (bool) ($data['quality_gate_required'] ?? false);
+        if (! $data['quality_gate_required']) {
+            $data['quality_check_template_id'] = null;
+        }
+        if (! isset($data['step_number'])) {
             $data['step_number'] = ($processTemplate->steps()->max('step_number') ?? 0) + 1;
         }
         $data['process_template_id'] = $processTemplate->id;
@@ -110,7 +118,12 @@ class ProcessTemplateController extends Controller
     public function updateStep(UpdateTemplateStepRequest $request, TemplateStep $templateStep): JsonResponse
     {
         $this->authorize('update', $templateStep->processTemplate);
-        $templateStep->update($request->validated());
+        $data = $request->validated();
+        if (array_key_exists('quality_gate_required', $data) && ! $data['quality_gate_required']) {
+            $data['quality_check_template_id'] = null;
+        }
+        $templateStep->update($data);
+
         return response()->json([
             'message' => 'Step updated',
             'data' => $templateStep->fresh(['workstation']),
@@ -121,6 +134,7 @@ class ProcessTemplateController extends Controller
     {
         $this->authorize('update', $templateStep->processTemplate);
         $templateStep->delete();
+
         return response()->json(['message' => 'Step deleted']);
     }
 
@@ -143,7 +157,7 @@ class ProcessTemplateController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($stepIds, $processTemplate) {
+        DB::transaction(function () use ($stepIds) {
             // Use temporary high numbers first to avoid uniqueness collisions
             foreach ($stepIds as $i => $id) {
                 TemplateStep::where('id', $id)->update(['step_number' => 10000 + $i]);

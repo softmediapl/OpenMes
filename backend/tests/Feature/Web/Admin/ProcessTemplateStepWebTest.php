@@ -4,6 +4,7 @@ namespace Tests\Feature\Web\Admin;
 
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
+use App\Models\QualityCheckTemplate;
 use App\Models\TemplateStep;
 use App\Models\TransportUnitType;
 use App\Models\User;
@@ -161,6 +162,78 @@ class ProcessTemplateStepWebTest extends TestCase
             ])->assertSessionHasErrors('transport_unit_type_id');
     }
 
+    public function test_admin_can_require_a_quality_gate_from_the_same_process_template(): void
+    {
+        [$productType, $template] = $this->template();
+        $qualityTemplate = $this->qualityTemplate($template, 'Final dimensions');
+
+        $this->actingAs($this->admin)
+            ->post($this->base($productType, $template).'/steps', [
+                'name' => 'Final inspection',
+                'quality_gate_required' => true,
+                'quality_check_template_id' => $qualityTemplate->id,
+            ])->assertRedirect();
+
+        $this->assertDatabaseHas('template_steps', [
+            'process_template_id' => $template->id,
+            'name' => 'Final inspection',
+            'quality_gate_required' => true,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ]);
+    }
+
+    public function test_required_quality_gate_requires_a_quality_check_template(): void
+    {
+        [$productType, $template] = $this->template();
+
+        $this->actingAs($this->admin)
+            ->post($this->base($productType, $template).'/steps', [
+                'name' => 'Unspecified quality gate',
+                'quality_gate_required' => true,
+            ])->assertSessionHasErrors('quality_check_template_id');
+
+        $this->assertDatabaseMissing('template_steps', [
+            'process_template_id' => $template->id,
+            'name' => 'Unspecified quality gate',
+        ]);
+    }
+
+    public function test_admin_cannot_attach_a_quality_template_from_another_process(): void
+    {
+        [$productType, $template] = $this->template();
+        $foreignTemplate = ProcessTemplate::factory()->create();
+        $qualityTemplate = $this->qualityTemplate($foreignTemplate, 'Foreign inspection');
+
+        $this->actingAs($this->admin)
+            ->post($this->base($productType, $template).'/steps', [
+                'name' => 'Invalid quality gate',
+                'quality_gate_required' => true,
+                'quality_check_template_id' => $qualityTemplate->id,
+            ])->assertSessionHasErrors('quality_check_template_id');
+    }
+
+    public function test_disabling_a_quality_gate_clears_its_template(): void
+    {
+        [$productType, $template] = $this->template();
+        $qualityTemplate = $this->qualityTemplate($template, 'Final dimensions');
+        $step = TemplateStep::factory()->create([
+            'process_template_id' => $template->id,
+            'quality_gate_required' => true,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ]);
+
+        $this->actingAs($this->admin)
+            ->put($this->base($productType, $template)."/steps/{$step->id}", [
+                'name' => $step->name,
+                'quality_gate_required' => false,
+                'quality_check_template_id' => $qualityTemplate->id,
+            ])->assertRedirect();
+
+        $step->refresh();
+        $this->assertFalse($step->quality_gate_required);
+        $this->assertNull($step->quality_check_template_id);
+    }
+
     public function test_admin_can_update_step(): void
     {
         [$pt, $tpl] = $this->template();
@@ -242,5 +315,19 @@ class ProcessTemplateStepWebTest extends TestCase
 
         $response->assertRedirect();
         $this->assertDatabaseHas('template_steps', ['id' => $second->id, 'step_number' => 1]);
+    }
+
+    private function qualityTemplate(ProcessTemplate $template, string $name): QualityCheckTemplate
+    {
+        return QualityCheckTemplate::create([
+            'process_template_id' => $template->id,
+            'name' => $name,
+            'min_checks_per_batch' => 1,
+            'samples_per_check' => 1,
+            'parameters' => [[
+                'name' => 'Visual inspection',
+                'type' => 'pass_fail',
+            ]],
+        ]);
     }
 }

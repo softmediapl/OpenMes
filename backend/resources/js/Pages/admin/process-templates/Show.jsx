@@ -217,6 +217,47 @@ function Isa95StepFields({
     );
 }
 
+function QualityGateFields({ data, setData, errors = {}, qualityCheckTemplates = [] }) {
+    const enabled = !!data.quality_gate_required;
+
+    return (
+        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-om-panel rounded-om-sm p-3 border border-om-line">
+            <div className="flex items-center">
+                <Checkbox
+                    checked={enabled}
+                    onChange={(next) => {
+                        setData('quality_gate_required', next);
+                        if (!next) setData('quality_check_template_id', '');
+                    }}
+                    label={__('Require an operation quality gate')}
+                />
+            </div>
+            <div>
+                <label className="form-label">{__('Quality-check template')}</label>
+                <Dropdown
+                    value={data.quality_check_template_id == null ? '' : String(data.quality_check_template_id)}
+                    onChange={(value) => setData('quality_check_template_id', value)}
+                    disabled={!enabled}
+                    options={[
+                        { value: '', label: __('— Select a quality-check template —') },
+                        ...qualityCheckTemplates.map((template) => ({
+                            value: String(template.id),
+                            label: `${template.name} (${template.min_checks_per_batch} × ${template.samples_per_check})`,
+                        })),
+                    ]}
+                    className="w-full"
+                />
+                {errors.quality_check_template_id && (
+                    <p className="text-xs text-om-blocked mt-1">{errors.quality_check_template_id}</p>
+                )}
+            </div>
+            <p className="md:col-span-2 text-xs text-om-muted">
+                {__('The operation cannot be completed until all required checks pass and blocking non-conformances are resolved.')}
+            </p>
+        </div>
+    );
+}
+
 /* ------------------------------------------------------------------ */
 /* Add-step inline form                                                  */
 /* ------------------------------------------------------------------ */
@@ -227,6 +268,7 @@ function AddStepForm({
     workstations,
     workstationTypes = [],
     transportUnitTypes = [],
+    qualityCheckTemplates = [],
     onCancel,
 }) {
     const form = useForm({
@@ -244,6 +286,8 @@ function AddStepForm({
         workstation_id: '',
         workstation_type_id: '',
         transport_unit_type_id: '',
+        quality_check_template_id: '',
+        quality_gate_required: false,
         process_segment_id: '',
         is_optional: false,
         variant_group: '',
@@ -375,6 +419,12 @@ function AddStepForm({
                         workstationTypes={workstationTypes}
                         transportUnitTypes={transportUnitTypes}
                     />
+                    <QualityGateFields
+                        data={data}
+                        setData={setData}
+                        errors={errors}
+                        qualityCheckTemplates={qualityCheckTemplates}
+                    />
                     <OptionalVariantFields data={data} setData={setData} errors={errors} />
                 </div>
 
@@ -402,6 +452,7 @@ function EditStepForm({
     workstations,
     workstationTypes = [],
     transportUnitTypes = [],
+    qualityCheckTemplates = [],
     onCancel,
 }) {
     const form = useForm({
@@ -419,6 +470,8 @@ function EditStepForm({
         workstation_id: step.workstation_id != null ? String(step.workstation_id) : '',
         workstation_type_id: step.workstation_type_id != null ? String(step.workstation_type_id) : '',
         transport_unit_type_id: step.transport_unit_type_id != null ? String(step.transport_unit_type_id) : '',
+        quality_check_template_id: step.quality_check_template_id != null ? String(step.quality_check_template_id) : '',
+        quality_gate_required: !!step.quality_gate_required,
         process_segment_id: step.process_segment_id != null ? String(step.process_segment_id) : '',
         is_optional: !!step.is_optional,
         variant_group: step.variant_group ?? '',
@@ -527,6 +580,12 @@ function EditStepForm({
                     errors={errors}
                     workstationTypes={workstationTypes}
                     transportUnitTypes={transportUnitTypes}
+                />
+                <QualityGateFields
+                    data={data}
+                    setData={setData}
+                    errors={errors}
+                    qualityCheckTemplates={qualityCheckTemplates}
                 />
                 <OptionalVariantFields data={data} setData={setData} errors={errors} />
             </div>
@@ -759,7 +818,7 @@ function StepEngineeringDocuments({ stepId }) {
 
 function StepCard({
     step, photo, photosBaseUrl, isFirst, isLast, editingId, onEditStart, onEditCancel,
-    productType, processTemplate, processSegments, workstations, workstationTypes = [], transportUnitTypes = [],
+    productType, processTemplate, processSegments, workstations, workstationTypes = [], transportUnitTypes = [], qualityCheckTemplates = [],
     onMoveUp, onMoveDown, onDelete,
     dragHandleProps,
 }) {
@@ -812,6 +871,11 @@ function StepCard({
                                         {step.quantity_reporting_required && (
                                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-done-bg text-om-done">
                                                 {__('Quantity balance')}
+                                            </span>
+                                        )}
+                                        {step.quality_gate_required && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-blocked-bg text-om-blocked">
+                                                {__('Quality gate')}: {step.quality_check_template?.name}
                                             </span>
                                         )}
                                     </h3>
@@ -940,6 +1004,7 @@ function StepCard({
                     workstations={workstations}
                     workstationTypes={workstationTypes}
                     transportUnitTypes={transportUnitTypes}
+                    qualityCheckTemplates={qualityCheckTemplates}
                     onCancel={onEditCancel}
                 />
             )}
@@ -958,6 +1023,7 @@ export default function ProcessTemplatesShow() {
         processSegments = [],
         workstationTypes = [],
         transportUnitTypes = [],
+        qualityCheckTemplates = [],
     } = usePage().props;
 
     const steps = processTemplate.steps ?? [];
@@ -1142,6 +1208,7 @@ export default function ProcessTemplatesShow() {
                         workstations={workstations}
                         workstationTypes={workstationTypes}
                         transportUnitTypes={transportUnitTypes}
+                        qualityCheckTemplates={qualityCheckTemplates}
                         onCancel={() => setShowAddForm(false)}
                     />
                 )}
@@ -1178,6 +1245,7 @@ export default function ProcessTemplatesShow() {
                                     workstations={workstations}
                                     workstationTypes={workstationTypes}
                                     transportUnitTypes={transportUnitTypes}
+                                    qualityCheckTemplates={qualityCheckTemplates}
                                     onMoveUp={handleMoveUp}
                                     onMoveDown={handleMoveDown}
                                     onDelete={handleDelete}

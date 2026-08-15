@@ -5,6 +5,7 @@ namespace App\Http\Requests\Web\Admin;
 use App\Enums\OperationExecutionMode;
 use App\Enums\OperationLaborMode;
 use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
+use App\Http\Requests\Concerns\ValidatesTemplateStepQualityGate;
 use App\Http\Requests\Concerns\ValidatesTemplateStepTiming;
 use App\Models\TemplateStep;
 use Illuminate\Foundation\Http\FormRequest;
@@ -17,6 +18,7 @@ use Illuminate\Validation\Rule;
 abstract class TemplateStepRequest extends FormRequest
 {
     use ValidatesTemplateStepInstruction;
+    use ValidatesTemplateStepQualityGate;
     use ValidatesTemplateStepTiming;
 
     public function authorize(): bool
@@ -41,6 +43,8 @@ abstract class TemplateStepRequest extends FormRequest
             'workstation_id' => 'nullable|exists:workstations,id',
             'workstation_type_id' => ['nullable', Rule::exists('workstation_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
             'transport_unit_type_id' => ['nullable', Rule::exists('transport_unit_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
+            'quality_check_template_id' => ['nullable', 'integer', Rule::exists('quality_check_templates', 'id')->whereNull('deleted_at')],
+            'quality_gate_required' => 'boolean',
             'process_segment_id' => 'nullable|exists:process_segments,id',
             'is_optional' => 'boolean',
             'variant_group' => 'nullable|string|max:50',
@@ -52,6 +56,7 @@ abstract class TemplateStepRequest extends FormRequest
     {
         $this->validateConfirmableInstruction($validator, $this->route('step'));
         $this->validateTemplateStepTiming($validator, $this->route('step'));
+        $this->validateTemplateStepQualityGate($validator, $this->route('step'));
 
         $validator->after(function ($v) {
             if ($v->errors()->isNotEmpty()) {

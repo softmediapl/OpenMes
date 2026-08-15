@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
+use App\Models\QualityCheckTemplate;
 use App\Models\TemplateStep;
 use App\Models\TransportUnitType;
 use App\Models\User;
@@ -182,6 +183,58 @@ class ProcessTemplateApiTest extends TestCase
             ->assertJsonValidationErrors('transport_unit_type_id');
     }
 
+    public function test_api_can_configure_an_operation_quality_gate(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $qualityTemplate = $this->qualityTemplate($template, 'Surface finish');
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Final inspection',
+            'quality_gate_required' => true,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ])->assertCreated()
+            ->assertJsonPath('data.quality_gate_required', true)
+            ->assertJsonPath('data.quality_check_template_id', $qualityTemplate->id);
+    }
+
+    public function test_api_rejects_missing_or_foreign_quality_gate_templates(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $foreignTemplate = ProcessTemplate::factory()->create();
+        $qualityTemplate = $this->qualityTemplate($foreignTemplate, 'Foreign inspection');
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Missing quality specification',
+            'quality_gate_required' => true,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('quality_check_template_id');
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/steps", [
+            'name' => 'Foreign quality specification',
+            'quality_gate_required' => true,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('quality_check_template_id');
+    }
+
+    public function test_api_clears_quality_template_when_gate_is_disabled(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $qualityTemplate = $this->qualityTemplate($template, 'Surface finish');
+        $step = TemplateStep::factory()->create([
+            'process_template_id' => $template->id,
+            'quality_gate_required' => true,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ]);
+
+        $this->authAdmin()->patchJson("/api/v1/template-steps/{$step->id}", [
+            'quality_gate_required' => false,
+            'quality_check_template_id' => $qualityTemplate->id,
+        ])->assertOk()
+            ->assertJsonPath('data.quality_gate_required', false)
+            ->assertJsonPath('data.quality_check_template_id', null);
+    }
+
     public function test_step_numbers_auto_increment(): void
     {
         $template = ProcessTemplate::factory()->create();
@@ -272,5 +325,19 @@ class ProcessTemplateApiTest extends TestCase
         $this->authAdmin()->postJson("/api/v1/process-templates/{$template->id}/toggle-active")
             ->assertStatus(200);
         $this->assertFalse($template->fresh()->is_active);
+    }
+
+    private function qualityTemplate(ProcessTemplate $template, string $name): QualityCheckTemplate
+    {
+        return QualityCheckTemplate::create([
+            'process_template_id' => $template->id,
+            'name' => $name,
+            'min_checks_per_batch' => 1,
+            'samples_per_check' => 1,
+            'parameters' => [[
+                'name' => 'Visual inspection',
+                'type' => 'pass_fail',
+            ]],
+        ]);
     }
 }

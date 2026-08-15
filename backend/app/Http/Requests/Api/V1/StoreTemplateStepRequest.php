@@ -5,6 +5,7 @@ namespace App\Http\Requests\Api\V1;
 use App\Enums\OperationExecutionMode;
 use App\Enums\OperationLaborMode;
 use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
+use App\Http\Requests\Concerns\ValidatesTemplateStepQualityGate;
 use App\Http\Requests\Concerns\ValidatesTemplateStepTiming;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,6 +13,7 @@ use Illuminate\Validation\Rule;
 class StoreTemplateStepRequest extends FormRequest
 {
     use ValidatesTemplateStepInstruction;
+    use ValidatesTemplateStepQualityGate;
     use ValidatesTemplateStepTiming;
 
     public function authorize(): bool
@@ -37,6 +39,8 @@ class StoreTemplateStepRequest extends FormRequest
             'workstation_id' => ['nullable', 'integer', 'exists:workstations,id'],
             'workstation_type_id' => ['nullable', 'integer', Rule::exists('workstation_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
             'transport_unit_type_id' => ['nullable', 'integer', Rule::exists('transport_unit_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
+            'quality_check_template_id' => ['nullable', 'integer', Rule::exists('quality_check_templates', 'id')->whereNull('deleted_at')],
+            'quality_gate_required' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -44,5 +48,6 @@ class StoreTemplateStepRequest extends FormRequest
     {
         $this->validateConfirmableInstruction($validator);
         $this->validateTemplateStepTiming($validator);
+        $this->validateTemplateStepQualityGate($validator);
     }
 }
