@@ -46,18 +46,18 @@ class ProductRevisionTest extends TestCase
         $this->actingAs($operator)->get(route('admin.product-revisions.index'))->assertForbidden();
     }
 
-    public function test_index_remains_available_when_a_legacy_product_has_no_unit_configured(): void
+    public function test_index_does_not_compute_precision_from_unit_data_that_was_not_selected(): void
     {
-        $legacyType = ProductType::factory()->create(['unit_of_measure' => null]);
-        ProductRevision::factory()->create(['product_type_id' => $legacyType->id]);
+        $productType = ProductType::factory()->create();
+        ProductRevision::factory()->create(['product_type_id' => $productType->id]);
 
         $this->actingAs($this->admin)
             ->get(route('admin.product-revisions.index'))
             ->assertOk()
             ->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page
                 ->component('admin/product-revisions/Index')
-                ->where('productTypes.0.id', $legacyType->id)
-                ->where('productTypes.0.quantity_precision', null));
+                ->where('productTypes.0.id', $productType->id)
+                ->missing('productTypes.0.quantity_precision'));
     }
 
     public function test_admin_can_view_the_show_page_hosting_the_engineering_panel(): void
