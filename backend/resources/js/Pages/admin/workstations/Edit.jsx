@@ -6,7 +6,7 @@ import { customFieldInitial, customFieldProps, submitForm } from '../../../lib/c
 import { __ } from '../../../lib/i18n';
 
 export default function WorkstationEdit() {
-    const { line, workstation, workers = [], customFields = [] } = usePage().props;
+    const { line, workstation, workers = [], customFields = [], supervisorModes = [] } = usePage().props;
 
     const assignedWorkerIds = workers
         .filter((w) => w.is_authorized)
@@ -17,6 +17,7 @@ export default function WorkstationEdit() {
         name: workstation.name ?? '',
         workstation_type: workstation.workstation_type ?? '',
         capacity_slots: workstation.capacity_slots ?? 1,
+        panel_supervisor_mode: workstation.panel_supervisor_mode ?? '',
         is_active: !!workstation.is_active,
         worker_ids: assignedWorkerIds,
         ...customFieldInitial(workstation.custom_fields),
@@ -54,6 +55,15 @@ export default function WorkstationEdit() {
             </div>
 
             <form onSubmit={submit} className="bg-om-card rounded-om-sm shadow-sm p-6 space-y-5">
+                <div>
+                    <label className="block text-sm font-medium text-om-muted mb-1">{__('Supervisor authorization')}</label>
+                    <select value={form.data.panel_supervisor_mode} onChange={(e) => form.setData('panel_supervisor_mode', e.target.value)} className="form-input w-full">
+                        {supervisorModes.map((mode) => <option key={mode.value} value={mode.value}>{mode.label}</option>)}
+                    </select>
+                    <p className="text-sm text-om-muted mt-1">{__('Optional override of the global operator panel setting.')}</p>
+                    {form.errors.panel_supervisor_mode && <p className="mt-1 text-xs text-om-blocked">{form.errors.panel_supervisor_mode}</p>}
+                </div>
+
                 <div>
                     <label className="block text-sm font-medium text-om-muted mb-1">
                         {__('Workstation Code')} <span className="text-om-blocked">*</span>

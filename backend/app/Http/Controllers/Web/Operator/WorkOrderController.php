@@ -500,6 +500,17 @@ class WorkOrderController extends Controller
 
         $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
 
+        if ($request->routeIs('panel.*') && $lockedWorkstation && $request->attributes->get('panel_operator')) {
+            $qualificationService = app(\App\Services\Operator\PanelQualificationService::class);
+            $workOrder->batches->flatMap->steps->each(function (BatchStep $step) use ($qualificationService, $request, $lockedWorkstation) {
+                $step->setAttribute('panel_qualification', $qualificationService->evaluate(
+                    $request->attributes->get('panel_operator'),
+                    $lockedWorkstation,
+                    $step,
+                ));
+            });
+        }
+
         $page = $request->routeIs('panel.*') ? 'panel/WorkOrder' : 'operator/WorkOrderDetail';
 
         return Inertia::render($page, compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));

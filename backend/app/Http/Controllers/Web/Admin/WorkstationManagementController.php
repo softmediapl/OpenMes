@@ -47,6 +47,7 @@ class WorkstationManagementController extends Controller
         return Inertia::render('admin/workstations/Create', [
             'line' => $line->only('id', 'name', 'code'),
             'customFields' => $cf->clientConfig('workstation'),
+            'supervisorModes' => $this->supervisorModes(),
         ]);
     }
 
@@ -60,6 +61,7 @@ class WorkstationManagementController extends Controller
             'name' => 'required|string|max:255',
             'workstation_type' => 'nullable|string|max:100',
             'capacity_slots' => 'nullable|integer|min:1|max:10000',
+            'panel_supervisor_mode' => 'nullable|in:inline_pin,session_takeover,remote_only',
             'is_active' => 'boolean',
         ], $cf->rules('workstation')), [], $cf->attributeNames('workstation'));
 
@@ -93,8 +95,9 @@ class WorkstationManagementController extends Controller
 
         return Inertia::render('admin/workstations/Edit', [
             'line' => $line->only('id', 'name', 'code'),
-            'workstation' => $workstation->only('id', 'code', 'name', 'workstation_type', 'capacity_slots', 'is_active', 'custom_fields'),
+            'workstation' => $workstation->only('id', 'code', 'name', 'workstation_type', 'capacity_slots', 'panel_supervisor_mode', 'is_active', 'custom_fields'),
             'customFields' => $cf->clientConfig('workstation'),
+            'supervisorModes' => $this->supervisorModes(),
             'workers' => $workers->map(fn ($w) => [
                 'id' => $w->id,
                 'name' => $w->name,
@@ -122,6 +125,7 @@ class WorkstationManagementController extends Controller
             'name' => 'required|string|max:255',
             'workstation_type' => 'nullable|string|max:100',
             'capacity_slots' => 'sometimes|integer|min:1|max:10000',
+            'panel_supervisor_mode' => 'nullable|in:inline_pin,session_takeover,remote_only',
             'is_active' => 'boolean',
             'worker_ids' => 'nullable|array',
             'worker_ids.*' => 'exists:workers,id',
@@ -190,5 +194,16 @@ class WorkstationManagementController extends Controller
 
         return redirect()->route('admin.lines.workstations.index', $line)
             ->with('success', "Workstation {$status} successfully.");
+    }
+
+    /** @return list<array{value: string, label: string}> */
+    private function supervisorModes(): array
+    {
+        return [
+            ['value' => '', 'label' => __('Use global setting')],
+            ['value' => 'inline_pin', 'label' => __('One-time PIN authorization')],
+            ['value' => 'session_takeover', 'label' => __('Take over panel session')],
+            ['value' => 'remote_only', 'label' => __('Remote supervisor only')],
+        ];
     }
 }

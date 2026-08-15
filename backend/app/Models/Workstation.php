@@ -22,6 +22,7 @@ class Workstation extends Model
         'name',
         'workstation_type',
         'capacity_slots',
+        'panel_supervisor_mode',
         'is_active',
     ];
 

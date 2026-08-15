@@ -61,6 +61,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'module' => \App\Http\Middleware\EnsureModuleEnabled::class,
             'operator.workstation' => \App\Http\Middleware\BindOperatorWorkstation::class,
             'panel.operator' => \App\Http\Middleware\BindPanelOperator::class,
+            'panel.qualified' => \App\Http\Middleware\EnsurePanelOperatorQualified::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -61,6 +61,7 @@ export default function System() {
         modules = [],
         backups,
         timezoneOptions = [],
+        issueTypes = [],
         settingsCatalog = [],
     } = usePage().props;
 
@@ -91,6 +92,12 @@ export default function System() {
         scanner_mode: settings.scanner_mode ?? 'hid',
         workflow_mode: settings.workflow_mode ?? 'status',
         pin_login_enabled: settings.pin_login_enabled ?? false,
+        panel_identity_mode: settings.panel_identity_mode ?? 'username_pin',
+        panel_pin_length: settings.panel_pin_length ?? 9,
+        panel_pin_group_size: settings.panel_pin_group_size ?? 3,
+        panel_operator_session_hours: settings.panel_operator_session_hours ?? 12,
+        panel_supervisor_mode: settings.panel_supervisor_mode ?? 'inline_pin',
+        panel_help_issue_type_id: settings.panel_help_issue_type_id ?? '',
         allow_registration: settings.allow_registration ?? false,
         default_token_ttl_minutes: settings.default_token_ttl_minutes ?? 15,
         language: settings.language ?? 'en',
@@ -918,6 +925,34 @@ export default function System() {
                                     <div>
                                         <p className="text-[13px] font-medium text-om-ink">{__('Allow public registration')}</p>
                                         <p className={HELP_CLASS}>{__('Allow unauthenticated visitors to create an account. Keep disabled for managed factory deployments.')}</p>
+                                    </div>
+                                </div>
+                                <div className="grid gap-4 border-t border-om-line2 pt-4 md:grid-cols-2">
+                                    <div>
+                                        <label className={LABEL_CLASS}>{__('Operator panel identity')}</label>
+                                        <Dropdown value={data.panel_identity_mode} onChange={(value) => setData('panel_identity_mode', value)} options={[
+                                            { value: 'username_pin', label: __('Worker code + PIN') },
+                                            { value: 'pin_only', label: __('PIN only') },
+                                            { value: 'list_pin', label: __('Worker list + PIN') },
+                                        ]} className="w-full" />
+                                        {errors.panel_identity_mode && <p className={ERROR_CLASS}>{errors.panel_identity_mode}</p>}
+                                    </div>
+                                    <div>
+                                        <label className={LABEL_CLASS}>{__('Supervisor mode')}</label>
+                                        <Dropdown value={data.panel_supervisor_mode} onChange={(value) => setData('panel_supervisor_mode', value)} options={[
+                                            { value: 'inline_pin', label: __('One-time PIN authorization') },
+                                            { value: 'session_takeover', label: __('Take over panel session') },
+                                            { value: 'remote_only', label: __('Remote supervisor only') },
+                                        ]} className="w-full" />
+                                        {errors.panel_supervisor_mode && <p className={ERROR_CLASS}>{errors.panel_supervisor_mode}</p>}
+                                    </div>
+                                    <div><label className={LABEL_CLASS}>{__('Generated PIN length')}</label><input type="number" min="9" max="12" value={data.panel_pin_length} onChange={(e) => setData('panel_pin_length', Number(e.target.value))} className={`${INPUT_BASE} w-full`} />{errors.panel_pin_length && <p className={ERROR_CLASS}>{errors.panel_pin_length}</p>}</div>
+                                    <div><label className={LABEL_CLASS}>{__('PIN display group size')}</label><input type="number" min="1" max="4" value={data.panel_pin_group_size} onChange={(e) => setData('panel_pin_group_size', Number(e.target.value))} className={`${INPUT_BASE} w-full`} />{errors.panel_pin_group_size && <p className={ERROR_CLASS}>{errors.panel_pin_group_size}</p>}</div>
+                                    <div><label className={LABEL_CLASS}>{__('Operator session duration')}</label><div className="flex items-center gap-2"><input type="number" min="1" max="24" value={data.panel_operator_session_hours} onChange={(e) => setData('panel_operator_session_hours', Number(e.target.value))} className={`${INPUT_BASE} w-28`} /><span className="text-sm text-om-muted">{__('hours')}</span></div>{errors.panel_operator_session_hours && <p className={ERROR_CLASS}>{errors.panel_operator_session_hours}</p>}</div>
+                                    <div>
+                                        <label className={LABEL_CLASS}>{__('Supervisor help issue type')}</label>
+                                        <Dropdown value={String(data.panel_help_issue_type_id || '')} onChange={(value) => setData('panel_help_issue_type_id', value)} options={[{ value: '', label: `— ${__('Not set')} —` }, ...issueTypes.map((type) => ({ value: String(type.id), label: type.name }))]} className="w-full" />
+                                        {errors.panel_help_issue_type_id && <p className={ERROR_CLASS}>{errors.panel_help_issue_type_id}</p>}
                                     </div>
                                 </div>
                                 <div>

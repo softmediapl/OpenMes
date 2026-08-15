@@ -119,6 +119,12 @@ class SettingsController extends Controller
             ),
             'workflow_mode' => json_decode($rows['workflow_mode']?->value ?? '"status"', true) ?? 'status',
             'pin_login_enabled' => json_decode($rows['pin_login_enabled']?->value ?? 'false', true) ?? false,
+            'panel_identity_mode' => SystemSetting::get('panel_identity_mode', 'username_pin'),
+            'panel_pin_length' => SystemSetting::integer('panel_pin_length', 9),
+            'panel_pin_group_size' => SystemSetting::integer('panel_pin_group_size', 3),
+            'panel_operator_session_hours' => SystemSetting::integer('panel_operator_session_hours', 12),
+            'panel_supervisor_mode' => SystemSetting::get('panel_supervisor_mode', 'inline_pin'),
+            'panel_help_issue_type_id' => SystemSetting::get('panel_help_issue_type_id'),
             'allow_registration' => SystemSetting::boolean('allow_registration'),
             'default_token_ttl_minutes' => SystemSetting::integer(
                 'default_token_ttl_minutes',
@@ -182,6 +188,7 @@ class SettingsController extends Controller
             'availableLocales' => $availableLocales,
             'appUrl' => config('app.url'),
             'timezoneOptions' => TimezoneRegistry::identifiers(),
+            'issueTypes' => \App\Models\IssueType::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'modules' => \App\Support\ModuleRegistry::forForm(),
             'backups' => $backups,
             'settingsCatalog' => $this->settingsCatalog($rows),
@@ -229,9 +236,7 @@ class SettingsController extends Controller
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
-        auth()->user()->update([
-            'pin' => Hash::make($validated['pin']),
-        ]);
+        app(\App\Services\Operator\PanelCredentialService::class)->set(auth()->user(), $validated['pin']);
 
         return redirect()->route('settings.index')
             ->with('success', 'PIN set successfully. You can now use it to log in.');
@@ -250,7 +255,7 @@ class SettingsController extends Controller
             return back()->withErrors(['current_password' => 'Current password is incorrect.']);
         }
 
-        auth()->user()->update(['pin' => null]);
+        app(\App\Services\Operator\PanelCredentialService::class)->remove(auth()->user());
 
         return redirect()->route('settings.index')
             ->with('success', 'PIN removed.');
@@ -367,6 +372,12 @@ class SettingsController extends Controller
             'warehouse_auto_documents' => (bool) ($validated['warehouse_auto_documents'] ?? false),
             'workflow_mode' => $validated['workflow_mode'],
             'pin_login_enabled' => (bool) ($validated['pin_login_enabled'] ?? false),
+            'panel_identity_mode' => $validated['panel_identity_mode'],
+            'panel_pin_length' => (int) $validated['panel_pin_length'],
+            'panel_pin_group_size' => (int) $validated['panel_pin_group_size'],
+            'panel_operator_session_hours' => (int) $validated['panel_operator_session_hours'],
+            'panel_supervisor_mode' => $validated['panel_supervisor_mode'],
+            'panel_help_issue_type_id' => isset($validated['panel_help_issue_type_id']) ? (int) $validated['panel_help_issue_type_id'] : null,
             'allow_registration' => (bool) ($validated['allow_registration'] ?? false),
             'default_token_ttl_minutes' => (int) $validated['default_token_ttl_minutes'],
             'language' => $validated['language'] ?? 'en',

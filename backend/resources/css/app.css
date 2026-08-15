@@ -71,6 +71,13 @@
     }
 }
 
+@media print {
+    body:has(.panel-credential-print) * { visibility: hidden; }
+    .panel-credential-print, .panel-credential-print * { visibility: visible; }
+    .panel-credential-print { position: absolute; inset: 0 auto auto 0; width: 100%; border: 0; }
+    .panel-credential-print button { display: none; }
+}
+
 /* Light (default) token values — keep in sync with packages/ui/src/tokens/index.ts. */
 :root {
     --om-page: #e9e8e3;

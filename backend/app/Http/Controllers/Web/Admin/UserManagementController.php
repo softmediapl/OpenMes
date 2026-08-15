@@ -51,6 +51,8 @@ class UserManagementController extends Controller
             'crews' => Crew::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'wageGroups' => WageGroup::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'skills' => Skill::orderBy('name')->get(['id', 'name']),
+            'panelPinLength' => app(\App\Services\Operator\PanelCredentialService::class)->length(),
+            'panelPinGroupSize' => max(1, min(4, \App\Support\SystemSetting::integer('panel_pin_group_size', 3))),
         ];
     }
 
@@ -135,6 +137,8 @@ class UserManagementController extends Controller
                 'workstation_id' => $user->workstation_id,
                 'force_password_change' => (bool) $user->force_password_change,
                 'role' => $user->roles->pluck('name')->first(),
+                'has_panel_pin' => ! empty($user->pin_lookup),
+                'pin_rotated_at' => $user->pin_rotated_at?->toIso8601String(),
                 'worker' => $user->worker ? [
                     'code' => $user->worker->code,
                     'phone' => $user->worker->phone,
@@ -236,5 +240,22 @@ class UserManagementController extends Controller
 
         return redirect()->route('admin.users.index')
             ->with('success', 'User deleted successfully.');
+    }
+
+    public function generatePanelPin(User $user)
+    {
+        abort_unless($user->account_type === 'user', 422, 'Panel credentials belong to personal user accounts.');
+        $pin = app(\App\Services\Operator\PanelCredentialService::class)->generate($user);
+
+        return back()
+            ->with('generated_panel_pin', $pin)
+            ->with('success', __('A new panel credential was generated. It will only be shown once.'));
+    }
+
+    public function removePanelPin(User $user)
+    {
+        app(\App\Services\Operator\PanelCredentialService::class)->remove($user);
+
+        return back()->with('success', __('Panel credential revoked.'));
     }
 }

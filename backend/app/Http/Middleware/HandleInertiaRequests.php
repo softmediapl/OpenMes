@@ -46,6 +46,29 @@ class HandleInertiaRequests extends Middleware
                     'initial' => mb_strtoupper(mb_substr($operator->name, 0, 1)),
                 ] : null;
             },
+            'panelIdentity' => function () use ($request) {
+                if (! $request->routeIs('panel.*')) {
+                    return null;
+                }
+
+                $mode = app(\App\Services\Operator\PanelOperatorContext::class)->mode();
+                $length = app(\App\Services\Operator\PanelCredentialService::class)->length();
+                $operators = $mode === 'list_pin'
+                    ? \App\Models\User::query()
+                        ->where('tenant_id', $request->user()?->tenant_id)
+                        ->where('account_type', 'user')
+                        ->role(['Operator', 'Supervisor', 'Admin'])
+                        ->orderBy('name')
+                        ->get(['id', 'name', 'username'])
+                    : [];
+
+                return [
+                    'mode' => $mode,
+                    'pinLength' => $length,
+                    'groupSize' => max(1, min(4, \App\Support\SystemSetting::integer('panel_pin_group_size', 3))),
+                    'operators' => $operators,
+                ];
+            },
             // Nav chrome needs the alert badge and a CSRF token for the
             // logout form. Lazy closures so they only run when a page renders.
             'nav' => [
@@ -78,6 +101,7 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'warning' => fn () => $request->session()->get('warning'),
                 'info' => fn () => $request->session()->get('info'),
+                'generatedPanelPin' => fn () => $request->session()->get('generated_panel_pin'),
             ],
         ];
     }

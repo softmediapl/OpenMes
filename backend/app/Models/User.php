@@ -27,6 +27,8 @@ class User extends Authenticatable
         'email',
         'password',
         'pin',
+        'pin_lookup',
+        'pin_rotated_at',
         'account_type',
         'workstation_id',
         'worker_id',
@@ -47,6 +49,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'pin',
+        'pin_lookup',
         'remember_token',
         'two_factor_secret',
         'two_factor_recovery_codes',
@@ -62,6 +65,7 @@ class User extends Authenticatable
         return [
             'force_password_change' => 'boolean',
             'last_login_at' => 'datetime',
+            'pin_rotated_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_enabled' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',

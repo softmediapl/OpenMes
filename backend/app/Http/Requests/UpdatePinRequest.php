@@ -15,14 +15,14 @@ class UpdatePinRequest extends FormRequest
     {
         return [
             'current_password' => 'required|string',
-            'pin' => 'required|digits_between:4,6|confirmed',
+            'pin' => 'required|digits_between:4,12|confirmed',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'pin.digits_between' => 'PIN must be 4–6 digits.',
+            'pin.digits_between' => 'PIN must be 4–12 digits.',
             'pin.confirmed' => 'PIN confirmation does not match.',
         ];
     }

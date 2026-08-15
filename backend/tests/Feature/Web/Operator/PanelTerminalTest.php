@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\Line;
 use App\Models\User;
+use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Operator\PanelOperatorContext;
@@ -46,6 +47,11 @@ class PanelTerminalTest extends TestCase
             'pin' => Hash::make('123456'),
         ]);
         $this->operator->assignRole('Operator');
+        $worker = Worker::factory()->create([
+            'workstation_id' => $this->workstation->id,
+            'is_active' => true,
+        ]);
+        $this->operator->update(['worker_id' => $worker->id]);
 
         $this->workOrder = WorkOrder::factory()->inProgress()->create(['line_id' => $line->id]);
         $batch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
@@ -93,7 +99,10 @@ class PanelTerminalTest extends TestCase
             ->assertSessionHas(PanelOperatorContext::SESSION_KEY, $this->operator->id);
 
         $this->actingAs($this->terminal)
-            ->withSession([PanelOperatorContext::SESSION_KEY => $this->operator->id])
+            ->withSession([
+                PanelOperatorContext::SESSION_KEY => $this->operator->id,
+                'panel_operator_started_at' => now()->timestamp,
+            ])
             ->post(route('panel.batch-step.start', $this->step), [])
             ->assertSessionHas('success');
 
@@ -115,7 +124,10 @@ class PanelTerminalTest extends TestCase
         ]);
 
         $this->actingAs($this->terminal)
-            ->withSession([PanelOperatorContext::SESSION_KEY => $this->operator->id])
+            ->withSession([
+                PanelOperatorContext::SESSION_KEY => $this->operator->id,
+                'panel_operator_started_at' => now()->timestamp,
+            ])
             ->post(route('panel.batch-step.start', $foreignStep), [])
             ->assertSessionHas('error');
 

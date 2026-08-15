@@ -313,7 +313,7 @@ Route::middleware('auth')->group(function () {
 
         Route::middleware('panel.operator:required')->group(function () {
             Route::get('/batch-step/{batchStep}/pick-preview', [OperatorBatchController::class, 'pickPreview'])->name('batch-step.pick-preview');
-            Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->name('batch-step.start');
+            Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->middleware('panel.qualified')->name('batch-step.start');
             Route::post('/batch-step/{batchStep}/complete', [OperatorBatchController::class, 'completeStep'])->name('batch-step.complete');
             Route::post('/batch-step/{batchStep}/quality-check', [OperatorBatchController::class, 'qualityCheckStep'])->name('batch-step.quality-check');
             Route::post('/batch-step/{batchStep}/materials/{materialAllocation}/reserve', [OperatorBatchController::class, 'increaseStepMaterial'])->name('batch-step.materials.reserve');
@@ -531,6 +531,8 @@ Route::middleware('auth')->group(function () {
 
         // User Management
         Route::resource('users', \App\Http\Controllers\Web\Admin\UserManagementController::class);
+        Route::post('/users/{user}/panel-pin', [\App\Http\Controllers\Web\Admin\UserManagementController::class, 'generatePanelPin'])->name('users.panel-pin.generate');
+        Route::delete('/users/{user}/panel-pin', [\App\Http\Controllers\Web\Admin\UserManagementController::class, 'removePanelPin'])->name('users.panel-pin.remove');
 
         // Production Lines Management
         Route::resource('lines', \App\Http\Controllers\Web\Admin\LineManagementController::class);

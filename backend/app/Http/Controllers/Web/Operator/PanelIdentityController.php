@@ -11,12 +11,14 @@ class PanelIdentityController extends Controller
 {
     public function store(Request $request, PanelOperatorContext $operators)
     {
+        $length = app(\App\Services\Operator\PanelCredentialService::class)->length();
+        $usernameRequired = $operators->mode() !== 'pin_only';
         $data = $request->validate([
-            'username' => ['required', 'string', 'max:255'],
-            'pin' => ['required', 'digits:6'],
+            'username' => [$usernameRequired ? 'required' : 'nullable', 'string', 'max:255'],
+            'pin' => ['required', $operators->mode() === 'pin_only' ? 'digits:'.$length : 'digits_between:4,12'],
         ]);
 
-        if (! $operators->authenticate($request, $data['username'], $data['pin'])) {
+        if (! $operators->authenticate($request, $data['username'] ?? null, $data['pin'])) {
             throw ValidationException::withMessages([
                 'pin' => __('Invalid username or PIN.'),
             ]);

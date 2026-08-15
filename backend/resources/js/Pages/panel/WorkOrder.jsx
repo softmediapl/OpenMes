@@ -72,6 +72,11 @@ export default function WorkOrder({
                                     <div><span className="panel-label">{__('Batch')}</span><strong className="text-xl">#{batch.batch_number || batch.id}</strong></div>
                                     <div className="flex flex-wrap gap-6"><Fact label={__('Input quantity')} value={step?.input_quantity ?? batch.target_qty} /><Fact label={__('Operation')} value={`${step?.step_number ?? '—'} · ${step?.name ?? '—'}`} /></div>
                                 </div>
+                                {step?.panel_qualification && !step.panel_qualification.qualified && (
+                                    <div className="mb-4 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">
+                                        {step.panel_qualification.reasons.join(' ')} {__('Ask a supervisor to authorize a replacement.')}
+                                    </div>
+                                )}
                                 <div className="panel-step-zone">
                                     <BatchStepList
                                         steps={batch.steps}
