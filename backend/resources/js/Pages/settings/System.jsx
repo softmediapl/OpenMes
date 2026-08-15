@@ -100,6 +100,12 @@ export default function System() {
         schedule_horizon_weeks: settings.schedule_horizon_weeks ?? 6,
         schedule_show_weekends: settings.schedule_show_weekends ?? true,
         schedule_slot_minutes: settings.schedule_slot_minutes ?? 15,
+        forecast_alerts_enabled: settings.forecast_alerts_enabled ?? true,
+        forecast_refresh_interval_minutes: settings.forecast_refresh_interval_minutes ?? 15,
+        forecast_unplanned_downtime_minutes: settings.forecast_unplanned_downtime_minutes ?? 120,
+        forecast_at_risk_slack_minutes: settings.forecast_at_risk_slack_minutes ?? 480,
+        forecast_variance_alert_minutes: settings.forecast_variance_alert_minutes ?? 120,
+        forecast_alert_recovery_margin_minutes: settings.forecast_alert_recovery_margin_minutes ?? 30,
         realtime_mode: settings.realtime_mode ?? 'polling',
         production_tracking_mode: settings.production_tracking_mode ?? 'per_operation',
         cors_allowed_origins: settings.cors_allowed_origins ?? '',
@@ -838,6 +844,51 @@ export default function System() {
                                 />
                             </div>
                             {errors.realtime_mode && <p className={ERROR_CLASS}>{errors.realtime_mode}</p>}
+                        </div>
+
+                        <div className="border-t border-om-line pt-6">
+                            <h3 className="text-[14px] font-semibold text-om-ink mb-1">{__('Delivery forecasting')}</h3>
+                            <p className={`${HELP_CLASS} mb-4`}>{__('Configure rolling completion forecasts and schedule-risk alerts.')}</p>
+
+                            <div className="flex items-start gap-3 mb-5">
+                                <Switch
+                                    checked={data.forecast_alerts_enabled}
+                                    onChange={(value) => setData('forecast_alerts_enabled', value)}
+                                />
+                                <div>
+                                    <p className="text-[13px] font-medium text-om-ink">{__('Schedule-risk alerts')}</p>
+                                    <p className={HELP_CLASS}>{__('Create and automatically resolve alerts when the forecast threatens the approved plan or customer deadline.')}</p>
+                                    {errors.forecast_alerts_enabled && <p className={ERROR_CLASS}>{errors.forecast_alerts_enabled}</p>}
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {[
+                                    ['forecast_refresh_interval_minutes', __('Forecast refresh interval'), __('Minimum interval between equivalent forecast snapshots.'), 1, 1440],
+                                    ['forecast_unplanned_downtime_minutes', __('Unknown downtime fallback'), __('Assumed duration when an active downtime has no expected end.'), 1, 10080],
+                                    ['forecast_at_risk_slack_minutes', __('Deadline risk threshold'), __('Raise risk when remaining deadline slack reaches this value.'), 0, 10080],
+                                    ['forecast_variance_alert_minutes', __('Plan variance threshold'), __('Raise risk when forecast delay against the approved plan reaches this value.'), 1, 10080],
+                                    ['forecast_alert_recovery_margin_minutes', __('Alert recovery margin'), __('Require this additional margin before resolving a recovered alert.'), 0, 10080],
+                                ].map(([key, label, help, min, max]) => (
+                                    <div key={key}>
+                                        <label className={LABEL_CLASS} htmlFor={key}>{label}</label>
+                                        <p className={`${HELP_CLASS} mb-2`}>{help}</p>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                id={key}
+                                                type="number"
+                                                value={data[key]}
+                                                onChange={(e) => setData(key, Number(e.target.value))}
+                                                className={`${INPUT_BASE} w-28`}
+                                                min={min}
+                                                max={max}
+                                            />
+                                            <span className="text-[13px] text-om-muted">{__('minutes')}</span>
+                                        </div>
+                                        {errors[key] && <p className={ERROR_CLASS}>{errors[key]}</p>}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 )}

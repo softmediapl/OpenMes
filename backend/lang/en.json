@@ -5565,5 +5565,19 @@
     "Confidence": "Confidence",
     "Reasons": "Reasons",
     "At risk": "At risk",
-    "ETA": "ETA"
+    "ETA": "ETA",
+    "Delivery forecasting": "Delivery forecasting",
+    "Configure rolling completion forecasts and schedule-risk alerts.": "Configure rolling completion forecasts and schedule-risk alerts.",
+    "Schedule-risk alerts": "Schedule-risk alerts",
+    "Create and automatically resolve alerts when the forecast threatens the approved plan or customer deadline.": "Create and automatically resolve alerts when the forecast threatens the approved plan or customer deadline.",
+    "Forecast refresh interval": "Forecast refresh interval",
+    "Minimum interval between equivalent forecast snapshots.": "Minimum interval between equivalent forecast snapshots.",
+    "Unknown downtime fallback": "Unknown downtime fallback",
+    "Assumed duration when an active downtime has no expected end.": "Assumed duration when an active downtime has no expected end.",
+    "Deadline risk threshold": "Deadline risk threshold",
+    "Raise risk when remaining deadline slack reaches this value.": "Raise risk when remaining deadline slack reaches this value.",
+    "Plan variance threshold": "Plan variance threshold",
+    "Raise risk when forecast delay against the approved plan reaches this value.": "Raise risk when forecast delay against the approved plan reaches this value.",
+    "Alert recovery margin": "Alert recovery margin",
+    "Require this additional margin before resolving a recovered alert.": "Require this additional margin before resolving a recovered alert."
 }

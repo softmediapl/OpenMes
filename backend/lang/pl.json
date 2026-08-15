@@ -5565,5 +5565,19 @@
     "Confidence": "Wiarygodność",
     "Reasons": "Przyczyny",
     "At risk": "Zagrożone",
-    "ETA": "ETA"
+    "ETA": "ETA",
+    "Delivery forecasting": "Prognozowanie realizacji",
+    "Configure rolling completion forecasts and schedule-risk alerts.": "Skonfiguruj aktualizowane prognozy zakończenia i alerty ryzyka harmonogramu.",
+    "Schedule-risk alerts": "Alerty ryzyka harmonogramu",
+    "Create and automatically resolve alerts when the forecast threatens the approved plan or customer deadline.": "Twórz i automatycznie zamykaj alerty, gdy prognoza zagraża zatwierdzonemu planowi lub terminowi klienta.",
+    "Forecast refresh interval": "Interwał odświeżania prognozy",
+    "Minimum interval between equivalent forecast snapshots.": "Minimalny odstęp między równoważnymi zapisami prognozy.",
+    "Unknown downtime fallback": "Domyślny czas nieznanego przestoju",
+    "Assumed duration when an active downtime has no expected end.": "Zakładany czas aktywnego przestoju bez podanego terminu zakończenia.",
+    "Deadline risk threshold": "Próg ryzyka terminu",
+    "Raise risk when remaining deadline slack reaches this value.": "Zgłoś ryzyko, gdy zapas do terminu spadnie do tej wartości.",
+    "Plan variance threshold": "Próg odchylenia od planu",
+    "Raise risk when forecast delay against the approved plan reaches this value.": "Zgłoś ryzyko, gdy opóźnienie względem zatwierdzonego planu osiągnie tę wartość.",
+    "Alert recovery margin": "Margines zamknięcia alertu",
+    "Require this additional margin before resolving a recovered alert.": "Wymagaj tego dodatkowego marginesu przed zamknięciem alertu po poprawie prognozy."
 }
