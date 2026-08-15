@@ -57,7 +57,7 @@ class DowntimeController extends Controller
     {
         $lineId = $request->session()->get('selected_line_id');
 
-        if ($this->workstationContext->isLocked($request->user())
+        if ($this->workstationContext->workstation($request)
             && (int) $downtime->workstation_id !== (int) $this->workstationContext->workstation($request)?->id) {
             abort(403);
         }

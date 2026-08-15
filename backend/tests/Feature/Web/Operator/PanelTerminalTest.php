@@ -5,11 +5,13 @@ namespace Tests\Feature\Web\Operator;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\Line;
+use App\Models\PanelSupervisorAuthorization;
 use App\Models\User;
 use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Operator\PanelOperatorContext;
+use App\Services\Operator\PanelSupervisorAuthorizationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -132,5 +134,91 @@ class PanelTerminalTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertSame(BatchStep::STATUS_READY, $foreignStep->fresh()->status);
+    }
+
+    public function test_supervisor_authorization_is_scoped_audited_and_consumed_by_one_start(): void
+    {
+        Role::create(['name' => 'Supervisor', 'guard_name' => 'web']);
+        $supervisor = User::factory()->create([
+            'account_type' => 'user',
+            'pin' => Hash::make('654321'),
+        ]);
+        $supervisor->assignRole('Supervisor');
+        $this->operator->worker->update(['workstation_id' => null]);
+
+        $session = [
+            PanelOperatorContext::SESSION_KEY => $this->operator->id,
+            'panel_operator_started_at' => now()->timestamp,
+        ];
+        $this->actingAs($this->terminal)->withSession($session)
+            ->post(route('panel.supervisor-authorizations.store'), [
+                'batch_step_id' => $this->step->id,
+                'action' => PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+                'reason' => 'Temporary replacement for the absent qualified worker.',
+                'username' => $supervisor->username,
+                'pin' => '654321',
+            ])
+            ->assertSessionHas('success');
+
+        $authorization = PanelSupervisorAuthorization::firstOrFail();
+        $this->assertSame($this->operator->id, $authorization->operator_id);
+        $this->assertSame($supervisor->id, $authorization->supervisor_id);
+        $this->assertNull($authorization->consumed_at);
+
+        $this->actingAs($this->terminal)->withSession($session)
+            ->post(route('panel.batch-step.start', $this->step), [])
+            ->assertSessionHas('success');
+
+        $this->assertSame($this->operator->id, $this->step->fresh()->started_by_id);
+        $this->assertNotNull($authorization->fresh()->consumed_at);
+    }
+
+    public function test_remote_only_workstation_rejects_local_supervisor_authorization(): void
+    {
+        $this->workstation->update(['panel_supervisor_mode' => 'remote_only']);
+        $session = [
+            PanelOperatorContext::SESSION_KEY => $this->operator->id,
+            'panel_operator_started_at' => now()->timestamp,
+        ];
+
+        $this->actingAs($this->terminal)->withSession($session)
+            ->post(route('panel.supervisor-authorizations.store'), [
+                'batch_step_id' => $this->step->id,
+                'action' => PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+                'reason' => 'This local override should never be accepted.',
+            ])
+            ->assertSessionHasErrors('supervisor');
+
+        $this->assertDatabaseCount('panel_supervisor_authorizations', 0);
+    }
+
+    public function test_authorization_cannot_be_used_for_another_step(): void
+    {
+        $authorization = PanelSupervisorAuthorization::create([
+            'workstation_id' => $this->workstation->id,
+            'batch_step_id' => $this->step->id,
+            'operator_id' => $this->operator->id,
+            'supervisor_id' => $this->operator->id,
+            'action' => PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+            'mode' => 'inline_pin',
+            'reason' => 'A sufficiently descriptive audit reason.',
+            'authorized_at' => now(),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+        $otherStep = BatchStep::factory()->create([
+            'batch_id' => $this->step->batch_id,
+            'workstation_id' => $this->workstation->id,
+            'step_number' => $this->step->step_number + 1,
+        ]);
+        $request = request();
+        $request->setUserResolver(fn () => $this->operator);
+        $request->attributes->set(\App\Services\Operator\WorkstationContext::REQUEST_ATTRIBUTE, $this->workstation);
+
+        $this->assertNull(app(PanelSupervisorAuthorizationService::class)->active(
+            $request,
+            $otherStep,
+            PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+        ));
+        $this->assertNotNull($authorization->fresh());
     }
 }

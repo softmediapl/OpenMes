@@ -499,6 +499,16 @@ class WorkOrderController extends Controller
         $engineeringDocuments = $workOrder->frozenEngineeringDocuments();
 
         $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
+        if ($request->routeIs('panel.*') && ! $canOverrideOperationHold) {
+            $authorizationService = app(\App\Services\Operator\PanelSupervisorAuthorizationService::class);
+            $canOverrideOperationHold = $workOrder->batches->flatMap->steps->contains(
+                fn (BatchStep $step) => $authorizationService->active(
+                    $request,
+                    $step,
+                    \App\Models\PanelSupervisorAuthorization::ACTION_RELEASE_FIXED_HOLD,
+                ) !== null,
+            );
+        }
 
         if ($request->routeIs('panel.*') && $lockedWorkstation && $request->attributes->get('panel_operator')) {
             $qualificationService = app(\App\Services\Operator\PanelQualificationService::class);

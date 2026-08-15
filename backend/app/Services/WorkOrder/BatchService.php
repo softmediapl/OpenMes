@@ -363,7 +363,10 @@ class BatchService
             return [];
         }
 
-        if (! $user->hasAnyRole(['Supervisor', 'Admin'])) {
+        $supervisorId = isset($data['hold_override_supervisor_id'])
+            ? (int) $data['hold_override_supervisor_id']
+            : null;
+        if (! $user->hasAnyRole(['Supervisor', 'Admin']) && ! $supervisorId) {
             throw new \Exception(__(
                 'This operation is on hold until :time.',
                 ['time' => $step->holdReleaseAt()?->toIso8601String()],
@@ -377,7 +380,7 @@ class BatchService
 
         return [
             'hold_override_reason' => $reason,
-            'hold_overridden_by_id' => $user->id,
+            'hold_overridden_by_id' => $supervisorId ?: $user->id,
             'hold_overridden_at' => now(),
         ];
     }

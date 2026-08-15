@@ -312,6 +312,10 @@ Route::middleware('auth')->group(function () {
         Route::delete('/identity', [\App\Http\Controllers\Web\Operator\PanelIdentityController::class, 'destroy'])->name('identity.destroy');
 
         Route::middleware('panel.operator:required')->group(function () {
+            Route::post('/supervisor-authorizations', [\App\Http\Controllers\Web\Operator\PanelSupervisorController::class, 'store'])->name('supervisor-authorizations.store');
+            Route::post('/help/supervisor', [\App\Http\Controllers\Web\Operator\PanelHelpController::class, 'supervisor'])->name('help.supervisor');
+            Route::post('/downtime/start', [\App\Http\Controllers\Web\Operator\DowntimeController::class, 'start'])->name('downtime.start');
+            Route::post('/downtime/{downtime}/stop', [\App\Http\Controllers\Web\Operator\DowntimeController::class, 'stop'])->name('downtime.stop');
             Route::get('/batch-step/{batchStep}/pick-preview', [OperatorBatchController::class, 'pickPreview'])->name('batch-step.pick-preview');
             Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->middleware('panel.qualified')->name('batch-step.start');
             Route::post('/batch-step/{batchStep}/complete', [OperatorBatchController::class, 'completeStep'])->name('batch-step.complete');
@@ -327,6 +331,11 @@ Route::middleware('auth')->group(function () {
             Route::post('/materials/replenishments/{materialReplenishmentRequest}/cancel', [OperatorWorkstationMaterialController::class, 'cancel'])->name('materials.replenishments.cancel');
             Route::post('/materials/stocks/{workstationMaterialStock}/count', [OperatorWorkstationMaterialController::class, 'reconcileCount'])->name('materials.stocks.count');
         });
+    });
+
+    Route::prefix('supervisor/panel-exceptions')->name('supervisor.panel-exceptions.')->middleware('role:Supervisor|Admin')->group(function () {
+        Route::get('/', [\App\Http\Controllers\Web\Supervisor\PanelExceptionController::class, 'index'])->name('index');
+        Route::post('/{issue}/authorize', [\App\Http\Controllers\Web\Supervisor\PanelExceptionController::class, 'store'])->name('authorize');
     });
 
     // Inbound Inspections (Supervisor + Admin) — inspectors perform from this UI

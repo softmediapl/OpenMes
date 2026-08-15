@@ -39,7 +39,7 @@ class IssueController extends Controller
             'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'status' => Issue::STATUS_OPEN,
-            'reported_by_id' => auth()->id(),
+            'reported_by_id' => $request->user()->id,
             'reported_at' => now(),
             'custom_fields' => $cf->touched($request) ? ($cf->fromRequest($request, 'issue') ?: null) : null,
         ]);

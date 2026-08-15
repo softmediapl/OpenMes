@@ -69,6 +69,25 @@ class HandleInertiaRequests extends Middleware
                     'operators' => $operators,
                 ];
             },
+            'panelSupport' => function () use ($request) {
+                if (! $request->routeIs('panel.*')) {
+                    return null;
+                }
+                $workstation = $request->attributes->get(\App\Services\Operator\WorkstationContext::REQUEST_ATTRIBUTE);
+
+                return [
+                    'supervisorMode' => $workstation
+                        ? app(\App\Services\Operator\PanelSupervisorAuthorizationService::class)->mode($workstation)
+                        : 'remote_only',
+                    'issueTypes' => \App\Models\IssueType::active()->orderBy('name')->get(['id', 'name', 'is_blocking']),
+                    'downtimeReasons' => \App\Models\DowntimeReason::active()->orderBy('name')->get(['id', 'name']),
+                    'activeDowntime' => $workstation ? \App\Models\ProductionDowntime::query()
+                        ->where('workstation_id', $workstation->id)
+                        ->whereNull('ended_at')
+                        ->latest('started_at')
+                        ->first(['id', 'started_at']) : null,
+                ];
+            },
             // Nav chrome needs the alert badge and a CSRF token for the
             // logout form. Lazy closures so they only run when a page renders.
             'nav' => [

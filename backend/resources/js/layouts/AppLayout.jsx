@@ -253,6 +253,7 @@ function Sidebar({
     dark, onToggleCollapsed, onToggleDark, onCloseMobile,
 }) {
     const isAdmin = auth?.user?.roles?.includes('Admin');
+    const isSupervisor = isAdmin || auth?.user?.roles?.includes('Supervisor');
     const widthClass = collapsed ? 'lg:w-16' : 'lg:w-64';
     const translate = mobileOpen ? 'translate-x-0' : '-translate-x-full';
 
@@ -366,6 +367,13 @@ function Sidebar({
                     )
                 ) : (
                     <>
+                        {isSupervisor && <NavLink
+                            link={{ label: 'Panel exceptions', href: '/supervisor/panel-exceptions', icon: 'shield', match: ['/supervisor/panel-exceptions'] }}
+                            path={path}
+                            collapsed={collapsed}
+                            showLabels={showLabels}
+                            alertCount={0}
+                        />}
                         {ADMIN_LINKS.filter((link) => showTab(link.key)).map((link) => (
                             <NavLink
                                 key={link.href}

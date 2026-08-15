@@ -58,7 +58,7 @@ export default function WorkOrder({
 
             {active && <OperationHero batch={active} step={currentStep(active)} now={now} product={product} />}
 
-            <section className="mt-5">
+            <section id="panel-operation-details" className="mt-5">
                 <div className="mb-3 flex items-center justify-between gap-3">
                     <div><span className="panel-label">{__('Batches')}</span><h2 className="text-2xl font-bold">{batches.length > 1 ? __('Operations at this workstation') : __('Current operation')}</h2></div>
                     <span className="flex items-center gap-2 text-sm text-om-muted"><Layers3 size={18} />{batches.length}</span>
@@ -73,8 +73,9 @@ export default function WorkOrder({
                                     <div className="flex flex-wrap gap-6"><Fact label={__('Input quantity')} value={step?.input_quantity ?? batch.target_qty} /><Fact label={__('Operation')} value={`${step?.step_number ?? '—'} · ${step?.name ?? '—'}`} /></div>
                                 </div>
                                 {step?.panel_qualification && !step.panel_qualification.qualified && (
-                                    <div className="mb-4 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">
-                                        {step.panel_qualification.reasons.join(' ')} {__('Ask a supervisor to authorize a replacement.')}
+                                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">
+                                        <span>{step.panel_qualification.reasons.join(' ')}</span>
+                                        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: step.id, step, action: 'start_unqualified' } }))} className="font-bold underline">{__('Authorize replacement')}</button>
                                     </div>
                                 )}
                                 <div className="panel-step-zone">

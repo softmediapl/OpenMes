@@ -14,12 +14,14 @@ use App\Models\BatchStep;
 use App\Models\BatchStepChecklistCompletion;
 use App\Models\BatchStepDocument;
 use App\Models\MaterialAllocation;
+use App\Models\PanelSupervisorAuthorization;
 use App\Models\TemplateStepChecklistItem;
 use App\Models\WorkOrder;
 use App\Services\Lot\BatchReleaseService;
 use App\Services\Lot\LotService;
 use App\Services\Material\MaterialAllocationService;
 use App\Services\Operator\WorkstationContext;
+use App\Services\Operator\PanelSupervisorAuthorizationService;
 use App\Services\Production\PackagingChecklistService;
 use App\Services\Production\ProcessConfirmationService;
 use App\Services\Production\QualityCheckService;
@@ -41,6 +43,7 @@ class BatchController extends Controller
         protected MaterialAllocationService $allocationService,
         protected WorkstationContext $workstationContext,
         protected OperationQualityService $operationQualityService,
+        protected PanelSupervisorAuthorizationService $panelAuthorizations,
     ) {}
 
     /**
@@ -106,6 +109,7 @@ class BatchController extends Controller
             $picksByMaterial = $this->reshapePicks($request->validated()['picks'] ?? []);
             $transportUnits = $request->validated()['transport_units'] ?? [];
             $this->batchService->startStep($batchStep, $request->user(), $picksByMaterial, $transportUnits);
+            $this->panelAuthorizations->consume($request->attributes->get('panel_supervisor_authorization'));
             \Log::debug('startStep succeeded', ['step_id' => $batchStep->id]);
 
             return back()->with('success', __('Step started. Materials have been allocated.'));
@@ -161,7 +165,20 @@ class BatchController extends Controller
         // Operator-confirmed actual times (ISA-95 L3, #52) — from the completion
         // modal shown only for steps with standard times configured.
         try {
-            $this->batchService->completeStep($batchStep, $request->user(), $request->validated());
+            $data = $request->validated();
+            $authorization = null;
+            if ($request->routeIs('panel.*') && $batchStep->holdRemainingSeconds() > 0) {
+                $authorization = $this->panelAuthorizations->active(
+                    $request,
+                    $batchStep,
+                    PanelSupervisorAuthorization::ACTION_RELEASE_FIXED_HOLD,
+                );
+                if ($authorization) {
+                    $data['hold_override_supervisor_id'] = $authorization->supervisor_id;
+                }
+            }
+            $this->batchService->completeStep($batchStep, $request->user(), $data);
+            $this->panelAuthorizations->consume($authorization);
 
             if ($this->workstationContext->workstation($request)) {
                 $workOrder = $batchStep->batch->workOrder->fresh();
