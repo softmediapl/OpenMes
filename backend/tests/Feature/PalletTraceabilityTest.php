@@ -303,15 +303,15 @@ class PalletTraceabilityTest extends TestCase
         ]);
     }
 
-    public function test_create_pallet_auto_links_when_work_order_has_one_batch(): void
+    public function test_create_pallet_keeps_batch_unassigned_until_output_is_loaded(): void
     {
         $wo = WorkOrder::factory()->create();
-        $batch = Batch::factory()->create(['work_order_id' => $wo->id]);
+        Batch::factory()->create(['work_order_id' => $wo->id]);
 
         $this->actingAs($this->admin)
             ->postJson(route('packaging.pallets.create'), ['work_order_id' => $wo->id])
             ->assertCreated()
-            ->assertJsonPath('pallet.batch_id', $batch->id);
+            ->assertJsonPath('pallet.batch_id', null);
     }
 
     public function test_create_pallet_rejects_batch_from_another_work_order(): void

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Packaging;
 
+use App\Models\BatchStep;
 use App\Models\Line;
 use App\Models\PackagingScanLog;
 use App\Models\Pallet;
@@ -99,6 +100,94 @@ class PalletStationTest extends TestCase
             'batch_id' => $batch->id,
             'batch_step_id' => $step->id,
         ]);
+    }
+
+    public function test_empty_pallet_is_not_implicitly_bound_to_the_only_batch(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
+        app(WorkOrderService::class)->createBatch($workOrder, 100);
+
+        $response = $this->actingAs($this->operator)->postJson(
+            route('packaging.pallets.create'),
+            ['work_order_id' => $workOrder->id],
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('pallet.batch_id', null)
+            ->assertJsonPath('pallet.batch_step_id', null);
+    }
+
+    public function test_operator_can_load_started_palletization_output_onto_an_open_pallet(): void
+    {
+        $workOrder = WorkOrder::factory()->create([
+            'status' => WorkOrder::STATUS_IN_PROGRESS,
+            'planned_qty' => 200,
+            'process_snapshot' => [
+                'template_id' => 999,
+                'steps' => [[
+                    'step_number' => 1,
+                    'name' => 'Palletize',
+                    'requires_palletization' => true,
+                ]],
+                'bom' => [],
+            ],
+        ]);
+        $batch = app(WorkOrderService::class)->createBatch($workOrder, 200);
+        $step = $batch->steps()->sole();
+        $step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'started_at' => now(),
+            'started_by_id' => $this->operator->id,
+        ]);
+        $pallet = Pallet::create([
+            'work_order_id' => $workOrder->id,
+            'status' => 'open',
+            'capacity_qty' => 4800,
+        ]);
+
+        $response = $this->actingAs($this->operator)->postJson(
+            route('packaging.pallets.contents.store', $pallet),
+            ['batch_step_id' => $step->id, 'quantity' => 200],
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('pallet.qty', 200)
+            ->assertJsonPath('pallet.contents.0.batch_id', $batch->id)
+            ->assertJsonPath('pallet.contents.0.quantity', 200);
+        $this->assertDatabaseHas('pallet_contents', [
+            'pallet_id' => $pallet->id,
+            'batch_step_id' => $step->id,
+            'quantity' => 200,
+        ]);
+    }
+
+    public function test_station_items_include_operation_driven_batches_without_ean_codes(): void
+    {
+        $workOrder = WorkOrder::factory()->create([
+            'status' => WorkOrder::STATUS_IN_PROGRESS,
+            'planned_qty' => 200,
+            'process_snapshot' => [
+                'template_id' => 999,
+                'steps' => [[
+                    'step_number' => 1,
+                    'name' => 'Palletize',
+                    'requires_palletization' => true,
+                ]],
+                'bom' => [],
+            ],
+        ]);
+        $batch = app(WorkOrderService::class)->createBatch($workOrder, 200);
+        $step = $batch->steps()->sole();
+        $step->update(['status' => BatchStep::STATUS_IN_PROGRESS]);
+
+        $response = $this->actingAs($this->operator)->getJson(route('packaging.items'));
+
+        $response->assertOk()
+            ->assertJsonPath('items.0.id', $workOrder->id)
+            ->assertJsonPath('items.0.eans', [])
+            ->assertJsonPath('items.0.batches.0.palletization_step_id', $step->id)
+            ->assertJsonPath('items.0.batches.0.available_quantity', 200)
+            ->assertJsonPath('items.0.batches.0.can_load', true);
     }
 
     public function test_scan_assigns_piece_to_open_pallet_and_increments_qty(): void

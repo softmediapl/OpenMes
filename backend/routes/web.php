@@ -885,6 +885,8 @@ Route::middleware('auth')->group(function () {
             Route::get('/stats', [PackagingController::class, 'stats'])->name('stats');
             Route::get('/pallets', [PackagingController::class, 'openPallets'])->name('pallets.open');
             Route::post('/pallets', [PackagingController::class, 'createPallet'])->name('pallets.create');
+            Route::post('/pallets/{pallet}/contents', [PackagingController::class, 'addPalletContent'])
+                ->name('pallets.contents.store');
             Route::post('/pallets/{pallet}/close', [PackagingController::class, 'closePallet'])->name('pallets.close');
         });
 

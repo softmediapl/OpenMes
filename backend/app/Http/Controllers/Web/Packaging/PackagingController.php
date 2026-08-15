@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Packaging;
 
 use App\Enums\PalletStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AddPalletContentRequest;
 use App\Http\Requests\CreatePalletStationRequest;
 use App\Http\Requests\PackagingScanRequest;
 use App\Models\BatchStep;
@@ -12,6 +13,7 @@ use App\Models\Pallet;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderEan;
 use App\Services\Production\PalletBackflushService;
+use App\Services\Production\PalletContentService;
 use App\Support\ShiftWindow;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -22,7 +24,7 @@ class PackagingController extends Controller
 {
     // ── Views ─────────────────────────────────────────────────────────────────
 
-    public function station()
+    public function station(Request $request)
     {
         // scannerMode (HID vs serial) merged from develop — passed as a prop so
         // the React Station page can read it.
@@ -36,8 +38,16 @@ class PackagingController extends Controller
             ->get(['id', 'name', 'type', 'size', 'barcode_format', 'is_default']);
 
         $currentShift = $this->currentShiftPayload();
+        $initialWorkOrderId = $request->integer('work_order_id') ?: null;
+        $initialBatchId = $request->integer('batch_id') ?: null;
 
-        return Inertia::render('packaging/Station', compact('scannerMode', 'labelTemplates', 'currentShift'));
+        return Inertia::render('packaging/Station', compact(
+            'scannerMode',
+            'labelTemplates',
+            'currentShift',
+            'initialWorkOrderId',
+            'initialBatchId',
+        ));
     }
 
     public function adminOverview()
@@ -159,7 +169,14 @@ class PackagingController extends Controller
     public function openPallets(Request $request)
     {
         $query = Pallet::where('status', PalletStatus::Open->value)
-            ->with(['workOrder:id,order_no,line_id', 'workOrder.line:id,name', 'batch:id,batch_number,lot_number'])
+            ->with([
+                'workOrder:id,order_no,line_id',
+                'workOrder.line:id,name',
+                'batch:id,batch_number,lot_number',
+                'contents.batch:id,batch_number,lot_number',
+                'contents.batchStep:id,step_number,name',
+                'contents.loadedBy:id,name',
+            ])
             ->orderByDesc('updated_at');
 
         if ($workOrderId = $request->integer('work_order_id')) {
@@ -181,18 +198,13 @@ class PackagingController extends Controller
     {
         $workOrder = WorkOrder::findOrFail($request->integer('work_order_id'));
 
-        // Link the pallet to the batch it holds (one batch per pallet). Use the
-        // explicit choice if given (and it belongs to the WO); otherwise auto-link
-        // when the work order has exactly one batch.
+        // An empty pallet belongs to the order. An explicit batch keeps the
+        // legacy single-batch workflow available, while operation-driven loading
+        // records each batch quantity in pallet_contents.
         $batchId = $request->integer('batch_id') ?: null;
         if ($batchId) {
             if (! $workOrder->batches()->whereKey($batchId)->exists()) {
                 return response()->json(['message' => __('Selected batch does not belong to this work order.')], 422);
-            }
-        } else {
-            $batchIds = $workOrder->batches()->pluck('id');
-            if ($batchIds->count() === 1) {
-                $batchId = $batchIds->first();
             }
         }
 
@@ -237,9 +249,28 @@ class PackagingController extends Controller
         }
 
         return response()->json([
-            'pallet' => $this->palletPayload($pallet->fresh(['workOrder.line', 'batch'])),
+            'pallet' => $this->palletPayload($pallet->fresh(['workOrder.line', 'batch', 'contents'])),
             'message' => __('Pallet :no created', ['no' => $pallet->pallet_no]),
         ], 201);
+    }
+
+    public function addPalletContent(
+        AddPalletContentRequest $request,
+        Pallet $pallet,
+        PalletContentService $service,
+    ) {
+        $step = BatchStep::findOrFail($request->integer('batch_step_id'));
+
+        try {
+            $service->load($pallet, $step, $request->integer('quantity'), $request->user());
+        } catch (\DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json([
+            'pallet' => $this->palletPayload($pallet->fresh()),
+            'message' => __('Production batch loaded onto pallet.'),
+        ]);
     }
 
     public function closePallet(Pallet $pallet)
@@ -258,6 +289,14 @@ class PackagingController extends Controller
 
     private function palletPayload(Pallet $pallet): array
     {
+        $pallet->loadMissing([
+            'workOrder.line',
+            'batch',
+            'contents.batch',
+            'contents.batchStep',
+            'contents.loadedBy:id,name',
+        ]);
+
         return [
             'id' => $pallet->id,
             'pallet_no' => $pallet->pallet_no,
@@ -278,6 +317,20 @@ class PackagingController extends Controller
                 : null,
             'status' => $pallet->status instanceof PalletStatus ? $pallet->status->value : $pallet->status,
             'location' => $pallet->location,
+            'contents' => $pallet->contents
+                ->sortBy('loaded_at')
+                ->values()
+                ->map(fn ($content) => [
+                    'id' => $content->id,
+                    'batch_id' => $content->batch_id,
+                    'batch_label' => $content->batch?->displayLabel(),
+                    'batch_step_id' => $content->batch_step_id,
+                    'step_number' => $content->batchStep?->step_number,
+                    'step_name' => $content->batchStep?->name,
+                    'quantity' => (int) $content->quantity,
+                    'loaded_by' => $content->loadedBy?->name,
+                    'loaded_at' => $content->loaded_at?->toIso8601String(),
+                ]),
             'updated_at' => $pallet->updated_at?->toIso8601String(),
         ];
     }
@@ -333,10 +386,20 @@ class PackagingController extends Controller
             ->groupBy('work_order_id');
 
         return WorkOrder::packable()
-            ->with('productType', 'line', 'batches:id,work_order_id,batch_number,lot_number')
+            ->with([
+                'productType',
+                'line',
+                'batches' => fn ($query) => $query
+                    ->select('id', 'work_order_id', 'batch_number', 'lot_number', 'target_qty')
+                    ->with(['steps' => fn ($steps) => $steps
+                        ->where('requires_palletization', true)
+                        ->whereIn('status', [BatchStep::STATUS_READY, BatchStep::STATUS_IN_PROGRESS])
+                        ->withSum('palletContents as loaded_quantity', 'quantity')]),
+            ])
             ->orderByDesc('priority')
             ->get()
-            ->filter(fn ($wo) => $eansByWorkOrder->has($wo->id))
+            ->filter(fn ($wo) => $eansByWorkOrder->has($wo->id)
+                || $wo->batches->contains(fn ($batch) => $batch->steps->isNotEmpty()))
             ->map(function ($wo) use ($eansByWorkOrder) {
                 $planned = (int) $wo->planned_qty;
                 $packed = (int) $wo->packed_qty;
@@ -350,12 +413,26 @@ class PackagingController extends Controller
                     'packed_qty' => $packed,
                     'progress' => $planned > 0 ? min(100, (int) round($packed / $planned * 100)) : 0,
                     'done' => $planned > 0 && $packed >= $planned,
-                    'eans' => $eansByWorkOrder[$wo->id]->pluck('ean')->values(),
-                    // Batches the operator can assign a new pallet to (one per pallet).
-                    'batches' => $wo->batches->map(fn ($b) => [
-                        'id' => $b->id,
-                        'label' => $b->displayLabel(),
-                    ])->values(),
+                    'eans' => $eansByWorkOrder->get($wo->id, collect())->pluck('ean')->values(),
+                    'batches' => $wo->batches
+                        ->map(function ($batch) {
+                            $step = $batch->steps->sortBy('step_number')->first();
+                            $available = $step
+                                ? max(0, (int) floor((float) ($step->input_quantity ?? $batch->target_qty)) - (int) $step->loaded_quantity)
+                                : 0;
+
+                            return [
+                                'id' => $batch->id,
+                                'label' => $batch->displayLabel(),
+                                'palletization_step_id' => $step?->id,
+                                'palletization_step_status' => $step?->status,
+                                'available_quantity' => $available,
+                                'loaded_quantity' => (int) ($step?->loaded_quantity ?? 0),
+                                'can_load' => $step?->status === BatchStep::STATUS_IN_PROGRESS && $available > 0,
+                            ];
+                        })
+                        ->filter(fn ($batch) => $batch['palletization_step_id'] !== null)
+                        ->values(),
                     'status' => $wo->status,
                 ];
             })
