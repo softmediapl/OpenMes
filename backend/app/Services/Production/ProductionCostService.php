@@ -96,7 +96,7 @@ class ProductionCostService
     public function materialCost(WorkOrder $workOrder): array
     {
         $consumed = $workOrder->materialAllocations
-            ->filter(fn ($a) => (float) $a->consumed_qty > 0);
+            ->filter(fn ($a) => (float) $a->consumed_qty + (float) $a->scrap_qty > 0);
 
         $actual = $consumed->map(function ($allocation) {
             $unitPrice = $allocation->unit_price_snapshot !== null
@@ -104,13 +104,17 @@ class ProductionCostService
                 : (float) ($allocation->material?->unit_price ?? 0);
             $currency = $allocation->price_currency_snapshot
                 ?: ($allocation->material?->price_currency ?: $this->defaultCurrency);
-            $qty = (float) $allocation->consumed_qty;
+            $consumedQty = (float) $allocation->consumed_qty;
+            $scrapQty = (float) $allocation->scrap_qty;
+            $qty = $consumedQty + $scrapQty;
 
             return [
                 'material_code' => $allocation->material?->code,
                 'material_name' => $allocation->material?->name,
                 'source' => 'actual',
                 'qty' => round($qty, 4),
+                'consumed_qty' => round($consumedQty, 4),
+                'scrap_qty' => round($scrapQty, 4),
                 'unit_price' => round($unitPrice, 4),
                 'currency' => $currency,
                 'line_total' => round($qty * $unitPrice, 2),

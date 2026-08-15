@@ -26,6 +26,8 @@ class AllocationLotPick extends Model
         'workstation_material_stock_id',
         'tenant_id',
         'picked_qty',
+        'unit_price_snapshot',
+        'price_currency_snapshot',
         'picking_strategy',
     ];
 
@@ -33,6 +35,7 @@ class AllocationLotPick extends Model
     {
         return [
             'picked_qty' => 'decimal:4',
+            'unit_price_snapshot' => 'decimal:4',
         ];
     }
 

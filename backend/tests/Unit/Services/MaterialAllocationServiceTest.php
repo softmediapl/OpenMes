@@ -193,14 +193,20 @@ class MaterialAllocationServiceTest extends TestCase
         DB::table('system_settings')->updateOrInsert(['key' => 'lot_tracking_enabled'], ['value' => json_encode(true)]);
     }
 
-    private function makeLot(string $number, float $qty): MaterialLot
-    {
+    private function makeLot(
+        string $number,
+        float $qty,
+        ?float $unitPrice = null,
+        string $currency = 'PLN',
+    ): MaterialLot {
         return MaterialLot::create([
             'material_id' => $this->material->id,
             'lot_number' => $number,
             'unit_of_measure' => 'pcs',
             'quantity_received' => $qty,
             'quantity_available' => $qty,
+            'unit_price' => $unitPrice,
+            'price_currency' => $unitPrice !== null ? $currency : null,
             'received_at' => now(),
             'status' => MaterialLot::STATUS_RELEASED,
         ]);
@@ -282,6 +288,53 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertEqualsWithDelta(100.0, (float) $lot->fresh()->quantity_available, 0.0001);
         $this->assertEqualsWithDelta(200.0, (float) BatchStepLotConsumption::first()->quantity_consumed, 0.0001);
         $this->assertEqualsWithDelta(800.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+    }
+
+    public function test_consumption_uses_weighted_pick_time_lot_valuation(): void
+    {
+        $this->enableLotTracking();
+        $step = $this->makeStep();
+        $lotA = $this->makeLot('LOT-A', 100, 2);
+        $lotB = $this->makeLot('LOT-B', 200, 4);
+
+        $this->service->allocateForBatch($this->batch, $this->user, [
+            $this->material->id => [
+                ['material_lot_id' => $lotA->id, 'picked_qty' => 100],
+                ['material_lot_id' => $lotB->id, 'picked_qty' => 110],
+            ],
+        ], attributeStepId: $step->id);
+        $allocation = MaterialAllocation::firstWhere('batch_id', $this->batch->id);
+
+        // Master-data changes after picking must not rewrite the lot valuation.
+        $this->material->update(['unit_price' => 99, 'price_currency' => 'PLN']);
+        $this->service->recordConsumption($allocation, actualConsumed: 150, scrap: 10);
+        $this->service->consumeForBatch($this->batch);
+
+        $allocation->refresh();
+        // The LIFO return removes 50 units from LOT-B, leaving 100 @ 2 + 60 @ 4.
+        $this->assertEqualsWithDelta(2.75, (float) $allocation->unit_price_snapshot, 0.0001);
+        $this->assertSame('PLN', $allocation->price_currency_snapshot);
+        $this->assertEqualsWithDelta(140.0, (float) $lotB->fresh()->quantity_available, 0.0001);
+        $this->assertEqualsWithDelta(840.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+    }
+
+    public function test_consumption_rejects_mixed_lot_currencies(): void
+    {
+        $this->enableLotTracking();
+        $lotA = $this->makeLot('LOT-A', 100, 2, 'PLN');
+        $lotB = $this->makeLot('LOT-B', 200, 1, 'EUR');
+
+        $this->service->allocateForBatch($this->batch, $this->user, [
+            $this->material->id => [
+                ['material_lot_id' => $lotA->id, 'picked_qty' => 100],
+                ['material_lot_id' => $lotB->id, 'picked_qty' => 110],
+            ],
+        ]);
+        $allocation = MaterialAllocation::firstWhere('batch_id', $this->batch->id);
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('Cannot value one material allocation in multiple currencies.');
+        $this->service->recordConsumption($allocation, actualConsumed: 210);
     }
 
     public function test_pick_preview_for_step_returns_proposal_when_tracking_on(): void

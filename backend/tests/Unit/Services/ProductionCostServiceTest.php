@@ -69,6 +69,24 @@ class ProductionCostServiceTest extends TestCase
         $this->assertSame(12.0, $this->svc->materialCost($wo)['total']);
     }
 
+    public function test_material_cost_includes_scrapped_quantity(): void
+    {
+        $wo = $this->workOrder();
+        $material = Material::factory()->create(['unit_price' => 99]);
+        MaterialAllocation::factory()->consumed(10, snapshotPrice: 5)->create([
+            'work_order_id' => $wo->id,
+            'material_id' => $material->id,
+            'scrap_qty' => 2,
+        ]);
+
+        $materials = $this->svc->materialCost($wo);
+
+        $this->assertSame(60.0, $materials['total']);
+        $this->assertSame(12.0, $materials['items'][0]['qty']);
+        $this->assertSame(10.0, $materials['items'][0]['consumed_qty']);
+        $this->assertSame(2.0, $materials['items'][0]['scrap_qty']);
+    }
+
     public function test_material_falls_back_to_bom_with_scrap_when_no_consumption(): void
     {
         $material = Material::factory()->create(['unit_price' => 1.5, 'price_currency' => 'PLN']);

@@ -71,6 +71,7 @@ class LotPickingService
                     'material_allocation_id' => $allocation->id,
                     'material_lot_id' => $lot->id,
                     'picked_qty' => $take,
+                    ...$this->valuationSnapshot($lot, $material),
                     'picking_strategy' => $strategy,
                 ]);
 
@@ -143,6 +144,7 @@ class LotPickingService
                         'material_allocation_id' => $allocation->id,
                         'material_lot_id' => $lot->id,
                         'picked_qty' => $take,
+                        ...$this->valuationSnapshot($lot, $material),
                         'picking_strategy' => $strategy,
                     ]);
                 }
@@ -227,6 +229,7 @@ class LotPickingService
                     'material_allocation_id' => $allocation->id,
                     'material_lot_id' => $lot->id,
                     'picked_qty' => $qty,
+                    ...$this->valuationSnapshot($lot, $material),
                     'picking_strategy' => AllocationLotPick::STRATEGY_MANUAL,
                 ]);
 
@@ -474,6 +477,7 @@ class LotPickingService
                         'material_lot_id' => $stock->material_lot_id,
                         'workstation_material_stock_id' => $stock->id,
                         'picked_qty' => $take,
+                        ...$this->valuationSnapshot($stock->materialLot, $material),
                         'picking_strategy' => $strategy,
                     ]);
                 }
@@ -545,6 +549,7 @@ class LotPickingService
                     'material_lot_id' => $lotId,
                     'workstation_material_stock_id' => $stock->id,
                     'picked_qty' => $qty,
+                    ...$this->valuationSnapshot($stock->materialLot, $material),
                     'picking_strategy' => AllocationLotPick::STRATEGY_MANUAL,
                 ]);
                 $stock->materialLot->decrement('quantity_available', $qty);
@@ -651,6 +656,27 @@ class LotPickingService
             $stock->available_quantity,
             (float) ($stock->materialLot?->quantity_available ?? 0),
         ));
+    }
+
+    /**
+     * Freeze valuation at pick time so later master-data or lot edits cannot
+     * rewrite historical production costs.
+     *
+     * @return array{unit_price_snapshot: ?float, price_currency_snapshot: ?string}
+     */
+    private function valuationSnapshot(MaterialLot $lot, Material $material): array
+    {
+        $price = $lot->unit_price !== null
+            ? (float) $lot->unit_price
+            : ($material->unit_price !== null ? (float) $material->unit_price : null);
+        $currency = $lot->price_currency ?: $material->price_currency;
+
+        return [
+            'unit_price_snapshot' => $price,
+            'price_currency_snapshot' => $price !== null && $currency
+                ? strtoupper((string) $currency)
+                : null,
+        ];
     }
 
     /**

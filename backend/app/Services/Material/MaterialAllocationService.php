@@ -257,6 +257,7 @@ class MaterialAllocationService
                 }
                 $allocation->unsetRelation('lotPicks');
                 $allocation->load('lotPicks.workstationMaterialStock');
+                $valuation = $this->allocationValuation($allocation, $actualConsumed + $scrapQty);
                 $this->writeGenealogy($allocation);
                 $this->consumeWorkstationAllocation(
                     $allocation,
@@ -294,9 +295,8 @@ class MaterialAllocationService
                     'consumed_qty' => $actualConsumed,
                     'returned_qty' => (float) $allocation->returned_qty + $leftoverToReturn,
                     'consumed_at' => now(),
-                    // Snapshot the price so historical cost reports stay stable.
-                    'unit_price_snapshot' => $actualConsumed > 0 ? $allocation->material?->unit_price : null,
-                    'price_currency_snapshot' => $actualConsumed > 0 ? $allocation->material?->price_currency : null,
+                    'unit_price_snapshot' => $valuation['unit_price_snapshot'],
+                    'price_currency_snapshot' => $valuation['price_currency_snapshot'],
                 ]);
             }
         });
@@ -356,13 +356,14 @@ class MaterialAllocationService
             throw new \InvalidArgumentException('Consumed and scrap quantities cannot exceed the allocated quantity.');
         }
 
+        $valuation = $this->allocationValuation($allocation, $actualConsumed + $scrap);
+
         $allocation->update([
             'consumed_qty' => $actualConsumed,
             'consumption_recorded' => true,
             'scrap_qty' => $scrap,
-            // Snapshot the price so historical cost reports stay stable.
-            'unit_price_snapshot' => $actualConsumed > 0 ? $allocation->material?->unit_price : null,
-            'price_currency_snapshot' => $actualConsumed > 0 ? $allocation->material?->price_currency : null,
+            'unit_price_snapshot' => $valuation['unit_price_snapshot'],
+            'price_currency_snapshot' => $valuation['price_currency_snapshot'],
         ]);
 
         return $allocation->fresh();
@@ -548,6 +549,64 @@ class MaterialAllocationService
     }
 
     // ── internals ─────────────────────────────────────────────────────────────
+
+    /**
+     * Value the currently retained picks using their immutable pick-time prices.
+     * Unpriced picks fall back to the material master for backward compatibility.
+     *
+     * @return array{unit_price_snapshot: ?float, price_currency_snapshot: ?string}
+     */
+    private function allocationValuation(MaterialAllocation $allocation, ?float $chargeQuantity = null): array
+    {
+        $chargeQuantity ??= (float) $allocation->consumed_qty + (float) $allocation->scrap_qty;
+        if ($chargeQuantity <= 0) {
+            return [
+                'unit_price_snapshot' => null,
+                'price_currency_snapshot' => null,
+            ];
+        }
+
+        $allocation->loadMissing(['material', 'lotPicks']);
+        $fallbackPrice = $allocation->material?->unit_price;
+        $fallbackCurrency = $allocation->material?->price_currency;
+        $weightedTotal = 0.0;
+        $pricedQuantity = 0.0;
+        $currencies = [];
+
+        foreach ($allocation->lotPicks as $pick) {
+            $quantity = (float) $pick->picked_qty;
+            $price = $pick->unit_price_snapshot ?? $fallbackPrice;
+            if ($quantity <= 0 || $price === null) {
+                continue;
+            }
+
+            $currency = $pick->price_currency_snapshot ?: $fallbackCurrency;
+            if ($currency) {
+                $currencies[] = strtoupper((string) $currency);
+            }
+            $weightedTotal += $quantity * (float) $price;
+            $pricedQuantity += $quantity;
+        }
+
+        $currencies = array_values(array_unique($currencies));
+        if (count($currencies) > 1) {
+            throw new \DomainException('Cannot value one material allocation in multiple currencies.');
+        }
+
+        if ($pricedQuantity > 0) {
+            return [
+                'unit_price_snapshot' => round($weightedTotal / $pricedQuantity, 4),
+                'price_currency_snapshot' => $currencies[0] ?? ($fallbackCurrency ? strtoupper((string) $fallbackCurrency) : null),
+            ];
+        }
+
+        return [
+            'unit_price_snapshot' => $fallbackPrice !== null ? (float) $fallbackPrice : null,
+            'price_currency_snapshot' => $fallbackPrice !== null && $fallbackCurrency
+                ? strtoupper((string) $fallbackCurrency)
+                : null,
+        ];
+    }
 
     private function materialPolicyWorkstation(BatchStep $step, Material $material): ?Workstation
     {
