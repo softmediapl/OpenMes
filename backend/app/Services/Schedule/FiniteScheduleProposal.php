@@ -26,8 +26,19 @@ final class FiniteScheduleProposal
         return (int) $this->endsAt->diffInMinutes($this->customerDeadline, false);
     }
 
+    public function fingerprint(): string
+    {
+        return hash('sha256', json_encode($this->payload(), JSON_THROW_ON_ERROR));
+    }
+
     /** @return array<string, mixed> */
     public function toArray(): array
+    {
+        return $this->payload() + ['fingerprint' => $this->fingerprint()];
+    }
+
+    /** @return array<string, mixed> */
+    private function payload(): array
     {
         return [
             'work_order_id' => $this->workOrderId,
