@@ -45,8 +45,12 @@ class ProductType extends Model
         return UnitOfMeasure::precisionForCode($this->unit_of_measure);
     }
 
-    public function getQuantityPrecisionAttribute(): int
+    public function getQuantityPrecisionAttribute(): ?int
     {
+        if (trim((string) $this->unit_of_measure) === '') {
+            return null;
+        }
+
         return $this->quantityPrecision();
     }
 
