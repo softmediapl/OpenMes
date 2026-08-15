@@ -5512,5 +5512,20 @@
     "Minimum process lead time": "Minimum process lead time",
     "Total operation time": "Total operation time",
     "Time estimate is incomplete": "Time estimate is incomplete",
-    "Missing time standards for steps": "Missing time standards for steps"
+    "Missing time standards for steps": "Missing time standards for steps",
+    "Finite-capacity plan": "Finite-capacity plan",
+    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.",
+    "Calculating...": "Calculating...",
+    "Calculate capacity plan": "Calculate capacity plan",
+    "Proposed start": "Proposed start",
+    "Proposed finish": "Proposed finish",
+    "Calendar lead time": "Calendar lead time",
+    "Deadline margin": "Deadline margin",
+    "No deadline": "No deadline",
+    "slot": "slot",
+    "Apply capacity plan": "Apply capacity plan",
+    "Capacity plan applied.": "Capacity plan applied.",
+    "Unable to calculate a capacity plan.": "Unable to calculate a capacity plan.",
+    "Select a production line, planned start and start shift.": "Select a production line, planned start and start shift.",
+    "The plan changed. Calculate a fresh proposal before applying it.": "The plan changed. Calculate a fresh proposal before applying it."
 }

@@ -5512,5 +5512,20 @@
     "Minimum process lead time": "Minimalny czas przejścia procesu",
     "Total operation time": "Łączny czas operacji",
     "Time estimate is incomplete": "Estymacja czasu jest niekompletna",
-    "Missing time standards for steps": "Brak norm czasu dla kroków"
+    "Missing time standards for steps": "Brak norm czasu dla kroków",
+    "Finite-capacity plan": "Plan o skończonej zdolności",
+    "Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.": "Sprawdza zależności, zmiany, utrzymanie ruchu i pojemność stanowisk bez zmiany harmonogramu.",
+    "Calculating...": "Obliczanie...",
+    "Calculate capacity plan": "Oblicz plan zdolności",
+    "Proposed start": "Proponowany start",
+    "Proposed finish": "Proponowane zakończenie",
+    "Calendar lead time": "Kalendarzowy czas realizacji",
+    "Deadline margin": "Margines do terminu",
+    "No deadline": "Brak terminu",
+    "slot": "slot",
+    "Apply capacity plan": "Zastosuj plan zdolności",
+    "Capacity plan applied.": "Plan zdolności został zastosowany.",
+    "Unable to calculate a capacity plan.": "Nie można obliczyć planu zdolności.",
+    "Select a production line, planned start and start shift.": "Wybierz linię produkcyjną, planowany start i zmianę początkową.",
+    "The plan changed. Calculate a fresh proposal before applying it.": "Plan uległ zmianie. Przed zastosowaniem oblicz nową propozycję."
 }

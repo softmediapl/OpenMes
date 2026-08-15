@@ -172,6 +172,36 @@ export function durationEstimateMeta(workOrder) {
     };
 }
 
+export function apsProposalMeta(proposal) {
+    if (!proposal) return null;
+
+    const startsAt = new Date(proposal.planned_start_at);
+    const endsAt = new Date(proposal.planned_end_at);
+    const elapsedMinutes = Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime())
+        ? null
+        : Math.max(0, Math.round((endsAt.getTime() - startsAt.getTime()) / 60000));
+    const slackMinutes = proposal.slack_minutes == null ? null : Number(proposal.slack_minutes);
+    const steps = new Map();
+
+    for (const segment of proposal.segments ?? []) {
+        const key = Number(segment.step_number);
+        const existing = steps.get(key) ?? {
+            stepNumber: key,
+            name: segment.operation_name,
+            segments: [],
+        };
+        existing.segments.push(segment);
+        steps.set(key, existing);
+    }
+
+    return {
+        elapsedMinutes,
+        slackMinutes,
+        isLate: slackMinutes != null && slackMinutes < 0,
+        steps: [...steps.values()].sort((a, b) => a.stepNumber - b.stepNumber),
+    };
+}
+
 // planned_end_at is an exclusive boundary. Subtract one wall-clock minute
 // before mapping it to a weekly cell, so a night shift ending at 06:00 does
 // not appear to occupy the following day's night-shift column as well.

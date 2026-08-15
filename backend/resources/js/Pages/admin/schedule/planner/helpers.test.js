@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { durationEstimateMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
+import { apsProposalMeta, durationEstimateMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
 
 const shifts = [
     { start_time: '06:00:00', end_time: '14:00:00' },
@@ -64,5 +64,23 @@ describe('planner schedule helpers', () => {
 
         expect(meta.complete).toBe(false);
         expect(meta.title).toContain('4, 7');
+    });
+
+    it('summarizes a finite-capacity proposal without flattening parallel segments', () => {
+        const meta = apsProposalMeta({
+            planned_start_at: '2026-08-17T06:00:00+02:00',
+            planned_end_at: '2026-08-17T08:30:00+02:00',
+            slack_minutes: -30,
+            segments: [
+                { step_number: 2, segment_number: 2, operation_name: 'Cooling' },
+                { step_number: 1, segment_number: 1, operation_name: 'Forming' },
+                { step_number: 2, segment_number: 1, operation_name: 'Cooling' },
+            ],
+        });
+
+        expect(meta.elapsedMinutes).toBe(150);
+        expect(meta.isLate).toBe(true);
+        expect(meta.steps.map((step) => step.stepNumber)).toEqual([1, 2]);
+        expect(meta.steps[1].segments).toHaveLength(2);
     });
 });

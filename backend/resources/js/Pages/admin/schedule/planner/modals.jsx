@@ -1,11 +1,11 @@
 // Edit panel, assign popup, new-order modal, conflict dialog, live tracking,
 // toast — styled to the OpenMES Schedule design.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePage } from '@inertiajs/react';
 import { Dropdown, DatePicker } from '@openmes/ui';
-import { __ } from '../../../../lib/i18n';
+import { __, formatDateTime } from '../../../../lib/i18n';
 import WorkOrderForm from '../../work-orders/WorkOrderForm';
-import { statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, shiftWindow, MONO } from './helpers';
+import { apsProposalMeta, statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, shiftWindow, MONO } from './helpers';
 import { StatusPill } from './OrderCard';
 
 const lblStyle = { fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--om-faint)', marginBottom: 5 };
@@ -29,14 +29,69 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
     const [endDate, setEndDate] = useState(wo.planned_end_at?.slice(0, 10) || '');
     const [shift, setShift] = useState(wo.shift_number || '');
     const [endShift, setEndShift] = useState(wo.end_shift_number || '');
+    const [proposal, setProposal] = useState(null);
+    const [proposalError, setProposalError] = useState('');
+    const [proposalLoading, setProposalLoading] = useState(false);
     // shift_number is a 1-based slot index (matching the weekly grid), not sort_order.
     const shiftsPerDay = config?.shiftsPerDay ?? data.shifts.length;
     const shiftOpts = [{ value: '', label: '—' }, ...Array.from({ length: shiftsPerDay }, (_, i) => ({ value: String(i + 1), label: data.shifts[i]?.name ?? ('S' + (i + 1)) }))];
+    const proposalMeta = apsProposalMeta(proposal);
+    const proposalInput = () => {
+        const window = shiftWindow(startDate, +shift, startDate, +shift, data.shifts);
+        if (!line || !window) return null;
+
+        return {
+            line_id: +line,
+            requested_start_at: window.planned_start_at,
+        };
+    };
+
+    useEffect(() => {
+        setProposal(null);
+        setProposalError('');
+    }, [line, startDate, shift]);
+
+    const calculateProposal = async () => {
+        const input = proposalInput();
+        if (!input) {
+            setProposalError(__('Select a production line, planned start and start shift.'));
+            return;
+        }
+
+        setProposalLoading(true);
+        setProposalError('');
+        const result = await ctx.onProposeAps(wo, input);
+        setProposalLoading(false);
+        if (!result.success) {
+            setProposal(null);
+            setProposalError(result.message);
+            return;
+        }
+        setProposal(result.proposal);
+    };
+
+    const applyProposal = async () => {
+        const input = proposalInput();
+        if (!input || !proposal) return;
+
+        setProposalLoading(true);
+        setProposalError('');
+        const result = await ctx.onApplyAps(wo, { ...input, fingerprint: proposal.fingerprint });
+        setProposalLoading(false);
+        if (!result.success) {
+            setProposalError(result.stale
+                ? __('The plan changed. Calculate a fresh proposal before applying it.')
+                : result.message);
+            if (result.stale) setProposal(null);
+            return;
+        }
+        onClose();
+    };
 
     return (
         <>
             <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
-            <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 45, width: 560, maxWidth: '92vw', background: 'var(--om-card)', border: '1px solid var(--om-line)', borderRadius: 14, boxShadow: '0 30px 70px -22px rgba(0,0,0,.5)', overflow: 'hidden' }}>
+            <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 45, width: 720, maxWidth: '92vw', maxHeight: 'calc(100vh - 48px)', background: 'var(--om-card)', border: '1px solid var(--om-line)', borderRadius: 14, boxShadow: '0 30px 70px -22px rgba(0,0,0,.5)', overflowY: 'auto' }}>
                 <div style={{ height: 3, background: s.solid }} />
                 <div style={{ padding: '18px 20px' }}>
                     <div className="flex items-start justify-between gap-4 mb-4">
@@ -112,6 +167,66 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                         </div>
                         <div><div style={lblStyle}>{__('Start shift')}</div><Dropdown value={shift == null ? '' : String(shift)} onChange={(v) => setShift(v)} placeholder="—" options={shiftOpts} /></div>
                         <div><div style={lblStyle}>{__('End shift')}</div><Dropdown value={endShift == null ? '' : String(endShift)} onChange={(v) => setEndShift(v)} placeholder="—" options={shiftOpts} /></div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid var(--om-line2)', borderBottom: '1px solid var(--om-line2)', padding: '14px 0', marginBottom: 14 }}>
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--om-ink)' }}>{__('Finite-capacity plan')}</div>
+                                <div style={{ fontSize: 11.5, color: 'var(--om-muted)', marginTop: 2 }}>{__('Checks dependencies, shifts, maintenance and workstation capacity without changing the schedule.')}</div>
+                            </div>
+                            <button type="button" disabled={proposalLoading || !line || !startDate || !shift} onClick={calculateProposal}
+                                style={{ flexShrink: 0, fontSize: 12.5, fontWeight: 600, color: 'var(--om-ink)', background: 'var(--om-chip)', border: '1px solid var(--om-line)', borderRadius: 8, padding: '8px 12px', opacity: proposalLoading || !line || !startDate || !shift ? 0.5 : 1 }}>
+                                {proposalLoading ? __('Calculating...') : __('Calculate capacity plan')}
+                            </button>
+                        </div>
+
+                        {proposalError && (
+                            <div style={{ marginTop: 10, fontSize: 12, lineHeight: 1.45, color: 'var(--om-blocked)', background: 'var(--om-blocked-bg)', borderRadius: 7, padding: '8px 10px' }}>{proposalError}</div>
+                        )}
+
+                        {proposal && proposalMeta && (
+                            <div style={{ marginTop: 12 }}>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3" style={{ background: 'var(--om-bg)', borderRadius: 8, padding: '10px 12px' }}>
+                                    <div><div style={lblStyle}>{__('Proposed start')}</div><div style={{ fontFamily: MONO, fontSize: 11 }}>{formatDateTime(proposal.planned_start_at)}</div></div>
+                                    <div><div style={lblStyle}>{__('Proposed finish')}</div><div style={{ fontFamily: MONO, fontSize: 11 }}>{formatDateTime(proposal.planned_end_at)}</div></div>
+                                    <div><div style={lblStyle}>{__('Calendar lead time')}</div><div style={{ fontFamily: MONO, fontSize: 11 }}>{fmtDurationMinutes(proposalMeta.elapsedMinutes)}</div></div>
+                                    <div>
+                                        <div style={lblStyle}>{__('Deadline margin')}</div>
+                                        <div style={{ fontFamily: MONO, fontSize: 11, color: proposalMeta.isLate ? 'var(--om-blocked)' : 'var(--om-working)' }}>
+                                            {proposalMeta.slackMinutes == null
+                                                ? __('No deadline')
+                                                : proposalMeta.isLate
+                                                    ? `${fmtDurationMinutes(Math.abs(proposalMeta.slackMinutes))} ${__('late')}`
+                                                    : `${fmtDurationMinutes(proposalMeta.slackMinutes)} ${__('remaining')}`}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ marginTop: 9, maxHeight: 180, overflowY: 'auto', borderTop: '1px solid var(--om-line2)' }}>
+                                    {proposalMeta.steps.map((step) => (
+                                        <div key={step.stepNumber} style={{ padding: '8px 2px', borderBottom: '1px solid var(--om-line2)' }}>
+                                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--om-ink)', marginBottom: 4 }}>{String(step.stepNumber).padStart(2, '0')} {step.name}</div>
+                                            {step.segments.map((segment) => (
+                                                <div key={`${segment.step_number}-${segment.segment_number}`} className="flex items-center gap-2 flex-wrap" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-muted)', lineHeight: 1.5 }}>
+                                                    <span>{segment.workstation_name} · {__('slot')} {segment.slot_number}</span>
+                                                    <span>{formatDateTime(segment.planned_start_at)} → {formatDateTime(segment.planned_end_at)}</span>
+                                                    <span>{fmtDurationMinutes(segment.duration_minutes)}</span>
+                                                    {segment.planned_quantity != null && <span>{fmtQty(segment.planned_quantity)} {__('pcs')}</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="flex justify-end mt-3">
+                                    <button type="button" disabled={proposalLoading} onClick={applyProposal}
+                                        style={{ fontSize: 12.5, fontWeight: 600, color: '#fff', background: 'var(--om-accent)', borderRadius: 8, padding: '9px 13px', opacity: proposalLoading ? 0.5 : 1 }}>
+                                        {__('Apply capacity plan')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-2.5">

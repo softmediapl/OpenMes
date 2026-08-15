@@ -177,6 +177,38 @@ export default function Planner() {
         if (result) { toast(`${wo.order_no} ${__('updated')}`); refreshContent(); }
     }, [saveOrder, toast, refreshContent]);
 
+    const requestAps = useCallback(async (wo, action, payload) => {
+        setSaving(true);
+        try {
+            const response = await apiCall(`/admin/schedule/${wo.id}/aps-${action}`, 'POST', payload);
+            const json = await response.json();
+            if (!response.ok || !json.success) {
+                return {
+                    success: false,
+                    stale: response.status === 409 || json.stale === true,
+                    message: json.message ?? __('Unable to calculate a capacity plan.'),
+                };
+            }
+
+            return json;
+        } catch {
+            return { success: false, stale: false, message: __('Connection error') };
+        } finally {
+            setSaving(false);
+        }
+    }, []);
+
+    const proposeAps = useCallback((wo, payload) => requestAps(wo, 'proposal', payload), [requestAps]);
+
+    const applyAps = useCallback(async (wo, payload) => {
+        const result = await requestAps(wo, 'apply', payload);
+        if (result.success) {
+            toast(__('Capacity plan applied.'));
+            refreshContent();
+        }
+        return result;
+    }, [requestAps, toast, refreshContent]);
+
     const performUnassign = useCallback(async (wo) => {
         // Unscheduling removes only planner placement. The preferred line and
         // customer commitment remain part of the work order.
@@ -274,6 +306,8 @@ export default function Planner() {
         onDiagonalExtend,
         onRefreshContent: refreshContent,
         onCellClick: (target) => setAssignTarget(target),
+        onProposeAps: proposeAps,
+        onApplyAps: applyAps,
     };
 
     // ── Live tracking — always on, auto-follows the first in-progress order ────
