@@ -23,6 +23,7 @@ class SnapshotService
             'steps.photos',
             'steps.workstation',
             'steps.transportUnitType',
+            'steps.qualityCheckTemplate',
             'dependencies.predecessor',
             'dependencies.successor',
             'bomItems.material.materialType',
@@ -85,6 +86,16 @@ class SnapshotService
                     'workstation_capacity_slots' => $step->workstation?->capacity_slots,
                     'workstation_type_id' => $step->effectiveWorkstationType(),
                     'transport_unit_type_id' => $step->transport_unit_type_id,
+                    'quality_check_template_id' => $step->quality_check_template_id,
+                    'quality_gate_required' => (bool) $step->quality_gate_required,
+                    'quality_check_specification' => $step->quality_gate_required && $step->qualityCheckTemplate
+                        ? [
+                            'name' => $step->qualityCheckTemplate->name,
+                            'required_checks' => max(1, (int) $step->qualityCheckTemplate->min_checks_per_batch),
+                            'samples_per_check' => max(1, (int) $step->qualityCheckTemplate->samples_per_check),
+                            'parameters' => $step->qualityCheckTemplate->parameters ?? [],
+                        ]
+                        : null,
                     'transport_unit_capacity_quantity' => $step->transportUnitType?->default_capacity_quantity !== null
                         ? (float) $step->transportUnitType->default_capacity_quantity
                         : null,

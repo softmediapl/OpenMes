@@ -33,6 +33,8 @@ class TemplateStep extends Model
         'workstation_id',
         'workstation_type_id',
         'transport_unit_type_id',
+        'quality_check_template_id',
+        'quality_gate_required',
         'setup_time_minutes',
         'run_time_per_unit_minutes',
         'is_optional',
@@ -53,6 +55,7 @@ class TemplateStep extends Model
             'min_duration_minutes' => 'integer',
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
+            'quality_gate_required' => 'boolean',
             'is_optional' => 'boolean',
             'is_default_variant' => 'boolean',
         ];
@@ -94,6 +97,11 @@ class TemplateStep extends Model
     public function transportUnitType(): BelongsTo
     {
         return $this->belongsTo(TransportUnitType::class);
+    }
+
+    public function qualityCheckTemplate(): BelongsTo
+    {
+        return $this->belongsTo(QualityCheckTemplate::class);
     }
 
     /**

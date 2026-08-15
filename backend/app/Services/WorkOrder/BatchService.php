@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\Workstation;
 use App\Services\Material\MaterialAllocationService;
 use App\Services\Production\TransportUnitLoadService;
+use App\Services\Quality\OperationQualityService;
 use App\Services\Quality\QualityTriggerService;
 use App\Support\SystemSetting;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,7 @@ class BatchService
         protected WorkOrderService $workOrderService,
         protected MaterialAllocationService $allocationService,
         protected QualityTriggerService $qualityTriggerService,
+        protected OperationQualityService $operationQualityService,
         protected TransportUnitLoadService $transportUnitLoadService,
     ) {}
 
@@ -57,6 +59,8 @@ class BatchService
             if (! $step->canStart()) {
                 $this->throwValidationError($step);
             }
+
+            $this->operationQualityService->guardCanStart($step);
 
             $this->guardWorkstationCapacity($step);
 
@@ -156,6 +160,8 @@ class BatchService
                     'This step is blocked: you must confirm you have read the critical instructions before it can be completed.'
                 ));
             }
+
+            $this->operationQualityService->guardCanComplete($step);
 
             // Recorded time (ISA-95 L3 system value) — the wall-clock diff, kept for
             // audit. Retained regardless of any operator-confirmed actuals below.

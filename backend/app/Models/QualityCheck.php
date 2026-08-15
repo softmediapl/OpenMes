@@ -14,8 +14,10 @@ class QualityCheck extends Model
 
     protected $fillable = [
         'batch_id',
+        'batch_step_id',
         'pallet_id',
         'quality_check_template_id',
+        'issue_id',
         'checked_by',
         'checked_at',
         'production_quantity',
@@ -43,9 +45,19 @@ class QualityCheck extends Model
         return $this->belongsTo(Batch::class);
     }
 
+    public function batchStep(): BelongsTo
+    {
+        return $this->belongsTo(BatchStep::class);
+    }
+
     public function template(): BelongsTo
     {
         return $this->belongsTo(QualityCheckTemplate::class, 'quality_check_template_id');
+    }
+
+    public function issue(): BelongsTo
+    {
+        return $this->belongsTo(Issue::class);
     }
 
     public function checkedBy(): BelongsTo

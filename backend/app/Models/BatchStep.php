@@ -41,6 +41,9 @@ class BatchStep extends Model
         'workstation_id',
         'workstation_type_id',
         'transport_unit_type_id',
+        'quality_check_template_id',
+        'quality_gate_required',
+        'quality_check_specification',
         'estimated_duration_minutes',
         'execution_mode',
         'labor_mode',
@@ -96,6 +99,8 @@ class BatchStep extends Model
             'is_optional' => 'boolean',
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
+            'quality_gate_required' => 'boolean',
+            'quality_check_specification' => 'array',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'confirmed_at' => 'datetime',
@@ -156,6 +161,16 @@ class BatchStep extends Model
     public function transportUnitType(): BelongsTo
     {
         return $this->belongsTo(TransportUnitType::class);
+    }
+
+    public function qualityCheckTemplate(): BelongsTo
+    {
+        return $this->belongsTo(QualityCheckTemplate::class);
+    }
+
+    public function qualityChecks(): HasMany
+    {
+        return $this->hasMany(QualityCheck::class);
     }
 
     /** The supervisor who assigned the specific workstation (pool dispatch, #52). */

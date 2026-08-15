@@ -711,6 +711,9 @@ class WorkOrderService
                 // comparison have their reference data on the batch step.
                 'workstation_type_id' => $stepData['workstation_type_id'] ?? null,
                 'transport_unit_type_id' => $stepData['transport_unit_type_id'] ?? null,
+                'quality_check_template_id' => $stepData['quality_check_template_id'] ?? null,
+                'quality_gate_required' => $stepData['quality_gate_required'] ?? false,
+                'quality_check_specification' => $stepData['quality_check_specification'] ?? null,
                 'estimated_duration_minutes' => $stepData['estimated_duration_minutes'] ?? null,
                 'execution_mode' => $stepData['execution_mode'] ?? \App\Enums\OperationExecutionMode::PerUnit->value,
                 'labor_mode' => $stepData['labor_mode'] ?? \App\Enums\OperationLaborMode::Attended->value,

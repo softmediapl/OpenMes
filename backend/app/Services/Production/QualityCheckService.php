@@ -3,6 +3,7 @@
 namespace App\Services\Production;
 
 use App\Models\Batch;
+use App\Models\BatchStep;
 use App\Models\Pallet;
 use App\Models\QualityCheck;
 use App\Models\QualityCheckSample;
@@ -25,12 +26,14 @@ class QualityCheckService
         ?QualityCheckTemplate $template = null,
         ?string $notes = null,
         ?Pallet $pallet = null,
+        ?BatchStep $batchStep = null,
     ): QualityCheck {
-        return DB::transaction(function () use ($batch, $user, $samples, $productionQuantity, $template, $notes, $pallet) {
+        return DB::transaction(function () use ($batch, $user, $samples, $productionQuantity, $template, $notes, $pallet, $batchStep) {
             $allPassed = collect($samples)->every(fn ($s) => $s['is_passed'] ?? true);
 
             $check = QualityCheck::create([
                 'batch_id' => $batch->id,
+                'batch_step_id' => $batchStep?->id,
                 'pallet_id' => $pallet?->id,
                 'quality_check_template_id' => $template?->id,
                 'checked_by' => $user->id,
