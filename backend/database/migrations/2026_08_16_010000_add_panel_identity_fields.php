@@ -33,7 +33,6 @@ return new class extends Migration
                 'key' => $key,
                 'value' => json_encode($value),
                 'description' => $description,
-                'created_at' => now(),
                 'updated_at' => now(),
             ]);
         }
