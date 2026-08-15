@@ -11,6 +11,8 @@ class UnitOfMeasure extends Model
 {
     use HasFactory, HasTenant;
 
+    protected $table = 'units_of_measure';
+
     protected $fillable = [
         'tenant_id',
         'code',
