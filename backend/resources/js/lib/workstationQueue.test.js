@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentBatchStep, workForStation } from './workstationQueue';
+import { currentBatchStep, workForStation, workItemsForStation } from './workstationQueue';
 
 describe('workstation queue selection', () => {
     it('prefers an in-progress operation over ready and pending work', () => {
@@ -73,5 +73,25 @@ describe('workstation queue selection', () => {
         expect(work.batch.id).toBe(10);
         expect(work.step.id).toBe(2);
         expect(work.step.input_quantity).toBe(195);
+    });
+
+    it('returns every actionable batch so parallel-capacity stations do not hide work', () => {
+        const workOrder = {
+            line_id: 5,
+            batches: [
+                {
+                    id: 10,
+                    steps: [{ id: 2, step_number: 2, status: 'IN_PROGRESS', workstation_id: 12 }],
+                },
+                {
+                    id: 11,
+                    steps: [{ id: 4, step_number: 2, status: 'READY', workstation_id: null, workstation_type_id: 8 }],
+                },
+            ],
+        };
+
+        const items = workItemsForStation(workOrder, { id: 12, line_id: 5, workstation_type_id: 8 });
+
+        expect(items.map(({ batch }) => batch.id)).toEqual([10, 11]);
     });
 });

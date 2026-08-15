@@ -25,14 +25,21 @@ function stationCanOperateStep(workOrder, step, workstation) {
         && String(workOrder?.line_id) === String(workstation.line_id);
 }
 
-export function workForStation(workOrder, workstation) {
+export function workItemsForStation(workOrder, workstation) {
+    const items = [];
+
     for (const batch of workOrder?.batches ?? []) {
         const step = currentBatchStep(batch);
 
         if (step && stationCanOperateStep(workOrder, step, workstation)) {
-            return { batch, step };
+            items.push({ batch, step });
         }
     }
 
-    return { batch: null, step: null };
+    return items;
+}
+
+export function workForStation(workOrder, workstation) {
+    return workItemsForStation(workOrder, workstation)[0]
+        ?? { batch: null, step: null };
 }

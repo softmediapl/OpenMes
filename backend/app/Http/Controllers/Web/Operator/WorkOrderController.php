@@ -129,6 +129,14 @@ class WorkOrderController extends Controller
             $completedWorkOrders = collect();
         }
 
+        $workstationQueue->each(function (WorkOrder $workOrder): void {
+            $workOrder->batches->each(function (Batch $batch): void {
+                $batch->steps->each(function (BatchStep $step): void {
+                    $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
+                });
+            });
+        });
+
         // Downtime reporter data (React replacement for the Livewire DowntimeReporter).
         $downtimeReasons = \App\Models\DowntimeReason::active()->orderBy('name')->get(['id', 'name']);
         $activeDowntime = \App\Models\ProductionDowntime::with('reason:id,name')

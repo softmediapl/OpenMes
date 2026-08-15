@@ -6,7 +6,8 @@ import { DataTable } from '@openmes/ui/table';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import LineSync from '../../components/LineSync';
 import { formatDate, formatNumber, formatTime } from '../../lib/i18n';
-import { workForStation } from '../../lib/workstationQueue';
+import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
+import { workItemsForStation } from '../../lib/workstationQueue';
 
 // Geist White restyle: light-only v1 — former `dark:` classes removed.
 
@@ -35,6 +36,34 @@ function hexToRgba(hex, alpha) {
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function QueueHoldStatus({ step }) {
+    const [clock, setClock] = useState(Date.now());
+    const isRunningHold = step?.status === 'IN_PROGRESS'
+        && step?.execution_mode === 'fixed_hold'
+        && step?.hold_release_at;
+    const remainingSeconds = isRunningHold
+        ? holdRemainingSeconds(step.hold_release_at, clock)
+        : 0;
+
+    useEffect(() => {
+        if (!isRunningHold || remainingSeconds <= 0) return undefined;
+
+        const timer = window.setInterval(() => setClock(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [isRunningHold, remainingSeconds]);
+
+    if (!isRunningHold) return null;
+
+    return (
+        <div className={`mt-3 flex items-center justify-between border-t border-om-line2 pt-3 text-xs ${remainingSeconds > 0 ? 'text-om-downtime' : 'text-om-running'}`}>
+            <span className="font-medium">{__('Minimum hold')}</span>
+            <span className="font-mono text-[14px] font-semibold">
+                {remainingSeconds > 0 ? formatHoldCountdown(remainingSeconds) : __('Ready for release')}
+            </span>
+        </div>
+    );
 }
 
 // §04 input idiom — shared classes for dialog inputs/selects
@@ -701,6 +730,16 @@ export default function Queue() {
         selectedWorkstation &&
         (workstationLocked || ['per_operation', 'hybrid'].includes(trackingMode));
 
+    const workstationWorkItems = showWorkstationQueue
+        ? workstationQueue.flatMap((workOrder) => (
+            workItemsForStation(workOrder, selectedWorkstation)
+                .map(({ batch, step }) => ({ workOrder, batch, step }))
+        ))
+        : [];
+    const occupiedSlots = workstationWorkItems.filter(({ step }) => step.status === 'IN_PROGRESS').length;
+    const capacitySlots = Number(selectedWorkstation?.capacity_slots ?? 1);
+    const availableSlots = Math.max(capacitySlots - occupiedSlots, 0);
+
     const trackingBadgeClass =
         trackingMode === 'per_operation' ? 'text-om-running bg-om-running-bg' :
         trackingMode === 'hybrid'        ? 'text-om-downtime bg-om-downtime-bg' :
@@ -857,24 +896,25 @@ export default function Queue() {
                 )}
 
                 {/* ── Workstation queue (filtered) ── */}
-                {showWorkstationQueue && workstationQueue.length > 0 && (
+                {showWorkstationQueue && workstationWorkItems.length > 0 && (
                     <div className="mb-6">
-                        <h2 className="text-lg font-semibold tracking-[-0.01em] text-om-ink mb-3">
-                            {__("Ready at :station", { station: selectedWorkstation.name })}
-                            <span className="font-mono text-[12px] font-normal text-om-faint ml-2">({workstationQueue.length})</span>
-                        </h2>
+                        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                            <h2 className="text-lg font-semibold tracking-[-0.01em] text-om-ink">
+                                {__("Ready at :station", { station: selectedWorkstation.name })}
+                                <span className="font-mono text-[12px] font-normal text-om-faint ml-2">({workstationWorkItems.length})</span>
+                            </h2>
+                            <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-om-muted">
+                                {__('Capacity')}: {occupiedSlots} / {capacitySlots} &middot; {__('Available')}: {availableSlots}
+                            </span>
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {workstationQueue.map((wo) => {
-                                const { batch: currentBatch, step: currentStep } = workForStation(
-                                    wo,
-                                    selectedWorkstation,
-                                );
+                            {workstationWorkItems.map(({ workOrder: wo, batch: currentBatch, step: currentStep }) => {
                                 const operationQuantity = currentStep?.input_quantity ?? currentBatch?.target_qty ?? wo.planned_qty;
                                 const batchReference = currentBatch?.lot_number || (currentBatch ? `#${currentBatch.batch_number}` : '—');
                                 const quantityPrecision = wo.product_type?.quantity_precision ?? 4;
 
                                 return (
-                                    <Link key={wo.id}
+                                    <Link key={`${wo.id}:${currentBatch.id}`}
                                           href={`/operator/work-order/${wo.id}`}
                                           className={`block p-4 rounded-om border border-om-line bg-om-card border-l-[3px] hover:bg-om-panel transition-colors group ${
                                               currentStep?.status === 'IN_PROGRESS' ? 'border-l-om-running' : 'border-l-om-accent'
@@ -897,6 +937,7 @@ export default function Queue() {
                                         <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.06em] text-om-faint">
                                             {__("WIP quantity")}: {fmtQty(operationQuantity, quantityPrecision)} &middot; {__("Batch")}: {batchReference}
                                         </div>
+                                        <QueueHoldStatus step={currentStep} />
                                     </Link>
                                 );
                             })}
@@ -904,7 +945,7 @@ export default function Queue() {
                     </div>
                 )}
 
-                {showWorkstationQueue && workstationQueue.length === 0 && (
+                {showWorkstationQueue && workstationWorkItems.length === 0 && (
                     <div className="mb-6 p-6 rounded-om border border-om-line bg-om-card text-center">
                         <p className="text-sm text-om-muted">
                             {__("No work orders currently waiting at")} <strong className="text-om-ink">{selectedWorkstation.name}</strong>

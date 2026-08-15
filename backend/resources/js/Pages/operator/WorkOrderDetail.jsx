@@ -653,6 +653,11 @@ function ProductionControls({ batch }) {
 function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
     const [expanded, setExpanded] = useState(defaultOpen);
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
+    const runningHoldStep = (batch.steps ?? []).find((step) => (
+        step.status === 'IN_PROGRESS'
+        && step.execution_mode === 'fixed_hold'
+        && step.hold_release_at
+    ));
 
     const releaseLabel =
         batch.release_type === 'for_sale' ? 'For Sale' : 'For Production';
@@ -675,6 +680,7 @@ function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelT
                         <span className="font-mono text-[13px] text-om-muted">
                             {fmtQty(batch.produced_qty, quantityPrecision)} / {fmtQty(batch.target_qty, quantityPrecision)}
                         </span>
+                        {runningHoldStep && <CompactHoldCountdown step={runningHoldStep} />}
                     </div>
                     <svg
                         className={`w-6 h-6 text-om-faint transition-transform ${expanded ? 'rotate-180' : ''}`}
@@ -737,6 +743,24 @@ function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelT
                 </div>
             )}
         </div>
+    );
+}
+
+function CompactHoldCountdown({ step }) {
+    const [clock, setClock] = useState(Date.now());
+    const remainingSeconds = holdRemainingSeconds(step.hold_release_at, clock);
+
+    useEffect(() => {
+        if (remainingSeconds <= 0) return undefined;
+
+        const timer = window.setInterval(() => setClock(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [remainingSeconds]);
+
+    return (
+        <span className={`font-mono text-[12px] font-semibold ${remainingSeconds > 0 ? 'text-om-downtime' : 'text-om-running'}`}>
+            {remainingSeconds > 0 ? formatHoldCountdown(remainingSeconds) : __('Ready for release')}
+        </span>
     );
 }
 
@@ -2818,7 +2842,7 @@ export default function WorkOrderDetail() {
 
                             <div className="flex justify-between items-baseline text-sm mb-2">
                                 <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('TOTAL SCRAP:')}</span>
-                                <span className="font-mono text-[15px] font-medium text-om-ink">{fmtQty(totalScrap)}</span>
+                                <span className="font-mono text-[15px] font-medium text-om-ink">{fmtQty(totalScrap, quantityPrecision)}</span>
                             </div>
                             {qualityPct !== null && (
                                 <div className="flex justify-between items-baseline text-sm mb-3">
@@ -2836,9 +2860,9 @@ export default function WorkOrderDetail() {
                                     {scrapEntries.slice(0, 5).map((entry) => (
                                         <div key={entry.id} className="p-3 rounded-om-sm bg-om-panel border border-om-line2">
                                             <div className="flex items-center justify-between mb-1">
-                                                <span className="font-mono text-[13px] font-medium text-om-ink">{fmtQty(entry.quantity)}</span>
+                                                <span className="font-mono text-[13px] font-medium text-om-ink">{fmtQty(entry.quantity, quantityPrecision)}</span>
                                                 <span className="font-mono text-[11px] text-om-muted">
-                                                    {entry.reported_at ? new Date(entry.reported_at).toLocaleString() : ''}
+                                                    {entry.reported_at ? formatDateTime(entry.reported_at) : ''}
                                                 </span>
                                             </div>
                                             <p className="text-[13px] text-om-muted">
