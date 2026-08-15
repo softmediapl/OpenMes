@@ -130,7 +130,7 @@ class Pallet extends Model
         return $this->belongsTo(WorkOrder::class);
     }
 
-    /** The batch this pallet holds (one batch per pallet; nullable for legacy pallets). */
+    /** The batch for legacy single-batch pallets; null for mixed-batch pallets. */
     public function batch(): BelongsTo
     {
         return $this->belongsTo(Batch::class);
@@ -140,6 +140,12 @@ class Pallet extends Model
     public function batchStep(): BelongsTo
     {
         return $this->belongsTo(BatchStep::class);
+    }
+
+    /** Auditable production-batch quantities loaded onto this pallet. */
+    public function contents(): HasMany
+    {
+        return $this->hasMany(PalletContent::class);
     }
 
     public function scanLogs(): HasMany
@@ -187,6 +193,13 @@ class Pallet extends Model
         }
 
         return max(0, $this->capacity_qty - $this->qty);
+    }
+
+    public function softDeleteCascades(): array
+    {
+        return [
+            [PalletContent::class, 'pallet_id'],
+        ];
     }
 
     /**

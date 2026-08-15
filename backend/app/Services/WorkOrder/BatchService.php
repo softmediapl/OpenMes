@@ -266,6 +266,25 @@ class BatchService
             return;
         }
 
+        $contentQuantity = (float) $step->palletContents()->sum('quantity');
+        if ($contentQuantity > 0) {
+            if (abs($contentQuantity - $releasedQuantity) > 0.0001) {
+                throw new \DomainException(__(
+                    'Palletization quantity is invalid: pallet contents account for :actual, but the operation releases :required.',
+                    [
+                        'actual' => $contentQuantity,
+                        'required' => $releasedQuantity,
+                    ],
+                ));
+            }
+
+            return;
+        }
+
+        // Backward-compatible validation for pallets created before pallet
+        // contents were introduced. New operation-driven loads are traceable
+        // through pallet_contents and may remain on an open pallet while later
+        // production batches from the same order are added.
         if ($step->pallets()->where('status', PalletStatus::Open->value)->exists()) {
             throw new \DomainException(__(
                 'Palletization is incomplete: close every pallet linked to this operation before completing it.'

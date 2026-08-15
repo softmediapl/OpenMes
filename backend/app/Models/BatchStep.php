@@ -243,6 +243,11 @@ class BatchStep extends Model
         return $this->hasMany(Pallet::class);
     }
 
+    public function palletContents(): HasMany
+    {
+        return $this->hasMany(PalletContent::class);
+    }
+
     /**
      * Documents attached to this step for shop-floor document control. A
      * mandatory, validatable document must be validated before the step can be

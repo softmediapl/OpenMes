@@ -139,6 +139,11 @@ class Batch extends Model
         return $this->hasMany(Pallet::class);
     }
 
+    public function palletContents(): HasMany
+    {
+        return $this->hasMany(PalletContent::class);
+    }
+
     /** Human-facing label for pickers/dropdowns, e.g. "#2 · LOT-0007". */
     public function displayLabel(): string
     {
