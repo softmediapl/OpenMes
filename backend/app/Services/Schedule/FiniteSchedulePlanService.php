@@ -15,6 +15,7 @@ final class FiniteSchedulePlanService
     public function __construct(
         private readonly FiniteCapacityScheduler $scheduler,
         private readonly ScheduleBaselineService $baselines,
+        private readonly WorkOrderForecastService $forecasts,
     ) {}
 
     public function apply(
@@ -96,6 +97,7 @@ final class FiniteSchedulePlanService
                 'planned_end_at' => $proposal->endsAt,
             ]);
             $this->baselines->recordAps($lockedWorkOrder, $proposal, $scheduledById);
+            $this->forecasts->refresh($lockedWorkOrder);
             $changes = $lockedWorkOrder->getChanges();
 
             return $proposal;
