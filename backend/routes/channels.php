@@ -2,6 +2,17 @@
 
 use Illuminate\Support\Facades\Broadcast;
 
+Broadcast::channel('col.{tenant}.work_orders_active', function ($user, string $tenant) {
+    if (! $user) {
+        return false;
+    }
+
+    $userTenant = $user->tenant_id === null ? 'g' : (string) $user->tenant_id;
+
+    return $tenant === $userTenant
+        && $user->hasAnyRole(['Admin', 'Supervisor', 'Operator']);
+});
+
 /**
  * Synced-collection channels (Reverb). Private channel per collection, namespaced
  * by tenant so a user only receives their own tenant's rows (tenantKey = the
@@ -23,13 +34,6 @@ Broadcast::channel('col.{tenant}.{collection}', function ($user, string $tenant,
     // created/deleted on those tables never reflect without a full reload.
     if ($tenant !== $userTenant && $tenant !== 'g') {
         return false;
-    }
-
-    // Operator screens subscribe only to active work orders. The HTTP snapshot
-    // already exposes this tenant-scoped collection to operators, so matching
-    // Reverb access restores live refresh without opening admin collections.
-    if ($collection === 'work_orders_active' && $user->hasRole('Operator')) {
-        return true;
     }
 
     // Admin lists remain Admin/Supervisor only.
