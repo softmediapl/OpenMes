@@ -1,5 +1,5 @@
-import { Head, router } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import { __ } from '../../lib/i18n';
 import { buildMaterialRows } from './materials/helpers';
@@ -39,6 +39,7 @@ function cancelRequest(requestId) {
 }
 
 export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation }) {
+    const [countedStock, setCountedStock] = useState(null);
     const rows = useMemo(
         () => buildMaterialRows(stocks, policies, replenishmentRequests),
         [stocks, policies, replenishmentRequests],
@@ -93,11 +94,17 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                             </td>
                                             <td className="px-4 py-4">
                                                 {row.stocks.length ? row.stocks.map((stock) => (
-                                                    <div key={stock.id} className="mb-1 last:mb-0 text-xs text-om-muted">
-                                                        <span className="font-mono text-om-ink">{stock.material_lot?.lot_number ?? __('Bulk')}</span>
-                                                        {stock.material_lot?.expiry_date && (
-                                                            <span className="ml-2">{__('Expiry')}: {dateValue(stock.material_lot.expiry_date)}</span>
-                                                        )}
+                                                    <div key={stock.id} className="mb-2 flex items-center justify-between gap-3 last:mb-0 text-xs text-om-muted">
+                                                        <div>
+                                                            <span className="font-mono text-om-ink">{stock.material_lot?.lot_number ?? __('Bulk')}</span>
+                                                            <span className="ml-2 font-mono">{quantity(stock.quantity, row.material.unit_of_measure)}</span>
+                                                            {stock.material_lot?.expiry_date && (
+                                                                <span className="ml-2">{__('Expiry')}: {dateValue(stock.material_lot.expiry_date)}</span>
+                                                            )}
+                                                        </div>
+                                                        <button type="button" onClick={() => setCountedStock(stock)} className="shrink-0 font-semibold text-om-accent hover:underline">
+                                                            {__('Reconcile count')}
+                                                        </button>
                                                     </div>
                                                 )) : <span className="text-xs text-om-faint">{__('No local stock')}</span>}
                                             </td>
@@ -139,8 +146,71 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                         </div>
                     </div>
                 )}
+                {countedStock && <CountModal stock={countedStock} onClose={() => setCountedStock(null)} />}
             </div>
         </>
+    );
+}
+
+function CountModal({ stock, onClose }) {
+    const form = useForm({
+        counted_quantity: String(stock.quantity),
+        notes: '',
+    });
+    const counted = Number(form.data.counted_quantity);
+    const book = Number(stock.quantity);
+    const difference = Number.isFinite(counted) ? counted - book : 0;
+    const valid = Number.isFinite(counted) && counted >= 0;
+
+    const submit = (event) => {
+        event.preventDefault();
+        if (!valid) return;
+        form.transform((data) => ({
+            counted_quantity: counted,
+            notes: data.notes.trim() || null,
+        }));
+        form.post(`/operator/materials/stocks/${stock.id}/count`, {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+            <form onSubmit={submit} className="w-full max-w-md overflow-hidden rounded-om-sm border border-om-line bg-om-card shadow-2xl">
+                <div className="flex items-start justify-between border-b border-om-line px-5 py-4">
+                    <div>
+                        <h2 className="text-lg font-semibold text-om-ink">{__('Reconcile workstation stock')}</h2>
+                        <p className="mt-1 font-mono text-[11px] text-om-muted">{stock.material_lot?.lot_number ?? __('Bulk')}</p>
+                    </div>
+                    <button type="button" onClick={onClose} className="text-xl text-om-faint hover:text-om-ink" aria-label={__('Close')}>×</button>
+                </div>
+                <div className="space-y-4 px-5 py-4">
+                    <div className="grid grid-cols-2 gap-3 rounded-om-sm bg-om-panel p-3 font-mono text-xs">
+                        <span className="text-om-muted">{__('System quantity')}<strong className="mt-1 block text-base text-om-ink">{quantity(book, stock.unit_of_measure)}</strong></span>
+                        <span className="text-om-muted">{__('Reserved')}<strong className="mt-1 block text-base text-om-ink">{quantity(stock.reserved_quantity, stock.unit_of_measure)}</strong></span>
+                    </div>
+                    <div>
+                        <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Measured quantity')}</label>
+                        <input type="number" min="0" step="0.0001" inputMode="decimal" autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />
+                        <p className="mt-1 text-xs text-om-muted">{__('The difference from the system quantity is settled as use to this point. The measured quantity becomes the new baseline.')}</p>
+                        {form.errors.counted_quantity && <p className="mt-1 text-xs text-om-blocked">{form.errors.counted_quantity}</p>}
+                    </div>
+                    <div className={`flex justify-between rounded-om-sm px-3 py-2 text-sm ${difference < 0 ? 'bg-om-downtime-bg text-om-downtime' : 'bg-om-done-bg text-om-running'}`}>
+                        <span>{difference < 0 ? __('Use to settle') : __('Count difference')}</span>
+                        <strong className="font-mono">{quantity(Math.abs(difference), stock.unit_of_measure)}</strong>
+                    </div>
+                    <div>
+                        <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Notes')}</label>
+                        <textarea rows={2} maxLength={1000} value={form.data.notes} onChange={(event) => form.setData('notes', event.target.value)} className="w-full resize-none rounded-om-sm border border-om-line bg-om-bg px-3 py-2 text-sm text-om-ink" />
+                    </div>
+                </div>
+                <div className="flex justify-end gap-2 border-t border-om-line px-5 py-4">
+                    <button type="button" onClick={onClose} className="rounded-om-sm border border-om-line px-4 py-2 text-sm font-semibold text-om-ink">{__('Cancel')}</button>
+                    <button type="submit" disabled={!valid || form.processing} className="rounded-om-sm bg-om-ink px-4 py-2 text-sm font-semibold text-om-on-ink disabled:opacity-50">{form.processing ? '…' : __('Reconcile count')}</button>
+                </div>
+            </form>
+        </div>
     );
 }
 

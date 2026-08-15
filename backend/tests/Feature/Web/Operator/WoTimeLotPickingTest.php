@@ -7,6 +7,7 @@ use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\BatchStepLotConsumption;
 use App\Models\Material;
+use App\Models\MaterialAllocation;
 use App\Models\MaterialLot;
 use App\Models\MaterialType;
 use App\Models\ProductType;
@@ -299,5 +300,38 @@ class WoTimeLotPickingTest extends TestCase
         $this->assertCount(1, $rows);
         $this->assertSame($this->step->id, $rows->first()->batch_step_id);
         $this->assertEqualsWithDelta(20.0, (float) $rows->first()->quantity_consumed, 0.0001);
+    }
+
+    public function test_operator_reconciles_actual_material_when_completing_the_operation(): void
+    {
+        $this->enableLotTracking();
+        $lot = $this->makeLot('LOT-ACTUAL', 50);
+
+        $this->actingOperator()
+            ->post("/operator/batch-step/{$this->step->id}/start", [
+                'picks' => [[
+                    'material_id' => $this->material->id,
+                    'lots' => [['material_lot_id' => $lot->id, 'picked_qty' => 20]],
+                ]],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $allocation = MaterialAllocation::where('batch_step_id', $this->step->id)->sole();
+        $this->actingOperator()
+            ->post("/operator/batch-step/{$this->step->id}/complete", [
+                'material_consumptions' => [[
+                    'allocation_id' => $allocation->id,
+                    'consumed_qty' => 18,
+                    'scrap_qty' => 1,
+                ]],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $allocation->refresh();
+        $this->assertSame(MaterialAllocation::STATUS_CONSUMED, $allocation->status);
+        $this->assertEqualsWithDelta(18, (float) $allocation->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(1, (float) $allocation->scrap_qty, 0.0001);
+        $this->assertEqualsWithDelta(1, (float) $allocation->returned_qty, 0.0001);
+        $this->assertEqualsWithDelta(981, (float) $this->material->fresh()->stock_quantity, 0.0001);
     }
 }

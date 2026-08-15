@@ -254,6 +254,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/materials', [OperatorWorkstationMaterialController::class, 'index'])->name('materials.index');
         Route::post('/materials/replenishments', [OperatorWorkstationMaterialController::class, 'store'])->name('materials.replenishments.store');
         Route::post('/materials/replenishments/{materialReplenishmentRequest}/cancel', [OperatorWorkstationMaterialController::class, 'cancel'])->name('materials.replenishments.cancel');
+        Route::post('/materials/stocks/{workstationMaterialStock}/count', [OperatorWorkstationMaterialController::class, 'reconcileCount'])->name('materials.stocks.count');
         Route::post('/work-order/{workOrder}/line-status', [OperatorWorkOrderController::class, 'updateLineStatus'])->name('work-order.line-status');
         Route::get('/work-order/{workOrder}', [OperatorWorkOrderController::class, 'show'])->name('work-order.detail');
         Route::post('/batch', [OperatorBatchController::class, 'store'])->name('batch.store');
@@ -268,6 +269,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->name('batch-step.start');
         Route::post('/batch-step/{batchStep}/quality-check', [OperatorBatchController::class, 'qualityCheckStep'])->name('batch-step.quality-check');
         Route::post('/batch-step/{batchStep}/complete', [OperatorBatchController::class, 'completeStep'])->name('batch-step.complete');
+        Route::post('/batch-step/{batchStep}/materials/{materialAllocation}/reserve', [OperatorBatchController::class, 'increaseStepMaterial'])->name('batch-step.materials.reserve');
         Route::post('/batch-step/{batchStep}/skip', [OperatorBatchController::class, 'skipStep'])->name('batch-step.skip');
         Route::post('/batch-step/{batchStep}/choose-variant', [OperatorBatchController::class, 'chooseVariant'])->name('batch-step.choose-variant');
         // Read-confirmation: acknowledge reading a critical step's instructions.

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Operator;
 use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Operator\CompleteBatchStepRequest;
+use App\Http\Requests\Operator\IncreaseStepMaterialRequest;
 use App\Http\Requests\Operator\PerformOperationQualityCheckRequest;
 use App\Http\Requests\Operator\StartStepRequest;
 use App\Http\Requests\Web\Operator\StoreBatchRequest;
@@ -12,6 +13,7 @@ use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\BatchStepChecklistCompletion;
 use App\Models\BatchStepDocument;
+use App\Models\MaterialAllocation;
 use App\Models\TemplateStepChecklistItem;
 use App\Models\WorkOrder;
 use App\Services\Lot\BatchReleaseService;
@@ -173,6 +175,43 @@ class BatchController extends Controller
             return back()->with('success', __('Step completed.'));
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
+        }
+    }
+
+    /** Reserve additional local material after an unexpected in-operation shortage. */
+    public function increaseStepMaterial(
+        IncreaseStepMaterialRequest $request,
+        BatchStep $batchStep,
+        MaterialAllocation $materialAllocation,
+    ) {
+        abort_unless($this->workstationContext->canAccessStep($request, $batchStep), 403);
+        abort_unless(
+            (int) $materialAllocation->batch_step_id === (int) $batchStep->id
+                && $batchStep->status === BatchStep::STATUS_IN_PROGRESS,
+            404,
+        );
+
+        $usesWorkstationStock = $materialAllocation->workstation_material_stock_id !== null
+            || $materialAllocation->lotPicks()->whereNotNull('workstation_material_stock_id')->exists();
+        if (! $usesWorkstationStock) {
+            return back()->withErrors([
+                'additional_qty' => __('Only material held at this workstation can be added by an operator.'),
+            ]);
+        }
+
+        try {
+            $this->allocationService->adjustAllocation(
+                $materialAllocation,
+                (float) $request->validated('additional_qty'),
+                $request->user(),
+                __('Additional material reserved during operation.'),
+            );
+
+            return back()->with('success', __('Additional workstation material reserved.'));
+        } catch (InsufficientStockException|\DomainException|\InvalidArgumentException $exception) {
+            return back()
+                ->withErrors(['additional_qty' => $exception->getMessage()])
+                ->with('error', $exception->getMessage());
         }
     }
 

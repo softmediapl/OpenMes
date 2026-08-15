@@ -43,6 +43,15 @@ class CompleteBatchStepRequest extends FormRequest
             ],
             'scrap_entries.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
             'quantity_notes' => ['nullable', 'string', 'max:2000'],
+            'material_consumptions' => ['nullable', 'array'],
+            'material_consumptions.*.allocation_id' => [
+                'required',
+                'integer',
+                'distinct',
+                Rule::exists('material_allocations', 'id')->where('status', 'allocated'),
+            ],
+            'material_consumptions.*.consumed_qty' => ['required', 'numeric', 'min:0'],
+            'material_consumptions.*.scrap_qty' => ['required', 'numeric', 'min:0'],
             'hold_override_reason' => ['nullable', 'string', 'min:10', 'max:1000'],
         ];
     }

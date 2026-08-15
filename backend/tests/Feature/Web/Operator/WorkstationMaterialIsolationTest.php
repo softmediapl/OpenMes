@@ -165,6 +165,38 @@ class WorkstationMaterialIsolationTest extends TestCase
                 ->where('selectedWorkstation.id', $this->workstation->id));
     }
 
+    public function test_terminal_can_reconcile_only_stock_at_its_workstation(): void
+    {
+        $this->material->update(['stock_quantity' => 20, 'tracking_type' => 'none']);
+        $ownStock = WorkstationMaterialStock::create([
+            'workstation_id' => $this->workstation->id,
+            'material_id' => $this->material->id,
+            'quantity' => 12,
+            'reserved_quantity' => 0,
+            'unit_of_measure' => 'pcs',
+        ]);
+        $otherStock = WorkstationMaterialStock::create([
+            'workstation_id' => $this->otherWorkstation->id,
+            'material_id' => $this->material->id,
+            'quantity' => 8,
+            'reserved_quantity' => 0,
+            'unit_of_measure' => 'pcs',
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->post(route('operator.materials.stocks.count', $ownStock), ['counted_quantity' => 10])
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success');
+
+        $this->assertEqualsWithDelta(10, (float) $ownStock->fresh()->quantity, 0.0001);
+        $this->assertEqualsWithDelta(18, (float) $this->material->fresh()->stock_quantity, 0.0001);
+
+        $this->actingAs($this->terminal)
+            ->post(route('operator.materials.stocks.count', $otherStock), ['counted_quantity' => 7])
+            ->assertNotFound();
+        $this->assertEqualsWithDelta(8, (float) $otherStock->fresh()->quantity, 0.0001);
+    }
+
     private function createPolicy(Workstation $workstation, Material $material): WorkstationMaterialPolicy
     {
         return WorkstationMaterialPolicy::create([

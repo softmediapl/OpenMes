@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Workstation;
 use App\Models\WorkstationMaterialMovement;
 use App\Models\WorkstationMaterialPolicy;
+use App\Models\WorkstationMaterialStock;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -203,6 +204,10 @@ class MaterialAllocationService
             $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
             $workstation = $this->materialPolicyWorkstation($step, $material);
             $proposal = $this->lotPicking->proposePicks($material, $requiredQty, workstation: $workstation);
+            $availableQty = array_sum(array_map(
+                fn (array $candidate) => (float) $candidate['quantity_available'],
+                $proposal['candidates'],
+            ));
 
             $out[] = [
                 'material_id' => $material->id,
@@ -213,6 +218,10 @@ class MaterialAllocationService
                 'strategy' => $proposal['strategy'],
                 'proposed' => $proposal['proposed'],
                 'candidates' => $proposal['candidates'],
+                'is_workstation_stock' => $workstation !== null,
+                'workstation_name' => $workstation?->name,
+                'available_qty' => round($availableQty, 4),
+                'shortage_qty' => round(max(0, $requiredQty - $availableQty), 4),
             ];
         }
 
@@ -235,72 +244,103 @@ class MaterialAllocationService
                 ->with(['material', 'workstationMaterialStock', 'lotPicks.workstationMaterialStock'])
                 ->get();
 
-            foreach ($allocations as $allocation) {
-                // Use the operator-declared quantity when consumption was recorded —
-                // including an explicit zero (nothing used, return everything). Only
-                // fall back to the planned quantity when nothing was ever declared.
-                $actualConsumed = $allocation->consumption_recorded
-                    ? (float) $allocation->consumed_qty
-                    : (float) $allocation->allocated_qty;
-                $scrapQty = (float) $allocation->scrap_qty;
-                $allocatedQty = (float) $allocation->allocated_qty;
-
-                if ($actualConsumed + $scrapQty > $allocatedQty + 1e-9) {
-                    throw new \DomainException('Consumed and scrap quantities exceed the allocated quantity.');
-                }
-
-                $leftoverToReturn = max(0, $allocatedQty - $actualConsumed - $scrapQty);
-
-                // Keep lot picks aligned with what physically left stock before
-                // writing genealogy. Remaining picks represent consumed + scrap.
-                if ($allocation->lotPicks->isNotEmpty()) {
-                    $this->lotPicking->returnPartialForAllocation($allocation, $leftoverToReturn);
-                }
-                $allocation->unsetRelation('lotPicks');
-                $allocation->load('lotPicks.workstationMaterialStock');
-                $valuation = $this->allocationValuation($allocation, $actualConsumed + $scrapQty);
-                $this->writeGenealogy($allocation);
-                $this->consumeWorkstationAllocation(
-                    $allocation,
-                    $actualConsumed,
-                    $scrapQty,
-                    $leftoverToReturn,
-                );
-
-                if ($actualConsumed > 0 && $allocation->material) {
-                    $this->stockMovements->record(
-                        $allocation->material,
-                        StockMovement::TYPE_CONSUME,
-                        -$actualConsumed,
-                        sourceType: StockMovement::SOURCE_BATCH,
-                        sourceId: $batch->id,
-                        reason: 'Material consumed by batch #'.$batch->id,
-                    );
-                }
-
-                if ($scrapQty > 0 && $allocation->material) {
-                    $this->stockMovements->record(
-                        $allocation->material,
-                        StockMovement::TYPE_SCRAP,
-                        -$scrapQty,
-                        sourceType: StockMovement::SOURCE_BATCH,
-                        sourceId: $batch->id,
-                        reason: 'Material scrapped by batch #'.$batch->id,
-                    );
-                }
-
-                $this->releaseReservation($allocation->material, $allocatedQty);
-
-                $allocation->update([
-                    'status' => MaterialAllocation::STATUS_CONSUMED,
-                    'consumed_qty' => $actualConsumed,
-                    'returned_qty' => (float) $allocation->returned_qty + $leftoverToReturn,
-                    'consumed_at' => now(),
-                    'unit_price_snapshot' => $valuation['unit_price_snapshot'],
-                    'price_currency_snapshot' => $valuation['price_currency_snapshot'],
-                ]);
-            }
+            $this->consumeAllocations($allocations, $batch);
         });
+    }
+
+    /** Finalize material reserved for one operation as soon as it is completed. */
+    public function consumeForStep(BatchStep $step): void
+    {
+        DB::transaction(function () use ($step) {
+            $allocations = MaterialAllocation::where('batch_step_id', $step->id)
+                ->where('status', MaterialAllocation::STATUS_ALLOCATED)
+                ->lockForUpdate()
+                ->with(['material', 'workstationMaterialStock', 'lotPicks.workstationMaterialStock'])
+                ->get();
+
+            $this->consumeAllocations($allocations, $step->batch);
+        });
+    }
+
+    /**
+     * @param  Collection<int, MaterialAllocation>  $allocations
+     */
+    private function consumeAllocations(Collection $allocations, Batch $batch): void
+    {
+        foreach ($allocations as $allocation) {
+            // Use the operator-declared quantity when consumption was recorded —
+            // including an explicit zero (nothing used, return everything). Only
+            // fall back to the planned quantity when nothing was ever declared.
+            $actualConsumed = $allocation->consumption_recorded
+                ? (float) $allocation->consumed_qty
+                : (float) $allocation->allocated_qty;
+            $scrapQty = (float) $allocation->scrap_qty;
+            $allocatedQty = (float) $allocation->allocated_qty;
+            $settled = $this->settledWorkstationQuantities($allocation);
+
+            if ($actualConsumed + $scrapQty > $allocatedQty + 1e-9) {
+                throw new \DomainException('Consumed and scrap quantities exceed the allocated quantity.');
+            }
+            if ($actualConsumed + 1e-9 < $settled['consumed'] || $scrapQty + 1e-9 < $settled['scrap']) {
+                throw new \DomainException(__('Final material use cannot be lower than the quantity already settled at the workstation.'));
+            }
+
+            $leftoverToReturn = max(0, $allocatedQty - $actualConsumed - $scrapQty);
+            $remainingConsumed = max(0, $actualConsumed - $settled['consumed']);
+            $remainingScrap = max(0, $scrapQty - $settled['scrap']);
+
+            // Keep lot picks aligned with what physically left stock before
+            // writing genealogy. Remaining picks represent consumed + scrap.
+            if ($allocation->lotPicks->isNotEmpty()) {
+                $this->lotPicking->returnPartialForAllocation($allocation, $leftoverToReturn);
+            }
+            $allocation->unsetRelation('lotPicks');
+            $allocation->load('lotPicks.workstationMaterialStock');
+            $valuation = $this->allocationValuation($allocation, $actualConsumed + $scrapQty);
+            $this->writeGenealogy($allocation);
+            $this->consumeWorkstationAllocation(
+                $allocation,
+                $remainingConsumed,
+                $remainingScrap,
+                $leftoverToReturn,
+            );
+
+            if ($remainingConsumed > 0 && $allocation->material) {
+                $this->stockMovements->record(
+                    $allocation->material,
+                    StockMovement::TYPE_CONSUME,
+                    -$remainingConsumed,
+                    sourceType: StockMovement::SOURCE_BATCH,
+                    sourceId: $batch->id,
+                    reason: 'Material consumed by batch #'.$batch->id,
+                );
+            }
+
+            if ($remainingScrap > 0 && $allocation->material) {
+                $this->stockMovements->record(
+                    $allocation->material,
+                    StockMovement::TYPE_SCRAP,
+                    -$remainingScrap,
+                    sourceType: StockMovement::SOURCE_BATCH,
+                    sourceId: $batch->id,
+                    reason: 'Material scrapped by batch #'.$batch->id,
+                );
+            }
+
+            $this->releaseReservation(
+                $allocation->material,
+                max(0, $allocatedQty - $settled['consumed'] - $settled['scrap']),
+            );
+
+            $allocation->update([
+                'status' => MaterialAllocation::STATUS_CONSUMED,
+                'consumed_qty' => $actualConsumed,
+                'returned_qty' => (float) $allocation->returned_qty + $leftoverToReturn,
+                'consumed_at' => now(),
+                'unit_price_snapshot' => $valuation['unit_price_snapshot'],
+                'price_currency_snapshot' => $valuation['price_currency_snapshot'],
+            ]);
+        }
     }
 
     public function returnForBatch(Batch $batch): void
@@ -356,6 +396,10 @@ class MaterialAllocationService
         if ($actualConsumed + $scrap > (float) $allocation->allocated_qty + 1e-9) {
             throw new \InvalidArgumentException('Consumed and scrap quantities cannot exceed the allocated quantity.');
         }
+        $settled = $this->settledWorkstationQuantities($allocation);
+        if ($actualConsumed + 1e-9 < $settled['consumed'] || $scrap + 1e-9 < $settled['scrap']) {
+            throw new \InvalidArgumentException(__('Final material use cannot be lower than the quantity already settled at the workstation.'));
+        }
 
         $valuation = $this->allocationValuation($allocation, $actualConsumed + $scrap);
 
@@ -368,6 +412,93 @@ class MaterialAllocationService
         ]);
 
         return $allocation->fresh();
+    }
+
+    /**
+     * Settle material usage inferred from a physical workstation count.
+     * The allocation remains open; completion later books only the remainder.
+     */
+    public function settleWorkstationConsumption(
+        MaterialAllocation $allocation,
+        WorkstationMaterialStock $stock,
+        float $quantity,
+        User $user,
+    ): MaterialAllocation {
+        if ($quantity <= 0) {
+            throw new \InvalidArgumentException(__('Quantity must be greater than zero.'));
+        }
+
+        return DB::transaction(function () use ($allocation, $stock, $quantity, $user) {
+            $allocation = MaterialAllocation::query()
+                ->with(['material', 'lotPicks'])
+                ->lockForUpdate()
+                ->findOrFail($allocation->id);
+            $stock = WorkstationMaterialStock::query()->lockForUpdate()->findOrFail($stock->id);
+
+            if ($allocation->status !== MaterialAllocation::STATUS_ALLOCATED) {
+                throw new \DomainException(__('Only an active material reservation can receive workstation consumption.'));
+            }
+
+            $pick = $allocation->workstation_material_stock_id === $stock->id
+                ? null
+                : $allocation->lotPicks->firstWhere('workstation_material_stock_id', $stock->id);
+            if ($allocation->workstation_material_stock_id !== $stock->id && ! $pick) {
+                throw new \DomainException(__('The counted material lot is not reserved for this operation.'));
+            }
+
+            $settledAtStock = $this->settledWorkstationQuantities($allocation, $stock);
+            $reservedForStock = $pick
+                ? (float) $pick->picked_qty - $settledAtStock['consumed'] - $settledAtStock['scrap']
+                : (float) $allocation->allocated_qty - $settledAtStock['consumed'] - $settledAtStock['scrap'];
+
+            if ($quantity > $reservedForStock + 0.0001) {
+                $this->adjustAllocation(
+                    $allocation,
+                    $quantity - max(0, $reservedForStock),
+                    $user,
+                    __('Physical count exceeded the material reserved for the operation.'),
+                );
+                $allocation->refresh()->load('lotPicks');
+                $pick = $allocation->workstation_material_stock_id === $stock->id
+                    ? null
+                    : $allocation->lotPicks->firstWhere('workstation_material_stock_id', $stock->id);
+                $settledAtStock = $this->settledWorkstationQuantities($allocation, $stock);
+                $reservedForStock = $pick
+                    ? (float) $pick->picked_qty - $settledAtStock['consumed'] - $settledAtStock['scrap']
+                    : (float) $allocation->allocated_qty - $settledAtStock['consumed'] - $settledAtStock['scrap'];
+            }
+
+            if ($quantity > $reservedForStock + 0.0001) {
+                throw new \DomainException(__('The counted consumption is not covered by this material lot reservation.'));
+            }
+
+            $this->workstationStocks->consumeReserved(
+                $stock,
+                $quantity,
+                WorkstationMaterialMovement::TYPE_CONSUME,
+                $user,
+                'material_allocation',
+                $allocation->id,
+            );
+            $this->stockMovements->record(
+                $allocation->material,
+                StockMovement::TYPE_CONSUME,
+                -$quantity,
+                $user,
+                StockMovement::SOURCE_BATCH,
+                $allocation->batch_id,
+                __('Material consumption settled by workstation count.'),
+            );
+            $this->releaseReservation($allocation->material, $quantity);
+
+            $settled = $this->settledWorkstationQuantities($allocation->fresh());
+            $allocation->update([
+                'consumed_qty' => $settled['consumed'],
+                'consumption_recorded' => true,
+            ]);
+
+            return $allocation->fresh();
+        });
     }
 
     /** Adjust an in-flight reservation without changing physical stock. */
@@ -671,7 +802,14 @@ class MaterialAllocationService
         $remainingConsumed = $consumed;
         $remainingScrap = $scrap;
         foreach ($stationPicks as $pick) {
-            $pickRemaining = (float) $pick->picked_qty;
+            $settledAtStock = $this->settledWorkstationQuantities(
+                $allocation,
+                $pick->workstationMaterialStock,
+            );
+            $pickRemaining = max(
+                0,
+                (float) $pick->picked_qty - $settledAtStock['consumed'] - $settledAtStock['scrap'],
+            );
             $consumeFromPick = min($remainingConsumed, $pickRemaining);
             if ($consumeFromPick > 0) {
                 $this->workstationStocks->consumeReserved(
@@ -701,6 +839,26 @@ class MaterialAllocationService
         if ($remainingConsumed > 0.0001 || $remainingScrap > 0.0001) {
             throw new \DomainException('Workstation lot reservations do not cover reported material consumption.');
         }
+    }
+
+    /** @return array{consumed: float, scrap: float} */
+    private function settledWorkstationQuantities(
+        MaterialAllocation $allocation,
+        ?WorkstationMaterialStock $stock = null,
+    ): array {
+        $query = WorkstationMaterialMovement::query()
+            ->where('source_type', 'material_allocation')
+            ->where('source_id', $allocation->id)
+            ->when($stock, fn ($builder) => $builder->where('workstation_material_stock_id', $stock->id));
+
+        return [
+            'consumed' => abs((float) (clone $query)
+                ->where('movement_type', WorkstationMaterialMovement::TYPE_CONSUME)
+                ->sum('quantity')),
+            'scrap' => abs((float) (clone $query)
+                ->where('movement_type', WorkstationMaterialMovement::TYPE_SCRAP)
+                ->sum('quantity')),
+        ];
     }
 
     /**

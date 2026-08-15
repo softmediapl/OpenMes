@@ -8,6 +8,7 @@ use App\Models\Material;
 use App\Models\MaterialAllocation;
 use App\Models\MaterialLot;
 use App\Models\Workstation;
+use App\Models\WorkstationMaterialMovement;
 use App\Models\WorkstationMaterialStock;
 use Illuminate\Support\Facades\DB;
 
@@ -355,6 +356,18 @@ class LotPickingService
                     break;
                 }
                 $take = min($remaining, (float) $pick->picked_qty);
+                if ($pick->workstation_material_stock_id) {
+                    $settled = abs((float) WorkstationMaterialMovement::query()
+                        ->where('workstation_material_stock_id', $pick->workstation_material_stock_id)
+                        ->where('source_type', 'material_allocation')
+                        ->where('source_id', $allocation->id)
+                        ->whereIn('movement_type', [
+                            WorkstationMaterialMovement::TYPE_CONSUME,
+                            WorkstationMaterialMovement::TYPE_SCRAP,
+                        ])
+                        ->sum('quantity'));
+                    $take = min($take, max(0, (float) $pick->picked_qty - $settled));
+                }
                 if ($take <= 0) {
                     continue;
                 }

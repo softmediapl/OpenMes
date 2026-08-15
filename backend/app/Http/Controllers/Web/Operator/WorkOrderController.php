@@ -283,6 +283,8 @@ class WorkOrderController extends Controller
             'batches.steps.qualityChecks.samples',
             'batches.steps.qualityChecks.checkedBy',
             'batches.steps.qualityChecks.issue.issueType',
+            'batches.steps.materialAllocations.material:id,code,name,unit_of_measure',
+            'batches.steps.materialAllocations.lotPicks:id,material_allocation_id,workstation_material_stock_id',
             'batches.workstation',
             'batches.processConfirmations.confirmedBy',
             'batches.qualityChecks.samples',

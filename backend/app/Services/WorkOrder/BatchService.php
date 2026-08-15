@@ -196,6 +196,7 @@ class BatchService
                 ? $scrapBreakdown[0]['scrap_reason_id']
                 : null;
             $this->guardPalletizedOutput($step, $quantityPayload);
+            $this->recordStepMaterialConsumption($step, $data['material_consumptions'] ?? null);
 
             // Complete the step
             $step->update(array_merge([
@@ -221,6 +222,10 @@ class BatchService
                     'reported_at' => now(),
                 ]);
             }
+
+            // Reconcile material at the operation boundary. Unused station stock
+            // is released immediately and remains available to the next batch.
+            $this->allocationService->consumeForStep($step);
 
             // Update batch status
             $batch = $step->batch;
@@ -255,6 +260,36 @@ class BatchService
 
             return $step->fresh();
         });
+    }
+
+    /**
+     * @param  array<int, array{allocation_id: int, consumed_qty: int|float|string, scrap_qty: int|float|string}>|null  $reported
+     */
+    private function recordStepMaterialConsumption(BatchStep $step, ?array $reported): void
+    {
+        if ($reported === null) {
+            return;
+        }
+
+        $allocations = $step->materialAllocations()
+            ->where('status', \App\Models\MaterialAllocation::STATUS_ALLOCATED)
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+        $reportedById = collect($reported)->keyBy(fn (array $row) => (int) $row['allocation_id']);
+
+        if ($allocations->keys()->sort()->values()->all() !== $reportedById->keys()->sort()->values()->all()) {
+            throw new \DomainException(__('Material consumption must account for every material reserved for this operation.'));
+        }
+
+        foreach ($allocations as $allocation) {
+            $row = $reportedById->get($allocation->id);
+            $this->allocationService->recordConsumption(
+                $allocation,
+                (float) $row['consumed_qty'],
+                (float) $row['scrap_qty'],
+            );
+        }
     }
 
     /**

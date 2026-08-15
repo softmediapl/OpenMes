@@ -773,6 +773,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
     const [completeModal, setCompleteModal] = useState(null);
+    const [materialTopUpModal, setMaterialTopUpModal] = useState(null);
     const [clock, setClock] = useState(Date.now());
     const hasRunningFixedHold = steps?.some((step) => (
         step.status === 'IN_PROGRESS'
@@ -890,6 +891,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                     const holdIsActive = remainingHoldSeconds > 0;
                     const qualityGate = step.quality_gate_status;
                     const qualityBlocked = !!qualityGate?.required && !qualityGate.fulfilled;
+                    const activeMaterialAllocations = (step.material_allocations ?? []).filter((allocation) => allocation.status === 'allocated');
                     return (
                         <div key={step.id} className="bg-om-panel border border-om-line2 rounded-om-sm">
                         <div className="flex items-center gap-3 p-3">
@@ -1012,6 +1014,13 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                             <OperationQuantitySummary step={step} quantityPrecision={quantityPrecision} />
                         )}
 
+                        {step.status === 'IN_PROGRESS' && activeMaterialAllocations.length > 0 && (
+                            <OperationMaterialSummary
+                                allocations={activeMaterialAllocations}
+                                onIncrease={(allocation) => setMaterialTopUpModal({ step, allocation })}
+                            />
+                        )}
+
                         {step.requires_palletization && (
                             <PalletizationSummary step={step} />
                         )}
@@ -1094,7 +1103,94 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                     onClose={() => setCompleteModal(null)}
                 />
             )}
+
+            {materialTopUpModal && (
+                <MaterialTopUpModal
+                    step={materialTopUpModal.step}
+                    allocation={materialTopUpModal.allocation}
+                    onClose={() => setMaterialTopUpModal(null)}
+                />
+            )}
         </div>
+    );
+}
+
+function OperationMaterialSummary({ allocations, onIncrease }) {
+    return (
+        <div className="border-t border-om-line2 bg-om-card px-3 py-3">
+            <span className={`${sectionLabelCls} block mb-2`}>{__('Operation materials')}</span>
+            <div className="space-y-2">
+                {allocations.map((allocation) => {
+                    const local = !!allocation.workstation_material_stock_id
+                        || allocation.lot_picks?.some((pick) => !!pick.workstation_material_stock_id);
+                    return (
+                        <div key={allocation.id} className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <span className="block truncate text-sm font-medium text-om-ink">{allocation.material?.name}</span>
+                                <span className="font-mono text-[11px] text-om-muted">
+                                    {__('Reserved')}: {fmtQty(allocation.allocated_qty, 4)} {allocation.material?.unit_of_measure}
+                                </span>
+                            </div>
+                            {local && (
+                                <Button variant="secondary" onClick={() => onIncrease(allocation)} className="shrink-0 px-3 py-2 text-[13px]">
+                                    {__('Add material')}
+                                </Button>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}
+
+function MaterialTopUpModal({ step, allocation, onClose }) {
+    const form = useForm({ additional_qty: '' });
+    const quantity = Number(form.data.additional_qty);
+    const valid = Number.isFinite(quantity) && quantity > 0;
+
+    const submit = (event) => {
+        event.preventDefault();
+        if (!valid) return;
+        form.transform(() => ({ additional_qty: quantity }));
+        form.post(`/operator/batch-step/${step.id}/materials/${allocation.id}/reserve`, {
+            preserveScroll: true,
+            onSuccess: onClose,
+        });
+    };
+
+    return (
+        <ModalShell title={__('Add material')} subtitle={allocation.material?.name} onClose={onClose}>
+            <form onSubmit={submit}>
+                <div className="space-y-4 px-[18px] py-4">
+                    <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                        <span className="block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Currently reserved')}</span>
+                        <strong className="font-mono text-xl text-om-ink">{fmtQty(allocation.allocated_qty, 4)} {allocation.material?.unit_of_measure}</strong>
+                    </div>
+                    <div>
+                        <label className={fieldLabelCls}>{__('Additional quantity')}</label>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.0001"
+                            inputMode="decimal"
+                            autoFocus
+                            value={form.data.additional_qty}
+                            onChange={(event) => form.setData('additional_qty', event.target.value)}
+                            className={inputCls}
+                        />
+                        <p className="mt-1 text-xs text-om-muted">{__('The quantity will be reserved from material already delivered to this workstation.')}</p>
+                        {form.errors.additional_qty && <p className={errorCls}>{form.errors.additional_qty}</p>}
+                    </div>
+                </div>
+                <div className={modalFooterCls}>
+                    <Button variant="secondary" type="button" onClick={onClose}>{__('Cancel')}</Button>
+                    <Button variant="accent" type="submit" disabled={!valid || form.processing}>
+                        {form.processing ? '…' : __('Reserve additional material')}
+                    </Button>
+                </div>
+            </form>
+        </ModalShell>
     );
 }
 
@@ -1435,11 +1531,17 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
     const actualTimeDefaults = operationActualTimeDefaults(step, clock);
     const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
     const earlyRelease = remainingHoldSeconds > 0;
+    const materialAllocations = (step.material_allocations ?? []).filter((allocation) => allocation.status === 'allocated');
     const form = useForm({
         actual_elapsed_minutes: reportsTime ? String(actualTimeDefaults.elapsed) : '',
         actual_setup_minutes: reportsTime ? String(actualTimeDefaults.setup) : '',
         rework_quantity: reportsQuantity ? '0' : '',
         scrap_entries: reportsQuantity ? [{ scrap_reason_id: '', quantity: '0' }] : [],
+        material_consumptions: materialAllocations.map((allocation) => ({
+            allocation_id: allocation.id,
+            consumed_qty: String(allocation.consumption_recorded ? allocation.consumed_qty : allocation.allocated_qty),
+            scrap_qty: String(allocation.consumption_recorded ? allocation.scrap_qty : 0),
+        })),
         quantity_notes: '',
         hold_override_reason: '',
     });
@@ -1487,7 +1589,16 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         !canOverrideOperationHold
         || form.data.hold_override_reason.trim().length < 10
     );
-    const invalid = !elapsedValid || !setupValid || setupExceedsElapsed || quantityInvalid || holdOverrideInvalid;
+    const materialConsumptionInvalid = form.data.material_consumptions.some((row) => {
+        const allocation = materialAllocations.find((candidate) => candidate.id === row.allocation_id);
+        const consumed = Number(row.consumed_qty);
+        const scrap = Number(row.scrap_qty);
+        return !allocation || !Number.isFinite(consumed) || !Number.isFinite(scrap)
+            || consumed < 0 || scrap < 0
+            || consumed + scrap > Number(allocation.allocated_qty) + EPSILON;
+    });
+    const invalid = !elapsedValid || !setupValid || setupExceedsElapsed || quantityInvalid
+        || materialConsumptionInvalid || holdOverrideInvalid;
 
     const updateScrapEntry = (index, field, value) => {
         form.setData('scrap_entries', form.data.scrap_entries.map((entry, entryIndex) => (
@@ -1505,6 +1616,11 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         form.setData('scrap_entries', remaining.length > 0
             ? remaining
             : [{ scrap_reason_id: '', quantity: '0' }]);
+    };
+    const updateMaterialConsumption = (allocationId, field, value) => {
+        form.setData('material_consumptions', form.data.material_consumptions.map((row) => (
+            row.allocation_id === allocationId ? { ...row, [field]: value } : row
+        )));
     };
 
     const submit = () => {
@@ -1526,6 +1642,11 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
             scrap_reason_id: reportedScrapEntries.length === 1
                 ? reportedScrapEntries[0].scrap_reason_id
                 : null,
+            material_consumptions: data.material_consumptions.map((row) => ({
+                allocation_id: row.allocation_id,
+                consumed_qty: Number(row.consumed_qty),
+                scrap_qty: Number(row.scrap_qty),
+            })),
             quantity_notes: reportsQuantity && data.quantity_notes.trim() !== '' ? data.quantity_notes.trim() : null,
             hold_override_reason: earlyRelease && canOverrideOperationHold
                 ? data.hold_override_reason.trim()
@@ -1671,6 +1792,67 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 {form.errors.hold_override_reason && <p className={errorCls}>{form.errors.hold_override_reason}</p>}
                             </div>
                         )}
+                    </section>
+                )}
+
+                {materialAllocations.length > 0 && (
+                    <section className="space-y-3 border-t border-om-line2 pt-4">
+                        <div>
+                            <span className={labelCls}>{__('Material reconciliation')}</span>
+                            <p className="text-xs text-om-muted">{__('Enter actual use. The unused reserved quantity remains at the workstation.')}</p>
+                        </div>
+                        {materialAllocations.map((allocation) => {
+                            const row = form.data.material_consumptions.find((item) => item.allocation_id === allocation.id);
+                            const allocated = Number(allocation.allocated_qty);
+                            const consumed = Number(row?.consumed_qty ?? 0);
+                            const materialScrap = Number(row?.scrap_qty ?? 0);
+                            const remaining = Math.max(0, allocated - consumed - materialScrap);
+                            const usesWorkstationStock = !!allocation.workstation_material_stock_id
+                                || allocation.lot_picks?.some((pick) => !!pick.workstation_material_stock_id);
+                            return (
+                                <div key={allocation.id} className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                                    <div className="mb-3 flex items-start justify-between gap-3">
+                                        <div>
+                                            <span className="block text-sm font-medium text-om-ink">{allocation.material?.name}</span>
+                                            <span className="font-mono text-[10px] text-om-faint">{allocation.material?.code}</span>
+                                        </div>
+                                        <span className="font-mono text-[11px] text-om-muted">
+                                            {__('Reserved')} {fmtQty(allocated, 4)} {allocation.material?.unit_of_measure}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className={labelCls}>{__('Actual material used')}</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.0001"
+                                                inputMode="decimal"
+                                                value={row?.consumed_qty ?? ''}
+                                                onChange={(event) => updateMaterialConsumption(allocation.id, 'consumed_qty', event.target.value)}
+                                                className={inputCls}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>{__('Material loss')}</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.0001"
+                                                inputMode="decimal"
+                                                value={row?.scrap_qty ?? ''}
+                                                onChange={(event) => updateMaterialConsumption(allocation.id, 'scrap_qty', event.target.value)}
+                                                className={inputCls}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className={`mt-3 flex items-center justify-between rounded-om-sm px-3 py-2 text-xs ${consumed + materialScrap <= allocated + EPSILON ? 'bg-om-done-bg text-om-running' : 'bg-om-blocked-bg text-om-blocked'}`}>
+                                        <span>{usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}</span>
+                                        <strong className="font-mono">{fmtQty(remaining, 4)} {allocation.material?.unit_of_measure}</strong>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </section>
                 )}
 
@@ -2047,6 +2229,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                         const allocated = lines.reduce((s, ln) => s + (Number(ln.picked_qty) || 0), 0);
                         const balanced = Math.abs(allocated - m.required_qty) < EPSILON;
                         const remaining = m.candidates.filter((c) => !lines.some((ln) => ln.material_lot_id === c.id));
+                        const afterReservation = Math.max(0, Number(m.available_qty) - Number(m.required_qty));
                         return (
                             <div key={m.material_id} className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
                                 <div className="mb-2 flex items-start justify-between gap-2">
@@ -2055,9 +2238,24 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                         <span className="ml-1 font-mono text-[11px] text-om-faint">{m.material_code}</span>
                                     </div>
                                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-muted">
-                                        {m.strategy}
+                                        {m.is_workstation_stock ? __('Workstation stock') : m.strategy}
                                     </span>
                                 </div>
+
+                                {m.is_workstation_stock && (
+                                    <div className={`mb-3 grid grid-cols-3 gap-2 rounded-om-sm px-3 py-2 font-mono text-[10px] ${Number(m.shortage_qty) > EPSILON ? 'bg-om-blocked-bg text-om-blocked' : 'bg-om-done-bg text-om-muted'}`}>
+                                        <span>{__('At workstation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.available_qty, 4)} {m.unit_of_measure}</strong></span>
+                                        <span>{__('Operation reserve')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.required_qty, 4)} {m.unit_of_measure}</strong></span>
+                                        <span>{__('After reservation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(afterReservation, 4)} {m.unit_of_measure}</strong></span>
+                                    </div>
+                                )}
+
+                                {m.is_workstation_stock && Number(m.shortage_qty) > EPSILON && (
+                                    <div className="mb-3 flex items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-xs text-om-blocked">
+                                        <span>{__('Workstation stock is short by :quantity :unit.', { quantity: fmtQty(m.shortage_qty, 4), unit: m.unit_of_measure })}</span>
+                                        <Link href="/operator/materials" className="shrink-0 font-semibold underline">{__('Request replenishment')}</Link>
+                                    </div>
+                                )}
 
                                 {lines.length === 0 && (
                                     <p className={errorCls}>
@@ -2078,7 +2276,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                                         {cand?.lot_number ?? `#${ln.material_lot_id}`}
                                                     </div>
                                                     <div className="font-mono text-[11px] text-om-faint mt-0.5">
-                                                        {__('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, 4)}</span>
+                                                        {m.is_workstation_stock ? __('Available at workstation') : __('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, 4)}</span>
                                                         {cand?.expiry_date ? ` · ${__('exp')}: ${formatDate(cand.expiry_date)}` : ''}
                                                     </div>
                                                 </div>
@@ -2129,7 +2327,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                         {__('Required')} {fmtQty(m.required_qty, 4)} {m.unit_of_measure}
                                     </span>
                                     <span className={balanced ? 'text-om-done' : 'text-om-blocked'}>
-                                        {__('Allocated')} {fmtQty(allocated, 4)}
+                                        {m.is_workstation_stock ? __('Reserved for operation') : __('Allocated')} {fmtQty(allocated, 4)}
                                     </span>
                                 </div>
                             </div>

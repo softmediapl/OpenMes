@@ -237,6 +237,12 @@ class BatchStep extends Model
         return $this->hasMany(BatchStepLotConsumption::class);
     }
 
+    /** Material reserved for and reconciled by this operation. */
+    public function materialAllocations(): HasMany
+    {
+        return $this->hasMany(MaterialAllocation::class);
+    }
+
     /** Finished-goods pallets registered against this operation's output. */
     public function pallets(): HasMany
     {

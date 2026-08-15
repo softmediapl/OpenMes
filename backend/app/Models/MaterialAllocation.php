@@ -72,6 +72,11 @@ class MaterialAllocation extends Model
         return $this->belongsTo(Batch::class);
     }
 
+    public function batchStep(): BelongsTo
+    {
+        return $this->belongsTo(BatchStep::class);
+    }
+
     public function material(): BelongsTo
     {
         return $this->belongsTo(Material::class);

@@ -21,6 +21,7 @@ use App\Models\WorkstationMaterialMovement;
 use App\Models\WorkstationMaterialPolicy;
 use App\Models\WorkstationMaterialStock;
 use App\Services\Material\MaterialAllocationService;
+use App\Services\Material\WorkstationMaterialCountService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -212,6 +213,71 @@ class WorkstationMaterialAllocationTest extends TestCase
             $this->assertEqualsWithDelta(0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
             $this->assertEqualsWithDelta(0, (float) WorkstationMaterialStock::sum('reserved_quantity'), 0.0001);
         }
+    }
+
+    public function test_operation_can_reserve_more_local_material_and_reconcile_before_batch_completion(): void
+    {
+        $lotA = $this->makeLot('LOCAL-OPEN', 80, '2026-09-01');
+        $lotB = $this->makeLot('LOCAL-TOP-UP', 50, '2026-10-01');
+        $stockA = $this->makeStock($this->workstation, $lotA, 80);
+        $stockB = $this->makeStock($this->workstation, $lotB, 50);
+
+        $allocation = $this->service->allocateForStep($this->step, $this->user)->firstOrFail();
+        $this->service->adjustAllocation($allocation, 10, $this->user, 'Unexpected in-operation use');
+
+        $this->assertEqualsWithDelta(90, (float) $allocation->fresh()->allocated_qty, 0.0001);
+        $this->assertEqualsWithDelta(80, (float) $stockA->fresh()->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(10, (float) $stockB->fresh()->reserved_quantity, 0.0001);
+
+        $this->service->recordConsumption($allocation->fresh(), actualConsumed: 85, scrap: 2);
+        $this->service->consumeForStep($this->step);
+
+        $allocation->refresh();
+        $this->assertSame(MaterialAllocation::STATUS_CONSUMED, $allocation->status);
+        $this->assertEqualsWithDelta(85, (float) $allocation->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(2, (float) $allocation->scrap_qty, 0.0001);
+        $this->assertEqualsWithDelta(3, (float) $allocation->returned_qty, 0.0001);
+        $this->assertEqualsWithDelta(43, (float) WorkstationMaterialStock::sum('quantity'), 0.0001);
+        $this->assertEqualsWithDelta(0, (float) WorkstationMaterialStock::sum('reserved_quantity'), 0.0001);
+        $this->assertEqualsWithDelta(413, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(87, (float) BatchStepLotConsumption::sum('quantity_consumed'), 0.0001);
+        $this->assertNotSame(Batch::STATUS_DONE, $this->batch->fresh()->status);
+    }
+
+    public function test_physical_counts_settle_incremental_operation_use_without_double_consumption(): void
+    {
+        $lot = $this->makeLot('LOCAL-COUNTED', 100, '2026-09-01');
+        $stock = $this->makeStock($this->workstation, $lot, 100);
+        $allocation = $this->service->allocateForStep($this->step, $this->user)->firstOrFail();
+        $counts = app(WorkstationMaterialCountService::class);
+
+        $first = $counts->reconcile($stock, 70, $this->user);
+        $this->assertSame('operation_consumption', $first['settlement_type']);
+        $this->assertEqualsWithDelta(-30, $first['difference'], 0.0001);
+        $this->assertEqualsWithDelta(70, (float) $stock->fresh()->quantity, 0.0001);
+        $this->assertEqualsWithDelta(50, (float) $stock->fresh()->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(30, (float) $allocation->fresh()->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(470, (float) $this->material->fresh()->stock_quantity, 0.0001);
+
+        $second = $counts->reconcile($stock->fresh(), 55, $this->user);
+        $this->assertSame('operation_consumption', $second['settlement_type']);
+        $this->assertEqualsWithDelta(-15, $second['difference'], 0.0001);
+        $this->assertEqualsWithDelta(55, (float) $stock->fresh()->quantity, 0.0001);
+        $this->assertEqualsWithDelta(35, (float) $stock->fresh()->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(45, (float) $allocation->fresh()->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(455, (float) $this->material->fresh()->stock_quantity, 0.0001);
+
+        $this->service->recordConsumption($allocation->fresh(), actualConsumed: 70, scrap: 5);
+        $this->service->consumeForStep($this->step);
+
+        $allocation->refresh();
+        $this->assertEqualsWithDelta(70, (float) $allocation->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(5, (float) $allocation->scrap_qty, 0.0001);
+        $this->assertEqualsWithDelta(5, (float) $allocation->returned_qty, 0.0001);
+        $this->assertEqualsWithDelta(25, (float) $stock->fresh()->quantity, 0.0001);
+        $this->assertEqualsWithDelta(0, (float) $stock->fresh()->reserved_quantity, 0.0001);
+        $this->assertEqualsWithDelta(425, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(75, (float) BatchStepLotConsumption::sum('quantity_consumed'), 0.0001);
     }
 
     public function test_untracked_material_uses_bulk_workstation_balance(): void
