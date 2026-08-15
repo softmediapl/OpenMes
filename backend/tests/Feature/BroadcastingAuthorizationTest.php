@@ -6,6 +6,7 @@ use App\Events\CollectionChanged;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -26,6 +27,9 @@ class BroadcastingAuthorizationTest extends TestCase
             'broadcasting.connections.reverb.key' => 'test-key',
             'broadcasting.connections.reverb.secret' => 'test-secret',
         ]);
+
+        Broadcast::purge('reverb');
+        require base_path('routes/channels.php');
     }
 
     public function test_operator_can_subscribe_to_own_tenant_active_work_orders(): void
