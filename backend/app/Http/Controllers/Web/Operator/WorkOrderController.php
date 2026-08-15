@@ -148,7 +148,9 @@ class WorkOrderController extends Controller
             ->latest('started_at')
             ->first();
 
-        return Inertia::render('operator/Queue', compact(
+        $page = $request->routeIs('panel.*') ? 'panel/Queue' : 'operator/Queue';
+
+        return Inertia::render($page, compact(
             'activeWorkOrders', 'completedWorkOrders', 'line', 'selectedWorkstation',
             'lineStatuses', 'issueTypes', 'workflowMode', 'doneStatusIds',
             'trackingMode', 'workstationQueue', 'lineWorkstations',
@@ -498,7 +500,9 @@ class WorkOrderController extends Controller
 
         $canOverrideOperationHold = (bool) $request->user()?->hasAnyRole(['Supervisor', 'Admin']);
 
-        return Inertia::render('operator/WorkOrderDetail', compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+        $page = $request->routeIs('panel.*') ? 'panel/WorkOrder' : 'operator/WorkOrderDetail';
+
+        return Inertia::render($page, compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
     }
 
     /**

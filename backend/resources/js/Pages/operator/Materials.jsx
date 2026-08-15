@@ -31,7 +31,7 @@ function dateValue(value) {
 
 function requestRefill(row, onFinish) {
     const increment = Number(row.policy?.issue_increment);
-    router.post('/operator/materials/replenishments', {
+    router.post(`${materialRouteBase()}/materials/replenishments`, {
         workstation_material_policy_id: row.policy.id,
         quantity: Number.isFinite(increment) && increment > 0 ? increment : null,
     }, { preserveScroll: true, onFinish });
@@ -39,7 +39,13 @@ function requestRefill(row, onFinish) {
 
 function cancelRequest(requestId) {
     if (!window.confirm(__('Cancel this replenishment request?'))) return;
-    router.post(`/operator/materials/replenishments/${requestId}/cancel`, {}, { preserveScroll: true });
+    router.post(`${materialRouteBase()}/materials/replenishments/${requestId}/cancel`, {}, { preserveScroll: true });
+}
+
+function materialRouteBase() {
+    return typeof window !== 'undefined' && window.location.pathname.startsWith('/panel')
+        ? '/panel'
+        : '/operator';
 }
 
 export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation, unitPrecisions = {} }) {
@@ -196,7 +202,7 @@ function CountModal({ stock, unitPrecisions, onClose }) {
             counted_quantity: counted,
             notes: data.notes.trim() || null,
         }));
-        form.post(`/operator/materials/stocks/${stock.id}/count`, {
+        form.post(`${materialRouteBase()}/materials/stocks/${stock.id}/count`, {
             preserveScroll: true,
             onSuccess: onClose,
         });

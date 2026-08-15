@@ -302,6 +302,33 @@ Route::middleware('auth')->group(function () {
         Route::put('/shift-entry/{shiftEntry}/correct', [ProductionCorrectionController::class, 'update'])->name('shift-entry.correct.update');
     });
 
+    // Touch-first workstation terminal. The device account keeps the workstation
+    // assignment while a separately PIN-authenticated person is the audited actor.
+    Route::prefix('panel')->name('panel.')->middleware(['role:Operator|Supervisor|Admin', 'panel.operator:optional'])->group(function () {
+        Route::get('/', [OperatorWorkOrderController::class, 'queue'])->name('index');
+        Route::get('/work-order/{workOrder}', [OperatorWorkOrderController::class, 'show'])->name('work-order');
+        Route::get('/materials', [OperatorWorkstationMaterialController::class, 'index'])->name('materials');
+        Route::post('/identity', [\App\Http\Controllers\Web\Operator\PanelIdentityController::class, 'store'])->name('identity.store');
+        Route::delete('/identity', [\App\Http\Controllers\Web\Operator\PanelIdentityController::class, 'destroy'])->name('identity.destroy');
+
+        Route::middleware('panel.operator:required')->group(function () {
+            Route::get('/batch-step/{batchStep}/pick-preview', [OperatorBatchController::class, 'pickPreview'])->name('batch-step.pick-preview');
+            Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->name('batch-step.start');
+            Route::post('/batch-step/{batchStep}/complete', [OperatorBatchController::class, 'completeStep'])->name('batch-step.complete');
+            Route::post('/batch-step/{batchStep}/quality-check', [OperatorBatchController::class, 'qualityCheckStep'])->name('batch-step.quality-check');
+            Route::post('/batch-step/{batchStep}/materials/{materialAllocation}/reserve', [OperatorBatchController::class, 'increaseStepMaterial'])->name('batch-step.materials.reserve');
+            Route::post('/batch-step/{batchStep}/confirm-instructions', [OperatorBatchController::class, 'confirmInstructions'])->name('batch-step.confirm-instructions');
+            Route::post('/batch-step/{batchStep}/checklist/{checklistItem}/toggle', [OperatorBatchController::class, 'toggleChecklistItem'])->name('batch-step.checklist.toggle');
+            Route::post('/batch-step-document/{batchStepDocument}/validate', [OperatorBatchController::class, 'validateDocument'])->name('batch-step-document.validate');
+            Route::get('/batch-step-document/{batchStepDocument}/file', [OperatorBatchController::class, 'showDocumentFile'])->name('batch-step-document.file');
+            Route::post('/issue', [OperatorIssueController::class, 'store'])->name('issue.store');
+            Route::post('/scrap', [OperatorScrapController::class, 'store'])->name('scrap.store');
+            Route::post('/materials/replenishments', [OperatorWorkstationMaterialController::class, 'store'])->name('materials.replenishments.store');
+            Route::post('/materials/replenishments/{materialReplenishmentRequest}/cancel', [OperatorWorkstationMaterialController::class, 'cancel'])->name('materials.replenishments.cancel');
+            Route::post('/materials/stocks/{workstationMaterialStock}/count', [OperatorWorkstationMaterialController::class, 'reconcileCount'])->name('materials.stocks.count');
+        });
+    });
+
     // Inbound Inspections (Supervisor + Admin) — inspectors perform from this UI
     Route::prefix('inspections')->name('inspections.')->middleware('role:Supervisor|Admin')->group(function () {
         Route::get('/', [\App\Http\Controllers\Web\InspectionController::class, 'index'])->name('index');

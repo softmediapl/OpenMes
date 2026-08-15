@@ -140,7 +140,7 @@ class WorkstationContext
     {
         $step->loadMissing('batch.workOrder');
 
-        if ($this->isLocked($request->user())) {
+        if ($this->workstation($request)) {
             $currentStep = $step->batch?->currentStep();
             $workstation = $this->workstation($request);
 
@@ -159,7 +159,7 @@ class WorkstationContext
     {
         $batch->loadMissing('workOrder', 'steps');
 
-        if (! $this->isLocked($request->user())) {
+        if (! $this->workstation($request)) {
             return (int) $batch->workOrder?->line_id === (int) $request->session()->get('selected_line_id');
         }
 
@@ -173,7 +173,7 @@ class WorkstationContext
 
     public function canReleaseBatch(Request $request, Batch $batch): bool
     {
-        if (! $this->isLocked($request->user())) {
+        if (! $this->workstation($request)) {
             return $this->canAccessBatch($request, $batch);
         }
 
@@ -196,7 +196,7 @@ class WorkstationContext
 
     public function canAccessWorkOrder(Request $request, WorkOrder $workOrder): bool
     {
-        if (! $this->isLocked($request->user())) {
+        if (! $this->workstation($request)) {
             return (int) $workOrder->line_id === (int) $request->session()->get('selected_line_id');
         }
 

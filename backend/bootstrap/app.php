@@ -60,6 +60,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             // Gate a route on an optional feature module (ModuleRegistry) being on.
             'module' => \App\Http\Middleware\EnsureModuleEnabled::class,
             'operator.workstation' => \App\Http\Middleware\BindOperatorWorkstation::class,
+            'panel.operator' => \App\Http\Middleware\BindPanelOperator::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

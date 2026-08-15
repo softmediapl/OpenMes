@@ -25,10 +25,12 @@ class WorkstationMaterialController extends Controller
     {
         $workstation = $this->requireCurrentWorkstation($request);
 
-        return Inertia::render('operator/Materials', [
+        $page = $request->routeIs('panel.*') ? 'panel/Materials' : 'operator/Materials';
+
+        return Inertia::render($page, [
             'line' => $workstation->line,
             'selectedWorkstation' => $workstation,
-            'workstationLocked' => $this->workstationContext->isLocked($request->user()),
+            'workstationLocked' => $this->workstationContext->workstation($request) !== null,
             'unitPrecisions' => UnitOfMeasure::query()->pluck('quantity_precision', 'code'),
             'stocks' => WorkstationMaterialStock::query()
                 ->where('workstation_id', $workstation->id)

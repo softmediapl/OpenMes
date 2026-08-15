@@ -37,6 +37,15 @@ class HandleInertiaRequests extends Middleware
                     'accessibleTabLinks' => $this->accessibleTabLinks($user),
                 ] : null,
             ],
+            'panelOperator' => function () use ($request) {
+                $operator = $request->attributes->get('panel_operator');
+
+                return $operator ? [
+                    ...$operator->only('id', 'name', 'username'),
+                    'roles' => $operator->getRoleNames(),
+                    'initial' => mb_strtoupper(mb_substr($operator->name, 0, 1)),
+                ] : null;
+            },
             // Nav chrome needs the alert badge and a CSRF token for the
             // logout form. Lazy closures so they only run when a page renders.
             'nav' => [

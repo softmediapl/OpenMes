@@ -25,7 +25,7 @@ class IssueController extends Controller
 
         $workOrder = WorkOrder::findOrFail($validated['work_order_id']);
 
-        if ($this->workstationContext->isLocked($request->user())) {
+        if ($this->workstationContext->workstation($request)) {
             abort_unless($this->workstationContext->canAccessWorkOrder($request, $workOrder), 403);
         } elseif ($workOrder->line_id != $request->session()->get('selected_line_id')) {
             return back()->with('error', __('This work order does not belong to the selected line.'));

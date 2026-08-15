@@ -145,6 +145,27 @@ html.dark {
 
 /* Custom styles for touch-optimized UI */
 @layer components {
+    .panel-header-button {
+        @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-om-sm border border-om-line bg-om-card px-3 text-sm font-semibold text-om-ink transition-colors hover:bg-om-chip;
+    }
+    .panel-icon-button {
+        @apply inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-om-ink hover:bg-om-chip;
+    }
+    .panel-primary {
+        @apply inline-flex min-h-16 items-center justify-center gap-2 rounded-om-sm bg-om-ink px-6 text-lg font-bold text-om-on-ink transition-colors hover:bg-om-ink-hover disabled:cursor-not-allowed disabled:opacity-40;
+    }
+    .panel-secondary {
+        @apply inline-flex min-h-14 items-center justify-center gap-2 rounded-om-sm border border-om-line bg-om-card px-5 text-base font-bold text-om-ink transition-colors hover:bg-om-chip disabled:cursor-not-allowed disabled:opacity-40;
+    }
+    .panel-input {
+        @apply min-h-14 w-full rounded-om-sm border border-om-line bg-om-bg px-4 text-lg text-om-ink outline-none focus:border-om-ink;
+    }
+    .panel-label {
+        @apply mb-2 block font-mono text-[11px] font-semibold uppercase text-om-muted;
+    }
+    .panel-step-zone button {
+        min-height: 48px;
+    }
     /* Navigation */
     .nav-link {
         @apply text-gray-700 hover:text-blue-600 hover:bg-gray-50 px-5 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap;

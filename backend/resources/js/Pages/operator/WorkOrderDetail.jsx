@@ -770,7 +770,7 @@ function CompactHoldCountdown({ step }) {
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false }) {
+export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator' }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
@@ -796,7 +796,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const handleStepAction = (step, action) => {
         setInflightStepId(step.id);
         router.post(
-            `/operator/batch-step/${step.id}/${action}`,
+            `${routeBase}/batch-step/${step.id}/${action}`,
             {},
             {
                 preserveScroll: true,
@@ -810,7 +810,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const handleValidateDocument = (doc) => {
         setInflightDocId(doc.id);
         router.post(
-            `/operator/batch-step-document/${doc.id}/validate`,
+            `${routeBase}/batch-step-document/${doc.id}/validate`,
             {},
             { preserveScroll: true, onFinish: () => setInflightDocId(null) }
         );
@@ -821,7 +821,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const handleConfirmInstructions = (step) => {
         setInflightConfirmId(step.id);
         router.post(
-            `/operator/batch-step/${step.id}/confirm-instructions`,
+            `${routeBase}/batch-step/${step.id}/confirm-instructions`,
             {},
             { preserveScroll: true, onFinish: () => setInflightConfirmId(null) }
         );
@@ -832,7 +832,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const handleToggleChecklist = (step, item) => {
         setInflightCheckId(`${step.id}:${item.id}`);
         router.post(
-            `/operator/batch-step/${step.id}/checklist/${item.id}/toggle`,
+            `${routeBase}/batch-step/${step.id}/checklist/${item.id}/toggle`,
             {},
             { preserveScroll: true, onFinish: () => setInflightCheckId(null) }
         );
@@ -843,7 +843,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
     const handleStart = async (step) => {
         setInflightStepId(step.id);
         try {
-            const res = await fetch(`/operator/batch-step/${step.id}/pick-preview`, {
+            const res = await fetch(`${routeBase}/batch-step/${step.id}/pick-preview`, {
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
@@ -862,7 +862,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
             // still auto-picks lots and surfaces any real error.
         }
         router.post(
-            `/operator/batch-step/${step.id}/start`,
+            `${routeBase}/batch-step/${step.id}/start`,
             {},
             { preserveScroll: true, onFinish: () => setInflightStepId(null) }
         );
@@ -1028,7 +1028,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                         )}
 
                         {qualityGate?.required && (
-                            <OperationQualityGate step={step} status={qualityGate} />
+                            <OperationQualityGate step={step} status={qualityGate} routeBase={routeBase} />
                         )}
 
                         {(step.transport_unit_loads?.length > 0) && (
@@ -1067,6 +1067,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                                 canValidate={canCheck}
                                 inflightDocId={inflightDocId}
                                 onValidate={handleValidateDocument}
+                                routeBase={routeBase}
                             />
                         )}
                         </div>
@@ -1091,6 +1092,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                     materials={pickModal.materials}
                     transportUnitRequirement={pickModal.transportUnitRequirement}
                     quantityPrecision={quantityPrecision}
+                    routeBase={routeBase}
                     onClose={() => setPickModal(null)}
                 />
             )}
@@ -1102,6 +1104,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                     quantityPrecision={quantityPrecision}
                     scrapReasons={scrapReasons}
                     canOverrideOperationHold={canOverrideOperationHold}
+                    routeBase={routeBase}
                     onClose={() => setCompleteModal(null)}
                 />
             )}
@@ -1110,6 +1113,7 @@ function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates 
                 <MaterialTopUpModal
                     step={materialTopUpModal.step}
                     allocation={materialTopUpModal.allocation}
+                    routeBase={routeBase}
                     onClose={() => setMaterialTopUpModal(null)}
                 />
             )}
@@ -1146,7 +1150,7 @@ function OperationMaterialSummary({ allocations, onIncrease }) {
     );
 }
 
-function MaterialTopUpModal({ step, allocation, onClose }) {
+function MaterialTopUpModal({ step, allocation, routeBase = '/operator', onClose }) {
     const form = useForm({ additional_qty: '' });
     const quantity = Number(form.data.additional_qty);
     const valid = Number.isFinite(quantity) && quantity > 0;
@@ -1155,7 +1159,7 @@ function MaterialTopUpModal({ step, allocation, onClose }) {
         event.preventDefault();
         if (!valid) return;
         form.transform(() => ({ additional_qty: quantity }));
-        form.post(`/operator/batch-step/${step.id}/materials/${allocation.id}/reserve`, {
+        form.post(`${routeBase}/batch-step/${step.id}/materials/${allocation.id}/reserve`, {
             preserveScroll: true,
             onSuccess: onClose,
         });
@@ -1213,7 +1217,7 @@ function buildOperationQualitySamples(specification) {
     )).flat();
 }
 
-function OperationQualityGate({ step, status }) {
+function OperationQualityGate({ step, status, routeBase = '/operator' }) {
     const specification = status.specification ?? {};
     const initialSamples = useMemo(
         () => buildOperationQualitySamples(specification),
@@ -1264,7 +1268,7 @@ function OperationQualityGate({ step, status }) {
                 };
             }),
         }));
-        form.post(`/operator/batch-step/${step.id}/quality-check`, {
+        form.post(`${routeBase}/batch-step/${step.id}/quality-check`, {
             preserveScroll: true,
             onSuccess: () => form.reset(),
         });
@@ -1519,7 +1523,7 @@ function PalletizationSummary({ step }) {
  * steps must account for their full WIP input; timed steps additionally capture
  * operator-confirmed actuals introduced by #52.
  */
-function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapReasons = [], canOverrideOperationHold = false, onClose }) {
+function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', onClose }) {
     const inputQuantity = Number(step.input_quantity ?? 0);
     const reportsQuantity = !!step.quantity_reporting_required;
     const quantityInput = operationQuantityInput(quantityPrecision, quantityUnit);
@@ -1654,7 +1658,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                 ? data.hold_override_reason.trim()
                 : null,
         }));
-        form.post(`/operator/batch-step/${step.id}/complete`, {
+        form.post(`${routeBase}/batch-step/${step.id}/complete`, {
             preserveScroll: true,
             onSuccess: () => onClose(),
         });
@@ -1940,7 +1944,7 @@ function StepReadConfirmation({ step, canConfirm, inflight, onConfirm }) {
 // Document control panel shown under a step: lists attached documents and lets
 // the operator validate mandatory ones. A blocked banner explains why the step
 // can't be completed until they are validated.
-function StepDocuments({ docs = [], blocked, canValidate, inflightDocId, onValidate }) {
+function StepDocuments({ docs = [], blocked, canValidate, inflightDocId, onValidate, routeBase = '/operator' }) {
     return (
         <div className="border-t border-om-line2 px-3 py-2 space-y-2">
             {blocked && (
@@ -1963,7 +1967,7 @@ function StepDocuments({ docs = [], blocked, canValidate, inflightDocId, onValid
                                 </span>
                             )}
                             {doc.file_path && (
-                                <a href={`/operator/batch-step-document/${doc.id}/file`} target="_blank" rel="noopener noreferrer" className="text-[12px] text-om-accent hover:underline">
+                                <a href={`${routeBase}/batch-step-document/${doc.id}/file`} target="_blank" rel="noopener noreferrer" className="text-[12px] text-om-accent hover:underline">
                                     {__('View')}
                                 </a>
                             )}
@@ -2036,7 +2040,7 @@ function StepChecklist({ step, items = [], completedItemIds, completions = [], c
 
 const EPSILON = 0.0001;
 
-function StepStartModal({ step, materials, transportUnitRequirement, quantityPrecision, onClose }) {
+function StepStartModal({ step, materials, transportUnitRequirement, quantityPrecision, routeBase = '/operator', onClose }) {
     const [submitting, setSubmitting] = useState(false);
     const [serverError, setServerError] = useState('');
     const transportQuantityInput = operationQuantityInput(
@@ -2135,7 +2139,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                 }))
                 : [],
         };
-        router.post(`/operator/batch-step/${step.id}/start`, payload, {
+        router.post(`${routeBase}/batch-step/${step.id}/start`, payload, {
             preserveScroll: true,
             onSuccess: onClose,
             onError: (errors) => {
@@ -2255,7 +2259,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                 {m.is_workstation_stock && Number(m.shortage_qty) > EPSILON && (
                                     <div className="mb-3 flex items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-xs text-om-blocked">
                                         <span>{__('Workstation stock is short by :quantity :unit.', { quantity: fmtQty(m.shortage_qty, 4), unit: m.unit_of_measure })}</span>
-                                        <Link href="/operator/materials" className="shrink-0 font-semibold underline">{__('Request replenishment')}</Link>
+                                        <Link href={`${routeBase}/materials`} className="shrink-0 font-semibold underline">{__('Request replenishment')}</Link>
                                     </div>
                                 )}
 
