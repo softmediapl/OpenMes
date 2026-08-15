@@ -139,6 +139,21 @@ class WorkstationMaterialAllocationTest extends TestCase
         $this->assertEqualsWithDelta(0, (float) $foreignStock->fresh()->reserved_quantity, 0.0001);
     }
 
+    public function test_preview_uses_execution_workstation_for_an_unclaimed_pooled_step(): void
+    {
+        $lot = $this->makeLot('LOCAL-POOL', 100, '2026-09-01');
+        $this->makeStock($this->workstation, $lot, 100);
+        $this->step->update(['workstation_id' => null]);
+
+        $preview = $this->service->pickPreviewForStep($this->step->fresh(), $this->workstation);
+
+        $this->assertCount(1, $preview);
+        $this->assertTrue($preview[0]['is_workstation_stock']);
+        $this->assertSame($this->workstation->name, $preview[0]['workstation_name']);
+        $this->assertEqualsWithDelta(100, $preview[0]['available_qty'], 0.0001);
+        $this->assertSame($lot->id, $preview[0]['candidates'][0]['id']);
+    }
+
     public function test_completion_reconciles_local_stock_lots_global_stock_and_genealogy_once(): void
     {
         $lotA = $this->makeLot('LOT-A', 200, '2026-09-01');

@@ -62,7 +62,10 @@ class BatchController extends Controller
             : null;
 
         return response()->json([
-            'materials' => $this->allocationService->pickPreviewForStep($batchStep),
+            'materials' => $this->allocationService->pickPreviewForStep(
+                $batchStep,
+                $this->workstationContext->currentWorkstation($request),
+            ),
             'transport_unit_requirement' => $transportType ? [
                 'type_id' => $transportType->id,
                 'code' => $transportType->code,

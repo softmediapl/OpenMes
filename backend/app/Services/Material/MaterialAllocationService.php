@@ -152,7 +152,7 @@ class MaterialAllocationService
      *
      * @return array<int, array{material_id: int, material_name: ?string, material_code: ?string, unit_of_measure: ?string, required_qty: float, strategy: string, proposed: array, candidates: array}>
      */
-    public function pickPreviewForStep(BatchStep $step): array
+    public function pickPreviewForStep(BatchStep $step, ?Workstation $executionWorkstation = null): array
     {
         if (! $this->lotPicking->isLotTrackingEnabled()) {
             return [];
@@ -202,7 +202,7 @@ class MaterialAllocationService
                 ? $step->expectedInputQuantity()
                 : (float) $batch->target_qty;
             $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
-            $workstation = $this->materialPolicyWorkstation($step, $material);
+            $workstation = $this->materialPolicyWorkstation($step, $material, $executionWorkstation);
             $proposal = $this->lotPicking->proposePicks($material, $requiredQty, workstation: $workstation);
             $availableQty = array_sum(array_map(
                 fn (array $candidate) => (float) $candidate['quantity_available'],
@@ -740,9 +740,12 @@ class MaterialAllocationService
         ];
     }
 
-    private function materialPolicyWorkstation(BatchStep $step, Material $material): ?Workstation
-    {
-        $workstation = $step->workstation;
+    private function materialPolicyWorkstation(
+        BatchStep $step,
+        Material $material,
+        ?Workstation $executionWorkstation = null,
+    ): ?Workstation {
+        $workstation = $executionWorkstation ?? $step->workstation;
         if (! $workstation) {
             return null;
         }
