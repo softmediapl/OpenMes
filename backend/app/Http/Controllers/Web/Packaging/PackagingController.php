@@ -6,6 +6,7 @@ use App\Enums\PalletStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreatePalletStationRequest;
 use App\Http\Requests\PackagingScanRequest;
+use App\Models\BatchStep;
 use App\Models\PackagingScanLog;
 use App\Models\Pallet;
 use App\Models\WorkOrder;
@@ -195,9 +196,31 @@ class PackagingController extends Controller
             }
         }
 
+        $batchStepId = null;
+        if ($batchId) {
+            $batch = $workOrder->batches()->with('steps')->findOrFail($batchId);
+            $palletizationSteps = $batch->steps->where('requires_palletization', true);
+
+            if ($palletizationSteps->isNotEmpty()) {
+                $palletizationStep = $palletizationSteps
+                    ->whereIn('status', [BatchStep::STATUS_READY, BatchStep::STATUS_IN_PROGRESS])
+                    ->sortBy('step_number')
+                    ->first();
+
+                if (! $palletizationStep) {
+                    return response()->json([
+                        'message' => __('The palletization operation for this batch is not ready or in progress.'),
+                    ], 422);
+                }
+
+                $batchStepId = $palletizationStep->id;
+            }
+        }
+
         $pallet = Pallet::create([
             'work_order_id' => $workOrder->id,
             'batch_id' => $batchId,
+            'batch_step_id' => $batchStepId,
             'status' => PalletStatus::Open->value,
             'location' => $request->input('location'),
             'qty' => 0,
@@ -243,6 +266,7 @@ class PackagingController extends Controller
             'line_id' => $pallet->workOrder?->line_id,
             'line_name' => $pallet->workOrder?->line?->name,
             'batch_id' => $pallet->batch_id,
+            'batch_step_id' => $pallet->batch_step_id,
             'batch_lot' => $pallet->batch?->lot_number,
             'batch_number' => $pallet->batch?->batch_number,
             'qty' => (int) $pallet->qty,

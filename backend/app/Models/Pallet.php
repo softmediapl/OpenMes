@@ -29,6 +29,7 @@ class Pallet extends Model
         'pallet_no',
         'work_order_id',
         'batch_id',
+        'batch_step_id',
         'qty',
         'capacity_qty',
         'status',
@@ -133,6 +134,12 @@ class Pallet extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(Batch::class);
+    }
+
+    /** The palletization operation whose accepted output this pallet contains. */
+    public function batchStep(): BelongsTo
+    {
+        return $this->belongsTo(BatchStep::class);
     }
 
     public function scanLogs(): HasMany

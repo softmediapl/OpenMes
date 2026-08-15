@@ -2,6 +2,7 @@
 
 namespace App\Services\WorkOrder;
 
+use App\Enums\PalletStatus;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\QualityControlTask;
@@ -186,6 +187,7 @@ class BatchService
             }
 
             $quantityPayload = $this->completionQuantityPayload($step, $user, $data);
+            $this->guardPalletizedOutput($step, $quantityPayload);
 
             // Complete the step
             $step->update(array_merge([
@@ -245,6 +247,44 @@ class BatchService
 
             return $step->fresh();
         });
+    }
+
+    /**
+     * Require an exact, closed-pallet accounting of output for steps configured
+     * as the finished-goods palletization boundary.
+     *
+     * @param  array<string, mixed>  $quantityPayload
+     */
+    private function guardPalletizedOutput(BatchStep $step, array $quantityPayload): void
+    {
+        if (! $step->requires_palletization) {
+            return;
+        }
+
+        $releasedQuantity = (float) ($quantityPayload['released_quantity'] ?? 0);
+        if ($releasedQuantity <= 0) {
+            return;
+        }
+
+        if ($step->pallets()->where('status', PalletStatus::Open->value)->exists()) {
+            throw new \DomainException(__(
+                'Palletization is incomplete: close every pallet linked to this operation before completing it.'
+            ));
+        }
+
+        $palletizedQuantity = (float) $step->pallets()
+            ->whereIn('status', [PalletStatus::Closed->value, PalletStatus::Shipped->value])
+            ->sum('qty');
+
+        if (abs($palletizedQuantity - $releasedQuantity) > 0.0001) {
+            throw new \DomainException(__(
+                'Palletization quantity is invalid: closed pallets account for :actual, but the operation releases :required.',
+                [
+                    'actual' => $palletizedQuantity,
+                    'required' => $releasedQuantity,
+                ],
+            ));
+        }
     }
 
     /**

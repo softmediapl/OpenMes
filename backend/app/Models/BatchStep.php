@@ -237,6 +237,12 @@ class BatchStep extends Model
         return $this->hasMany(BatchStepLotConsumption::class);
     }
 
+    /** Finished-goods pallets registered against this operation's output. */
+    public function pallets(): HasMany
+    {
+        return $this->hasMany(Pallet::class);
+    }
+
     /**
      * Documents attached to this step for shop-floor document control. A
      * mandatory, validatable document must be validated before the step can be

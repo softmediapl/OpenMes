@@ -9,6 +9,7 @@ use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderEan;
+use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Spatie\Permission\Models\Role;
@@ -69,6 +70,35 @@ class PalletStationTest extends TestCase
         ]);
 
         $this->assertMatchesRegularExpression('/^PAL-\d{6}$/', $response->json('pallet.pallet_no'));
+    }
+
+    public function test_created_pallet_is_linked_to_the_active_palletization_operation(): void
+    {
+        $workOrder = WorkOrder::factory()->create([
+            'planned_qty' => 100,
+            'process_snapshot' => [
+                'template_id' => 999,
+                'steps' => [[
+                    'step_number' => 1,
+                    'name' => 'Palletize',
+                    'requires_palletization' => true,
+                ]],
+                'bom' => [],
+            ],
+        ]);
+        $batch = app(WorkOrderService::class)->createBatch($workOrder, 100);
+        $step = $batch->steps()->sole();
+
+        $response = $this->actingAs($this->operator)->postJson(
+            route('packaging.pallets.create'),
+            ['work_order_id' => $workOrder->id, 'batch_id' => $batch->id],
+        );
+
+        $response->assertCreated()->assertJsonPath('pallet.batch_step_id', $step->id);
+        $this->assertDatabaseHas('pallets', [
+            'batch_id' => $batch->id,
+            'batch_step_id' => $step->id,
+        ]);
     }
 
     public function test_scan_assigns_piece_to_open_pallet_and_increments_qty(): void
