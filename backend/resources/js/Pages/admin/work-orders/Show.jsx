@@ -6,7 +6,7 @@ import StopProductionModal from './StopProductionModal';
 import ChangeRequestModal from './ChangeRequestModal';
 import { WO_STATUS_STYLES } from './fields';
 import { TIER_BADGE_STYLES, tierLabel } from '../customers/fields';
-import { formatDate, formatNumber, timeAgo, __ } from '../../../lib/i18n';
+import { formatDate, formatDateTime, formatNumber, timeAgo, __ } from '../../../lib/i18n';
 
 const TERMINAL = ['DONE', 'REJECTED', 'CANCELLED'];
 
@@ -62,6 +62,174 @@ function fmtDate(d) {
     const dt = new Date(d);
     if (Number.isNaN(dt.getTime())) return d;
     return formatDate(dt, { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function fmtDateTime(d) {
+    return d ? formatDateTime(d, { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+}
+
+function fmtSignedDuration(minutes) {
+    if (minutes == null) return '—';
+    const sign = minutes > 0 ? '+' : minutes < 0 ? '−' : '';
+    return sign + fmtDuration(Math.abs(minutes));
+}
+
+const FORECAST_RISK_STYLES = {
+    on_track: 'bg-om-running-bg text-om-running',
+    at_risk: 'bg-om-downtime-bg text-om-downtime',
+    late: 'bg-om-blocked-bg text-om-blocked',
+    complete: 'bg-om-chip text-om-muted',
+};
+
+const FORECAST_REASON_LABELS = {
+    actual_rate_slower: 'Actual rate below standard',
+    actual_rate_faster: 'Actual rate above standard',
+    actual_completion: 'Actual operation completion',
+    operation_skipped: 'Operation skipped',
+    operation_overrun: 'Operation overrun',
+    operation_in_progress: 'Operation in progress',
+    dependency_delay: 'Dependency delay',
+    start_delay: 'Start delay',
+    capacity_unavailable: 'Capacity unavailable',
+    shift_calendar_wait: 'Shift calendar wait',
+    maintenance_wait: 'Maintenance wait',
+    qualified_labor_wait: 'Qualified labor wait',
+    finite_baseline: 'Finite-capacity baseline',
+    production_complete: 'Production complete',
+    yield_loss_observed: 'Yield loss observed',
+};
+
+function forecastRiskLabel(risk) {
+    return ({ on_track: __('On track'), at_risk: __('At risk'), late: __('Late'), complete: __('Complete') })[risk] ?? risk ?? '—';
+}
+
+function forecastReasonLabel(reason) {
+    return __(FORECAST_REASON_LABELS[reason] ?? reason.replaceAll('_', ' '));
+}
+
+function ForecastPanel({ scheduleForecast }) {
+    const baseline = scheduleForecast?.baseline ?? null;
+    const current = scheduleForecast?.current ?? null;
+    const history = scheduleForecast?.history ?? [];
+
+    return (
+        <div className="bg-om-card rounded-om-sm shadow-sm border border-om-line2 p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                    <h2 className="text-lg font-bold text-om-ink">{__('Delivery forecast')}</h2>
+                    <p className="text-xs text-om-muted mt-1">{__('Approved plan, current operational estimate, and forecast history.')}</p>
+                </div>
+                {current && (
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${FORECAST_RISK_STYLES[current.risk_level] ?? 'bg-om-chip text-om-muted'}`}>
+                        {forecastRiskLabel(current.risk_level)}
+                    </span>
+                )}
+            </div>
+
+            {!baseline ? (
+                <p className="text-sm text-om-muted py-3">{__('No approved finite-capacity schedule is available for this order.')}</p>
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
+                        <div>
+                            <p className="text-om-muted">{__('Customer deadline')}</p>
+                            <p className="font-medium text-om-ink">{fmtDateTime(current?.customer_deadline_at ?? baseline.customer_deadline_at)}</p>
+                        </div>
+                        <div>
+                            <p className="text-om-muted">{__('Approved plan end')}</p>
+                            <p className="font-medium text-om-ink">{fmtDateTime(baseline.planned_end_at)}</p>
+                            <p className="text-xs text-om-faint">{__('Baseline version :version', { version: baseline.version })}</p>
+                        </div>
+                        <div>
+                            <p className="text-om-muted">{__('Current forecast')}</p>
+                            <p className={`font-medium ${current?.risk_level === 'late' ? 'text-om-blocked' : 'text-om-ink'}`}>
+                                {current ? fmtDateTime(current.forecast_end_at) : __('Not calculated')}
+                            </p>
+                        </div>
+                        <div>
+                            <p className="text-om-muted">{__('Remaining work')}</p>
+                            <p className="font-medium text-om-ink">{current ? fmtDuration(current.remaining_work_minutes) : '—'}</p>
+                            {current && <p className="text-xs text-om-faint">{formatNumber(current.progress_percent, { maximumFractionDigits: 1 })}% {__('complete')}</p>}
+                        </div>
+                    </div>
+
+                    {current && (
+                        <div className="border-y border-om-line2 py-3 mb-4">
+                            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+                                <span><span className="text-om-muted">{__('Plan variance')}:</span> <strong>{fmtSignedDuration(current.variance_to_baseline_minutes)}</strong></span>
+                                <span><span className="text-om-muted">{__('Deadline slack')}:</span> <strong>{fmtSignedDuration(current.slack_to_deadline_minutes)}</strong></span>
+                                <span><span className="text-om-muted">{__('Confidence')}:</span> <strong>{__(current.confidence)}</strong></span>
+                                <span><span className="text-om-muted">{__('Calculated')}:</span> <strong>{fmtDateTime(current.calculated_at)}</strong></span>
+                            </div>
+                            {current.reason_codes?.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-3">
+                                    {current.reason_codes.map((reason) => (
+                                        <span key={reason} className="px-2 py-1 rounded bg-om-chip text-xs text-om-muted">{forecastReasonLabel(reason)}</span>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {current?.segments?.length > 0 && (
+                        <div className="overflow-x-auto mb-5">
+                            <h3 className="text-sm font-semibold text-om-ink mb-2">{__('Operation forecast')}</h3>
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="text-left text-om-muted border-b border-om-line2">
+                                        <th className="py-2 pr-3 font-medium">{__('Operation')}</th>
+                                        <th className="py-2 px-3 font-medium">{__('Resource')}</th>
+                                        <th className="py-2 px-3 font-medium">{__('Status')}</th>
+                                        <th className="py-2 px-3 font-medium">{__('Forecast window')}</th>
+                                        <th className="py-2 pl-3 font-medium text-right">{__('Remaining')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {current.segments.map((segment) => (
+                                        <tr key={segment.id} className="border-b border-om-line2 last:border-0">
+                                            <td className="py-2 pr-3 text-om-ink"><span className="font-mono text-om-faint mr-2">{segment.step_number}.{segment.segment_number}</span>{segment.operation_name}</td>
+                                            <td className="py-2 px-3 text-om-muted">{segment.workstation_name}</td>
+                                            <td className="py-2 px-3 text-om-muted">{__(segment.execution_status)}</td>
+                                            <td className="py-2 px-3 text-om-muted whitespace-nowrap">{fmtDateTime(segment.forecast_start_at)} → {fmtDateTime(segment.forecast_end_at)}</td>
+                                            <td className="py-2 pl-3 text-right font-mono text-om-ink">{fmtDuration(segment.remaining_duration_minutes)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </>
+            )}
+
+            {history.length > 0 && (
+                <div className="overflow-x-auto">
+                    <h3 className="text-sm font-semibold text-om-ink mb-2">{__('Forecast history')}</h3>
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="text-left text-om-muted border-b border-om-line2">
+                                <th className="py-2 pr-3 font-medium">{__('Calculated')}</th>
+                                <th className="py-2 px-3 font-medium">{__('Forecast completion')}</th>
+                                <th className="py-2 px-3 font-medium text-right">{__('Plan variance')}</th>
+                                <th className="py-2 px-3 font-medium text-right">{__('Deadline slack')}</th>
+                                <th className="py-2 pl-3 font-medium">{__('Risk')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {history.map((item) => (
+                                <tr key={item.id} className="border-b border-om-line2 last:border-0">
+                                    <td className="py-2 pr-3 text-om-muted whitespace-nowrap">{fmtDateTime(item.calculated_at)}</td>
+                                    <td className="py-2 px-3 font-medium text-om-ink whitespace-nowrap">{fmtDateTime(item.forecast_end_at)}</td>
+                                    <td className="py-2 px-3 text-right font-mono">{fmtSignedDuration(item.variance_to_baseline_minutes)}</td>
+                                    <td className="py-2 px-3 text-right font-mono">{fmtSignedDuration(item.slack_to_deadline_minutes)}</td>
+                                    <td className="py-2 pl-3"><span className={`px-2 py-0.5 rounded text-xs ${FORECAST_RISK_STYLES[item.risk_level] ?? 'bg-om-chip text-om-muted'}`}>{forecastRiskLabel(item.risk_level)}</span></td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
 }
 
 
@@ -426,6 +594,7 @@ export default function AdminWorkOrderShow() {
         workOrder, customFields = [],
         stops = [], changeRequests = [], changeControl = {},
         canReclassify = false, materials = [],
+        scheduleForecast = { baseline: null, current: null, history: [] },
     } = usePage().props;
     const [showDoneModal, setShowDoneModal] = useState(false);
     const [showStopModal, setShowStopModal] = useState(false);
@@ -689,6 +858,8 @@ export default function AdminWorkOrderShow() {
                                 )}
                             </div>
                         </div>
+
+                        <ForecastPanel scheduleForecast={scheduleForecast} />
 
                         {/* Custom fields */}
                         <CustomFieldsDisplay definitions={customFields} values={workOrder.custom_fields ?? {}} />

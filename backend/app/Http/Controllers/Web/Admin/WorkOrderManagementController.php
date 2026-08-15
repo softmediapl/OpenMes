@@ -17,6 +17,7 @@ use App\Models\MaterialLot;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderForecast;
 use App\Services\CustomFieldService;
 use App\Services\Material\MaterialAllocationService;
 use App\Services\Material\MaterialReclassificationService;
@@ -132,7 +133,23 @@ class WorkOrderManagementController extends Controller
 
     public function show(WorkOrder $workOrder, CustomFieldService $customFields)
     {
-        $workOrder->load(['customer', 'line', 'productType', 'batches.steps', 'issues.issueType', 'issues.reportedBy']);
+        $workOrder->load([
+            'customer',
+            'line',
+            'productType',
+            'batches.steps',
+            'issues.issueType',
+            'issues.reportedBy',
+            'currentScheduleBaseline',
+            'currentForecast.segments',
+        ]);
+
+        $forecastHistory = $workOrder->forecasts()
+            ->reorder('sequence', 'desc')
+            ->limit(20)
+            ->get()
+            ->map(fn (WorkOrderForecast $forecast) => $this->forecastSummary($forecast))
+            ->values();
 
         $batches = $workOrder->batches->map(function ($batch) {
             return [
@@ -242,6 +259,39 @@ class WorkOrderManagementController extends Controller
                 'can_raise_change' => request()->user()->can('create', \App\Models\WorkOrderChangeRequest::class),
                 ...WorkOrderChangeControlController::formOptions($workOrder),
             ],
+            'scheduleForecast' => [
+                'baseline' => $workOrder->currentScheduleBaseline === null ? null : [
+                    'id' => $workOrder->currentScheduleBaseline->id,
+                    'version' => $workOrder->currentScheduleBaseline->version,
+                    'planned_start_at' => $workOrder->currentScheduleBaseline->planned_start_at->toISOString(),
+                    'planned_end_at' => $workOrder->currentScheduleBaseline->planned_end_at->toISOString(),
+                    'customer_deadline_at' => $workOrder->currentScheduleBaseline->customer_deadline_at?->toISOString(),
+                    'total_operation_minutes' => $workOrder->currentScheduleBaseline->total_operation_minutes,
+                    'calendar_lead_minutes' => $workOrder->currentScheduleBaseline->calendar_lead_minutes,
+                    'slack_minutes' => $workOrder->currentScheduleBaseline->slack_minutes,
+                    'source' => $workOrder->currentScheduleBaseline->source,
+                    'approved_at' => $workOrder->currentScheduleBaseline->approved_at->toISOString(),
+                ],
+                'current' => $workOrder->currentForecast === null ? null : [
+                    ...$this->forecastSummary($workOrder->currentForecast),
+                    'segments' => $workOrder->currentForecast->segments->map(fn ($segment) => [
+                        'id' => $segment->id,
+                        'step_number' => $segment->step_number,
+                        'segment_number' => $segment->segment_number,
+                        'operation_name' => $segment->operation_name,
+                        'workstation_name' => $segment->workstation_name,
+                        'slot_number' => $segment->slot_number,
+                        'execution_status' => $segment->execution_status,
+                        'forecast_start_at' => $segment->forecast_start_at->toISOString(),
+                        'forecast_end_at' => $segment->forecast_end_at->toISOString(),
+                        'forecast_duration_minutes' => $segment->forecast_duration_minutes,
+                        'remaining_duration_minutes' => $segment->remaining_duration_minutes,
+                        'performance_factor' => (float) $segment->performance_factor,
+                        'reason_codes' => $segment->reason_codes ?? [],
+                    ])->values(),
+                ],
+                'history' => $forecastHistory,
+            ],
             'workOrder' => [
                 'id' => $workOrder->id,
                 'order_no' => $workOrder->order_no,
@@ -274,6 +324,29 @@ class WorkOrderManagementController extends Controller
                 : [],
             'customFields' => $customFields->clientConfig('work_order'),
         ]);
+    }
+
+    /** @return array<string, mixed> */
+    private function forecastSummary(WorkOrderForecast $forecast): array
+    {
+        return [
+            'id' => $forecast->id,
+            'sequence' => $forecast->sequence,
+            'schedule_baseline_id' => $forecast->schedule_baseline_id,
+            'calculated_at' => $forecast->calculated_at->toISOString(),
+            'forecast_start_at' => $forecast->forecast_start_at?->toISOString(),
+            'forecast_end_at' => $forecast->forecast_end_at->toISOString(),
+            'baseline_end_at' => $forecast->baseline_end_at?->toISOString(),
+            'customer_deadline_at' => $forecast->customer_deadline_at?->toISOString(),
+            'remaining_work_minutes' => $forecast->remaining_work_minutes,
+            'variance_to_baseline_minutes' => $forecast->variance_to_baseline_minutes,
+            'slack_to_deadline_minutes' => $forecast->slack_to_deadline_minutes,
+            'progress_percent' => (float) $forecast->progress_percent,
+            'confidence' => $forecast->confidence,
+            'risk_level' => $forecast->risk_level,
+            'reason_codes' => $forecast->reason_codes ?? [],
+            'metrics' => $forecast->forecast_metrics ?? [],
+        ];
     }
 
     /**
