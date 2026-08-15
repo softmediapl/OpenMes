@@ -72,14 +72,17 @@ class WorkOrderManagementController extends Controller
     protected function bomTemplateOptions()
     {
         return ProcessTemplate::orderBy('product_type_id')
+            ->with('productRevision:id,revision_code')
             ->orderByDesc('version')
-            ->get(['id', 'name', 'version', 'is_active', 'product_type_id'])
+            ->get(['id', 'name', 'version', 'is_active', 'product_type_id', 'product_revision_id'])
             ->map(fn ($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
                 'version' => $t->version,
                 'is_active' => (bool) $t->is_active,
                 'product_type_id' => $t->product_type_id,
+                'product_revision_id' => $t->product_revision_id,
+                'revision_code' => $t->productRevision?->revision_code,
             ]);
     }
 
@@ -114,6 +117,9 @@ class WorkOrderManagementController extends Controller
 
         try {
             $workOrder = $this->workOrderService->createWorkOrder($validated);
+        } catch (\InvalidArgumentException $e) {
+            return back()->withInput()
+                ->with('error', $e->getMessage());
         } catch (\Exception $e) {
             report($e);
 
@@ -489,18 +495,24 @@ class WorkOrderManagementController extends Controller
             $requested = [];
         }
 
-        // Reject a BOM change on a started order before touching anything, so the
-        // field edits aren't half-saved alongside a rejected BOM change.
-        if ($requested !== null && $workOrder->batches()->exists()) {
-            return redirect()->back()->withInput()
-                ->with('error', 'Cannot change BOMs after production has started.');
-        }
-
         // A product revision (#180) may be changed freely before production, but
         // once batches exist the change must go through the controlled change
         // workflow (#182) — reject it here to keep the as-built revision honest.
         $revisionChanged = array_key_exists('product_revision_id', $validated)
             && (int) $validated['product_revision_id'] !== (int) $workOrder->product_revision_id;
+
+        if ($revisionChanged && $requested === null) {
+            $current = $workOrder->bomTemplates()->pluck('process_templates.id')->all();
+            $requested = array_values(array_map('intval', $current));
+        }
+
+        // Reject a BOM/configuration change on a started order before touching
+        // anything, so field edits are not half-saved alongside a rejected change.
+        if ($requested !== null && $workOrder->batches()->exists()) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Cannot change BOMs after production has started.');
+        }
+
         if ($revisionChanged && $workOrder->batches()->exists()) {
             return redirect()->back()->withInput()
                 ->with('error', 'Cannot change the product revision after production has started.');
@@ -508,12 +520,15 @@ class WorkOrderManagementController extends Controller
 
         // Field edits and the BOM re-selection commit together (or not at all).
         try {
-            DB::transaction(function () use ($workOrder, $validated, $requested) {
+            DB::transaction(function () use ($workOrder, $validated, $requested, $revisionChanged) {
                 $workOrder->update($validated);
                 if ($requested !== null) {
-                    $this->workOrderService->updateBomSelection($workOrder, $requested);
+                    $this->workOrderService->updateBomSelection($workOrder, $requested, $revisionChanged);
                 }
             });
+        } catch (\InvalidArgumentException $e) {
+            return redirect()->back()->withInput()
+                ->with('error', $e->getMessage());
         } catch (\Throwable $e) {
             report($e);
 

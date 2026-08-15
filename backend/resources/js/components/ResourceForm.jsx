@@ -266,27 +266,37 @@ function Field({ field, value, error, setData, data }) {
  * visible (because the driving field changed) is pruned so it isn't submitted.
  */
 function CheckboxGroupField({ field, value, error, setData, data }) {
-    const { name, label, required, help, options, filterByField } = field;
+    const { name, label, required, help, options, filterByField, filterByFields, optionalFilterFields = [] } = field;
     const selected = Array.isArray(value) ? value : [];
 
-    const filterVal = filterByField ? data?.[filterByField] : undefined;
-    const visibleOptions = filterByField
-        ? (options ?? []).filter((o) => String(o.group) === String(filterVal))
+    const filterFields = filterByFields ?? (filterByField ? [filterByField] : []);
+    const optionalFilters = new Set(optionalFilterFields);
+    const filterVals = Object.fromEntries(filterFields.map((fieldName) => [fieldName, data?.[fieldName]]));
+    const visibleOptions = filterFields.length
+        ? (options ?? []).filter((o) => filterFields.every((fieldName) => {
+            const val = filterVals[fieldName];
+            if (val == null || val === '') {
+                return optionalFilters.has(fieldName) ? true : false;
+            }
+            const groups = o.groups ?? { [filterFields[0]]: o.group };
+            return String(groups[fieldName]) === String(val);
+        }))
         : (options ?? []);
 
     useEffect(() => {
-        if (!filterByField) return;
+        if (!filterFields.length) return;
         const allowed = new Set(visibleOptions.map((o) => o.value));
         const pruned = selected.filter((v) => allowed.has(v));
         if (pruned.length !== selected.length) setData(name, pruned);
         // Prune only when the driving field changes; selected/options are derived from it.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filterVal]);
+    }, [filterFields.map((fieldName) => filterVals[fieldName] ?? '').join('|')]);
 
     const toggle = (v) =>
         setData(name, selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
 
-    const noDrivingValue = filterVal == null || filterVal === '';
+    const noDrivingValue = filterFields.some((fieldName) => !optionalFilters.has(fieldName)
+        && (filterVals[fieldName] == null || filterVals[fieldName] === ''));
 
     return (
         <div>
@@ -312,11 +322,11 @@ function CheckboxGroupField({ field, value, error, setData, data }) {
                         </button>
                     );
                 })}
-                {filterByField && visibleOptions.length === 0 && (
+                {filterFields.length > 0 && visibleOptions.length === 0 && (
                     <p className="text-[12px] text-om-muted">
                         {noDrivingValue
                             ? __('Select a product type first.')
-                            : __('No BOMs are available for the selected product type.')}
+                            : __('No process+BOM variants are available for the selected filters.')}
                     </p>
                 )}
             </div>

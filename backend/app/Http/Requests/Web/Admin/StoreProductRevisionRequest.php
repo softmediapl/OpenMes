@@ -26,12 +26,6 @@ class StoreProductRevisionRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'description' => ['nullable', 'string', 'max:255'],
-            'process_template_id' => [
-                'nullable',
-                Rule::exists('process_templates', 'id')
-                    ->where('product_type_id', $this->input('product_type_id'))
-                    ->whereNull('deleted_at'),
-            ],
             'change_reason' => ['nullable', 'string', 'max:255'],
             'external_ref' => ['nullable', 'string', 'max:255'],
             'effective_from' => ['nullable', 'date'],

@@ -75,7 +75,15 @@ class ProductTypeManagementController extends Controller
      */
     public function show(ProductType $productType, CustomFieldService $cf)
     {
-        $productType->load(['processTemplates.steps']);
+        $productType->load([
+            'processTemplates' => fn ($query) => $query
+                ->where('is_active', true)
+                ->with([
+                    'steps',
+                    'productRevision:id,revision_code,lifecycle_status',
+                ])
+                ->orderByDesc('version'),
+        ]);
         $recentWorkOrders = $productType->workOrders()
             ->orderBy('created_at', 'desc')
             ->limit(10)
@@ -104,6 +112,11 @@ class ProductTypeManagementController extends Controller
                     'name' => $t->name,
                     'version' => $t->version,
                     'is_active' => $t->is_active,
+                    'product_revision' => $t->productRevision ? [
+                        'id' => $t->productRevision->id,
+                        'revision_code' => $t->productRevision->revision_code,
+                        'lifecycle_status' => $t->productRevision->lifecycle_status?->value,
+                    ] : null,
                     'steps' => $t->steps->map(fn ($s) => ['id' => $s->id])->values(),
                 ])->values(),
                 'total_work_order_count' => $totalWorkOrderCount,

@@ -11,10 +11,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A formal, versioned released configuration of a product type (#180). Groups
- * the process template (BOM + steps) that applies to a manufactured revision.
- * Work orders reference a specific revision and snapshot it immutably at
- * creation, so releasing a newer revision never alters historical orders.
+ * A formal product generation/evolution of a product type (#180). Process
+ * templates declare which revision they apply to, so one revision can offer
+ * several BOM/process variants such as colorways without pretending each
+ * decoration is a separate engineering revision.
  */
 class ProductRevision extends Model
 {
@@ -26,7 +26,6 @@ class ProductRevision extends Model
         'revision_code',
         'description',
         'lifecycle_status',
-        'process_template_id',
         'change_reason',
         'external_ref',
         'effective_from',
@@ -52,9 +51,9 @@ class ProductRevision extends Model
         return $this->belongsTo(ProductType::class);
     }
 
-    public function processTemplate(): BelongsTo
+    public function processTemplates(): HasMany
     {
-        return $this->belongsTo(ProcessTemplate::class);
+        return $this->hasMany(ProcessTemplate::class);
     }
 
     public function releasedBy(): BelongsTo

@@ -34,8 +34,6 @@ export default function ProductRevisionShow({ productRevision }) {
                 <dl className="space-y-2">
                     <Row label={__('Product type')} value={productRevision.product_type
                         ? `${productRevision.product_type.name} (${productRevision.product_type.code})` : '—'} />
-                    <Row label={__('Process template')} value={productRevision.process_template
-                        ? `${productRevision.process_template.name} v${productRevision.process_template.version}` : '—'} />
                     <Row label={__('Effective from')} value={productRevision.effective_from ? formatDate(productRevision.effective_from) : '—'} />
                     <Row label={__('Effective to')} value={productRevision.effective_to ? formatDate(productRevision.effective_to) : '—'} />
                     <Row label={__('External reference')} value={productRevision.external_ref || '—'} />
@@ -46,6 +44,24 @@ export default function ProductRevisionShow({ productRevision }) {
                         </div>
                     )}
                 </dl>
+            </div>
+
+            <div className="card max-w-2xl mt-4">
+                <h2 className="text-lg font-semibold text-om-ink mb-3">{__('Process templates')}</h2>
+                {productRevision.process_templates?.length ? (
+                    <div className="space-y-2">
+                        {productRevision.process_templates.map((template) => (
+                            <div key={template.id} className="flex items-center justify-between gap-4 rounded-om-sm bg-om-panel px-3 py-2">
+                                <span className="text-sm font-medium text-om-ink">{template.name} v{template.version}</span>
+                                <span className={`text-xs px-2 py-0.5 rounded font-medium ${template.is_active ? 'bg-om-running-bg text-om-running' : 'bg-om-chip text-om-muted'}`}>
+                                    {template.is_active ? __('Active') : __('Inactive')}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-sm text-om-muted">{__('No process templates are assigned to this revision yet.')}</p>
+                )}
             </div>
 
             <EngineeringDocuments entityType="product_revision" entityId={productRevision.id} />

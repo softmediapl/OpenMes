@@ -18,7 +18,6 @@ class ProductRevisionFactory extends Factory
             'revision_code' => $codes[$counter++ % count($codes)].fake()->unique()->numberBetween(1, 99999),
             'description' => fake()->optional()->sentence(),
             'lifecycle_status' => RevisionLifecycle::Draft,
-            'process_template_id' => null,
         ];
     }
 

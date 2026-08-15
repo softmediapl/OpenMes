@@ -76,6 +76,7 @@ export default function ChangeRequestModal({ workOrder, options, onClose }) {
     function renderInput(field) {
         const value = form.data.proposed[field.key] ?? '';
         const cls = 'w-full border border-om-line rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-om-accent';
+        const selectedRevision = form.data.proposed.product_revision_id ?? options.current?.product_revision_id ?? '';
 
         if (field.type === 'revision') {
             return (
@@ -103,9 +104,14 @@ export default function ChangeRequestModal({ workOrder, options, onClose }) {
 
         if (field.type === 'boms') {
             const selected = Array.isArray(value) ? value : [];
+            const templates = (options.bomTemplates ?? []).filter((t) => {
+                if (!selectedRevision) return true;
+
+                return String(t.product_revision_id) === String(selectedRevision);
+            });
             return (
                 <div className="space-y-1 max-h-40 overflow-y-auto border border-om-line rounded-md p-2">
-                    {(options.bomTemplates ?? []).map((t) => (
+                    {templates.map((t) => (
                         <label key={t.id} className="flex items-center gap-2 text-sm">
                             <input
                                 type="checkbox"
@@ -117,9 +123,14 @@ export default function ChangeRequestModal({ workOrder, options, onClose }) {
                                         : selected.filter((id) => id !== t.id),
                                 )}
                             />
-                            <span className="text-om-muted">{t.name} <span className="text-om-faint">v{t.version}</span></span>
+                            <span className="text-om-muted">
+                                {t.name} <span className="text-om-faint">v{t.version}{t.revision_code ? ` · ${__('rev')} ${t.revision_code}` : ''}</span>
+                            </span>
                         </label>
                     ))}
+                    {templates.length === 0 && (
+                        <p className="text-xs text-om-muted">{__('No process+BOM variants match the proposed revision.')}</p>
+                    )}
                 </div>
             );
         }

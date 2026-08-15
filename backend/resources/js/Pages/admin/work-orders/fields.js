@@ -35,7 +35,8 @@ export function woStatusLabel(status) {
 /** Label for a BOM (process template) option in the multi-BOM picker. */
 function bomLabel(t) {
     const inactive = t.is_active ? '' : ` (${__('inactive')})`;
-    return `${t.name} v${t.version}${inactive}`;
+    const revision = t.revision_code ? ` · ${__('rev')} ${t.revision_code}` : '';
+    return `${t.name} v${t.version}${revision}${inactive}`;
 }
 
 export function woFields(lines, productTypes, { withStatus = false, customers = [], bomTemplates = [], bomLocked = false, productRevisions = [] } = {}) {
@@ -77,10 +78,18 @@ export function woFields(lines, productTypes, { withStatus = false, customers = 
     // order's BOMs are locked by started production.
     if (bomTemplates.length && !bomLocked) {
         fields.push({
-            name: 'bom_template_ids', label: __('Bills of Materials'), type: 'checkbox-group',
-            filterByField: 'product_type_id',
-            options: bomTemplates.map((t) => ({ value: t.id, label: bomLabel(t), group: t.product_type_id })),
-            help: __('Select one or more BOMs. Requirements sum across the selected BOMs. Leave empty to auto-use the active BOM for the product type.'),
+            name: 'bom_template_ids', label: __('Process+BOM variants'), type: 'checkbox-group',
+            filterByFields: ['product_type_id', 'product_revision_id'],
+            optionalFilterFields: ['product_revision_id'],
+            options: bomTemplates.map((t) => ({
+                value: t.id,
+                label: bomLabel(t),
+                groups: {
+                    product_type_id: t.product_type_id,
+                    product_revision_id: t.product_revision_id,
+                },
+            })),
+            help: __('Select one or more process+BOM variants. Requirements sum across the selected variants. With a revision selected, only variants assigned to that revision are valid.'),
         });
     }
 

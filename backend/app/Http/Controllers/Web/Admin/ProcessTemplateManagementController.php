@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers\Web\Admin;
 
+use App\Enums\RevisionLifecycle;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Web\Admin\StoreTemplateStepRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepDependenciesRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepRequest;
 use App\Http\Requests\Web\Admin\UpsertProcessTemplateRequest;
 use App\Models\ProcessTemplate;
+use App\Models\ProductRevision;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
 use App\Models\Workstation;
@@ -21,21 +23,31 @@ class ProcessTemplateManagementController extends Controller
     /**
      * Display process templates for a product type
      */
-    public function index(ProductType $productType)
+    public function index(Request $request, ProductType $productType)
     {
+        $revisionId = $request->query('revision_id');
         $templates = $productType->processTemplates()
+            ->with('productRevision:id,revision_code,lifecycle_status')
             ->withCount('steps')
+            ->when($revisionId, fn ($query) => $query->where('product_revision_id', $revisionId))
             ->orderBy('version', 'desc')
             ->get();
 
         return Inertia::render('admin/process-templates/Index', [
             'productType' => $productType->only('id', 'name'),
+            'activeRevisions' => $this->activeRevisionOptions($productType),
+            'revisionFilter' => $revisionId ? (string) $revisionId : '',
             'templates' => $templates->map(fn ($t) => [
                 'id' => $t->id,
                 'name' => $t->name,
                 'version' => $t->version,
                 'is_active' => (bool) $t->is_active,
                 'steps_count' => $t->steps_count,
+                'product_revision' => $t->productRevision ? [
+                    'id' => $t->productRevision->id,
+                    'revision_code' => $t->productRevision->revision_code,
+                    'lifecycle_status' => $t->productRevision->lifecycle_status?->value,
+                ] : null,
                 'created_at' => $t->created_at->format('Y-m-d H:i'),
             ]),
         ]);
@@ -48,6 +60,7 @@ class ProcessTemplateManagementController extends Controller
     {
         return Inertia::render('admin/process-templates/Create', [
             'productType' => $productType->only('id', 'name'),
+            'revisions' => $this->assignableRevisionOptions($productType),
         ]);
     }
 
@@ -222,10 +235,12 @@ class ProcessTemplateManagementController extends Controller
 
         return Inertia::render('admin/process-templates/Edit', [
             'productType' => $productType->only('id', 'name'),
+            'revisions' => $this->assignableRevisionOptions($productType),
             'processTemplate' => [
                 'id' => $processTemplate->id,
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
+                'product_revision_id' => $processTemplate->product_revision_id,
                 'is_active' => (bool) $processTemplate->is_active,
                 'preferred_batch_quantity' => $processTemplate->preferred_batch_quantity,
                 'min_batch_quantity' => $processTemplate->min_batch_quantity,
@@ -256,6 +271,85 @@ class ProcessTemplateManagementController extends Controller
 
         return redirect()->route('admin.product-types.process-templates.index', $productType)
             ->with('success', 'Process template updated successfully.');
+    }
+
+    public function copy(ProductType $productType, ProcessTemplate $processTemplate)
+    {
+        if ($processTemplate->product_type_id !== $productType->id) {
+            abort(404);
+        }
+
+        $copy = DB::transaction(function () use ($productType, $processTemplate) {
+            $processTemplate->load([
+                'qualityCheckTemplates',
+                'steps',
+                'bomItems',
+                'checklistItems',
+                'dependencies',
+            ]);
+
+            $latestVersion = $productType->processTemplates()->max('version') ?? 0;
+            $newTemplate = $processTemplate->replicate([
+                'version',
+                'created_at',
+                'updated_at',
+                'deleted_at',
+                'deleted_by_id',
+            ]);
+            $newTemplate->name = $processTemplate->name.' copy';
+            $newTemplate->version = $latestVersion + 1;
+            $newTemplate->save();
+
+            $qualityMap = [];
+            foreach ($processTemplate->qualityCheckTemplates as $qualityTemplate) {
+                $newQuality = $qualityTemplate->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+                $newQuality->process_template_id = $newTemplate->id;
+                $newQuality->save();
+                $qualityMap[$qualityTemplate->id] = $newQuality->id;
+            }
+
+            $stepMap = [];
+            foreach ($processTemplate->steps as $step) {
+                $newStep = $step->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+                $newStep->process_template_id = $newTemplate->id;
+                if ($newStep->quality_check_template_id && isset($qualityMap[$newStep->quality_check_template_id])) {
+                    $newStep->quality_check_template_id = $qualityMap[$newStep->quality_check_template_id];
+                }
+                $newStep->save();
+                $stepMap[$step->id] = $newStep->id;
+            }
+
+            foreach ($processTemplate->bomItems as $item) {
+                $newItem = $item->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+                $newItem->process_template_id = $newTemplate->id;
+                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? null) : null;
+                $newItem->save();
+            }
+
+            foreach ($processTemplate->checklistItems as $item) {
+                $newItem = $item->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+                $newItem->process_template_id = $newTemplate->id;
+                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? null) : null;
+                $newItem->save();
+            }
+
+            foreach ($processTemplate->dependencies as $dependency) {
+                if (! isset($stepMap[$dependency->predecessor_step_id], $stepMap[$dependency->successor_step_id])) {
+                    continue;
+                }
+
+                $newDependency = $dependency->replicate(['created_at', 'updated_at']);
+                $newDependency->process_template_id = $newTemplate->id;
+                $newDependency->predecessor_step_id = $stepMap[$dependency->predecessor_step_id];
+                $newDependency->successor_step_id = $stepMap[$dependency->successor_step_id];
+                $newDependency->save();
+            }
+
+            return $newTemplate;
+        });
+
+        return redirect()->route('admin.product-types.process-templates.edit', [$productType, $copy])
+            ->with('success', __('Process template copied. Review the variant before using it in production.'));
     }
 
     /**
@@ -377,6 +471,35 @@ class ProcessTemplateManagementController extends Controller
         $data['is_default_variant'] = $data['variant_group'] !== null && $request->boolean('is_default_variant');
 
         return $data;
+    }
+
+    private function activeRevisionOptions(ProductType $productType)
+    {
+        return ProductRevision::where('product_type_id', $productType->id)
+            ->where('lifecycle_status', RevisionLifecycle::Released->value)
+            ->orderBy('revision_code')
+            ->get(['id', 'revision_code', 'lifecycle_status'])
+            ->map(fn ($revision) => [
+                'id' => $revision->id,
+                'revision_code' => $revision->revision_code,
+                'lifecycle_status' => $revision->lifecycle_status?->value,
+            ]);
+    }
+
+    private function assignableRevisionOptions(ProductType $productType)
+    {
+        return ProductRevision::where('product_type_id', $productType->id)
+            ->whereIn('lifecycle_status', [
+                RevisionLifecycle::Draft->value,
+                RevisionLifecycle::Released->value,
+            ])
+            ->orderBy('revision_code')
+            ->get(['id', 'revision_code', 'lifecycle_status'])
+            ->map(fn ($revision) => [
+                'id' => $revision->id,
+                'revision_code' => $revision->revision_code,
+                'lifecycle_status' => $revision->lifecycle_status?->value,
+            ]);
     }
 
     /**

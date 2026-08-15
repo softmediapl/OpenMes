@@ -17,6 +17,7 @@ class ProcessTemplate extends Model
 
     protected $fillable = [
         'product_type_id',
+        'product_revision_id',
         'name',
         'version',
         'ideal_cycle_minutes',
@@ -36,6 +37,7 @@ class ProcessTemplate extends Model
         return [
             'is_active' => 'boolean',
             'version' => 'integer',
+            'product_revision_id' => 'integer',
             'ideal_cycle_minutes' => 'decimal:4',
             'preferred_batch_quantity' => 'decimal:4',
             'min_batch_quantity' => 'decimal:4',
@@ -80,6 +82,11 @@ class ProcessTemplate extends Model
     public function productType(): BelongsTo
     {
         return $this->belongsTo(ProductType::class);
+    }
+
+    public function productRevision(): BelongsTo
+    {
+        return $this->belongsTo(ProductRevision::class);
     }
 
     /**

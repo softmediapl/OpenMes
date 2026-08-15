@@ -14,6 +14,7 @@ class ProcessTemplateFactory extends Factory
     {
         return [
             'product_type_id' => ProductType::factory(),
+            'product_revision_id' => null,
             'name' => fake()->words(3, true),
             'version' => 1,
             'is_active' => true,

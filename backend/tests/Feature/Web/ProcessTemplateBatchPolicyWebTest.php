@@ -3,6 +3,7 @@
 namespace Tests\Feature\Web;
 
 use App\Models\ProcessTemplate;
+use App\Models\ProductRevision;
 use App\Models\ProductType;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -26,10 +27,12 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
     public function test_admin_can_configure_a_batch_policy(): void
     {
         $productType = ProductType::factory()->create();
+        $revision = ProductRevision::factory()->create(['product_type_id' => $productType->id]);
 
         $this->actingAs($this->admin)
             ->post("/admin/product-types/{$productType->id}/process-templates", [
                 'name' => 'Rack flow',
+                'product_revision_id' => $revision->id,
                 'is_active' => true,
                 'preferred_batch_quantity' => 200,
                 'min_batch_quantity' => 100,
@@ -42,6 +45,7 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
 
         $this->assertDatabaseHas('process_templates', [
             'product_type_id' => $productType->id,
+            'product_revision_id' => $revision->id,
             'preferred_batch_quantity' => 200,
             'min_batch_quantity' => 100,
             'max_batch_quantity' => 200,
@@ -49,6 +53,44 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
             'allow_partial_final_batch' => true,
             'pallet_capacity_quantity' => 4800,
         ]);
+    }
+
+    public function test_template_revision_must_belong_to_the_product_type(): void
+    {
+        $productType = ProductType::factory()->create();
+        $otherRevision = ProductRevision::factory()->create();
+
+        $this->actingAs($this->admin)
+            ->post("/admin/product-types/{$productType->id}/process-templates", [
+                'name' => 'Wrong revision',
+                'product_revision_id' => $otherRevision->id,
+                'is_active' => true,
+            ])
+            ->assertSessionHasErrors('product_revision_id');
+    }
+
+    public function test_admin_can_copy_a_process_template_variant(): void
+    {
+        $revision = ProductRevision::factory()->create();
+        $template = ProcessTemplate::factory()->withSteps(2)->create([
+            'product_type_id' => $revision->product_type_id,
+            'product_revision_id' => $revision->id,
+            'name' => 'Blue stars',
+            'version' => 1,
+        ]);
+
+        \App\Models\BomItem::factory()->create(['process_template_id' => $template->id]);
+
+        $this->actingAs($this->admin)
+            ->post("/admin/product-types/{$template->product_type_id}/process-templates/{$template->id}/copy")
+            ->assertRedirect();
+
+        $copy = ProcessTemplate::where('name', 'Blue stars copy')->firstOrFail();
+
+        $this->assertSame($revision->id, $copy->product_revision_id);
+        $this->assertSame(2, $copy->version);
+        $this->assertSame(2, $copy->steps()->count());
+        $this->assertSame(1, $copy->bomItems()->count());
     }
 
     public function test_invalid_policy_returns_field_errors(): void

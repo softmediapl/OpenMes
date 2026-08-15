@@ -15,15 +15,9 @@ export function lifecycleLabel(status) {
     }[status] ?? status;
 }
 
-/** Label for a process-template option: "Name v3 (inactive)". */
-function templateLabel(t) {
-    const inactive = t.is_active ? '' : ` (${__('inactive')})`;
-    return `${t.name} v${t.version}${inactive}`;
-}
-
 // Editable fields for create/edit. On edit, product type is fixed (not shown as
 // editable) — pass `lockProductType` to render it read-only-ish via a single option.
-export function productRevisionFields(productTypes = [], processTemplates = [], { lockProductType = false } = {}) {
+export function productRevisionFields(productTypes = [], { lockProductType = false } = {}) {
     return [
         {
             name: 'product_type_id', label: __('Product Type'), type: 'select', required: true,
@@ -33,14 +27,6 @@ export function productRevisionFields(productTypes = [], processTemplates = [], 
         },
         { name: 'revision_code', label: __('Revision Code'), required: true, help: __('Letters, digits, dot or hyphen — e.g. A, 01, C.2.') },
         { name: 'description', label: __('Description') },
-        {
-            name: 'process_template_id', label: __('Process Template (released config)'), type: 'select',
-            options: [
-                { value: '', label: __('— None —') },
-                ...processTemplates.map((t) => ({ value: String(t.id), label: templateLabel(t) })),
-            ],
-            help: __('The process + BOM this revision releases. Required before the revision can be released.'),
-        },
         { name: 'change_reason', label: __('Change Reason') },
         { name: 'external_ref', label: __('External Reference') },
     ];

@@ -3,8 +3,10 @@
 namespace App\Http\Requests\WorkOrder;
 
 use App\Enums\ChangeEffectivePoint;
+use App\Models\ProcessTemplate;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 /**
  * Raising a production-change request (#182).
@@ -63,6 +65,48 @@ class StoreChangeRequestRequest extends FormRequest
             'produced_disposition' => ['nullable', 'string', 'max:2000'],
             'material_disposition' => ['nullable', 'string', 'max:2000'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $workOrder = $this->route('workOrder');
+            $proposed = (array) $this->input('proposed', []);
+            $this->validateRevisionAndTemplates($validator, $workOrder, $proposed);
+        });
+    }
+
+    private function validateRevisionAndTemplates(Validator $validator, $workOrder, array $proposed): void
+    {
+        if (! $workOrder) {
+            return;
+        }
+
+        $revisionId = array_key_exists('product_revision_id', $proposed)
+            ? $proposed['product_revision_id']
+            : $workOrder->product_revision_id;
+        $templateIds = array_filter((array) ($proposed['bom_template_ids'] ?? []), fn ($id) => $id !== null && $id !== '');
+
+        if (array_key_exists('product_revision_id', $proposed)
+            && $revisionId
+            && ! $workOrder->productType?->revisions()->whereKey($revisionId)->exists()) {
+            $validator->errors()->add('proposed.product_revision_id', __('The selected revision must belong to the work order product type.'));
+        }
+
+        if ($templateIds === []) {
+            return;
+        }
+
+        $query = ProcessTemplate::whereIn('id', $templateIds)
+            ->where('product_type_id', $workOrder->product_type_id);
+
+        if ($revisionId) {
+            $query->where('product_revision_id', $revisionId);
+        }
+
+        if ($query->count() !== count(array_unique($templateIds))) {
+            $validator->errors()->add('proposed.bom_template_ids', __('Selected process templates must belong to the proposed product revision.'));
+        }
     }
 
     public function messages(): array

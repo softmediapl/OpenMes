@@ -28,6 +28,7 @@ class WorkOrderService
             $processSnapshot = $this->buildProcessSnapshot(
                 $data['product_type_id'] ?? null,
                 $data['bom_template_ids'] ?? [],
+                $data['product_revision_id'] ?? null,
             );
 
             // Embed an immutable revision block (#180) so the order always shows
@@ -92,7 +93,11 @@ class WorkOrderService
             'revision_id' => $revision->id,
             'revision_code' => $revision->revision_code,
             'lifecycle_at_release' => $revision->lifecycle_status?->value,
-            'process_template_id' => $revision->process_template_id,
+            'process_template_ids' => $revision->processTemplates()
+                ->where('is_active', true)
+                ->pluck('id')
+                ->values()
+                ->all(),
             'released_at' => $revision->released_at?->toIso8601String(),
             'snapshotted_at' => now()->toIso8601String(),
         ];
@@ -177,9 +182,9 @@ class WorkOrderService
      *
      * @throws \Exception
      */
-    public function updateBomSelection(WorkOrder $workOrder, array $templateIds): WorkOrder
+    public function updateBomSelection(WorkOrder $workOrder, array $templateIds, bool $refreshFrozenBlocks = false): WorkOrder
     {
-        return DB::transaction(function () use ($workOrder, $templateIds) {
+        return DB::transaction(function () use ($workOrder, $templateIds, $refreshFrozenBlocks) {
             // Serialize against createBatch() on this work order: hold the row lock
             // while checking for batches so a concurrent batch can't slip in between
             // the check and the snapshot rewrite (the snapshot is the frozen recipe
@@ -190,18 +195,25 @@ class WorkOrderService
                 throw new \Exception('Cannot change BOMs after production has started.');
             }
 
-            $snapshot = $this->buildProcessSnapshot($workOrder->product_type_id, $templateIds);
+            $workOrder->refresh();
+            $snapshot = $this->buildProcessSnapshot($workOrder->product_type_id, $templateIds, $workOrder->product_revision_id);
 
-            // Preserve the immutable frozen blocks verbatim. The revision (#180) and
-            // engineering documents (#179) were snapshotted at work-order creation;
-            // BOM reselection rebuilds only the BOM/structure and must NOT re-query
-            // those from (possibly newer) live records, or the "immutable snapshot"
-            // guarantee would break. Copy them across unchanged.
-            $existing = $workOrder->process_snapshot ?? [];
-            foreach (['revision', 'engineering_documents', 'engineering_snapshotted_at'] as $key) {
-                if (array_key_exists($key, $existing)) {
-                    $snapshot ??= [];
-                    $snapshot[$key] = $existing[$key];
+            if ($refreshFrozenBlocks) {
+                $snapshot = $this->attachRevisionSnapshot($snapshot, $workOrder->product_revision_id);
+                $snapshot = $this->attachEngineeringSnapshot($snapshot, [
+                    'product_revision_id' => $workOrder->product_revision_id,
+                    'product_type_id' => $workOrder->product_type_id,
+                ]);
+            } else {
+                // Preserve immutable frozen blocks verbatim. A plain BOM reselection
+                // rebuilds only the BOM/structure and must not re-query current
+                // revision/documents, or historical snapshots would drift.
+                $existing = $workOrder->process_snapshot ?? [];
+                foreach (['revision', 'engineering_documents', 'engineering_snapshotted_at'] as $key) {
+                    if (array_key_exists($key, $existing)) {
+                        $snapshot ??= [];
+                        $snapshot[$key] = $existing[$key];
+                    }
                 }
             }
 
@@ -225,9 +237,9 @@ class WorkOrderService
      * @param  array<int, int|string>  $templateIds  Explicit BOM (process template) selection; empty = legacy auto-pick.
      * @return array<string, mixed>|null Null when no template applies (order without a BOM).
      */
-    public function buildProcessSnapshot(?int $productTypeId, array $templateIds = []): ?array
+    public function buildProcessSnapshot(?int $productTypeId, array $templateIds = [], ?int $revisionId = null): ?array
     {
-        $templates = $this->resolveBomTemplates($productTypeId, $templateIds);
+        $templates = $this->resolveBomTemplates($productTypeId, $templateIds, $revisionId);
 
         if ($templates->isEmpty()) {
             return null;
@@ -266,13 +278,14 @@ class WorkOrderService
      *
      * @throws \InvalidArgumentException When a selected id is unknown or belongs to another product type.
      */
-    protected function resolveBomTemplates(?int $productTypeId, array $templateIds): EloquentCollection
+    protected function resolveBomTemplates(?int $productTypeId, array $templateIds, ?int $revisionId = null): EloquentCollection
     {
         $ids = $this->normalizeIds($templateIds);
 
         if (! empty($ids)) {
             $found = ProcessTemplate::whereIn('id', $ids)
                 ->where('product_type_id', $productTypeId)
+                ->when($revisionId, fn ($query) => $query->where('product_revision_id', $revisionId))
                 ->get()
                 ->keyBy('id');
 
@@ -281,7 +294,7 @@ class WorkOrderService
             // but this is a public service boundary (non-HTTP callers, deletion races).
             if ($found->count() !== count($ids)) {
                 throw new \InvalidArgumentException(
-                    'Every selected BOM must exist and belong to the work order product type.'
+                    'Every selected process template must exist and belong to the work order product type and revision.'
                 );
             }
 
@@ -295,10 +308,24 @@ class WorkOrderService
             return new EloquentCollection;
         }
 
-        $active = ProcessTemplate::where('product_type_id', $productTypeId)
+        $query = ProcessTemplate::where('product_type_id', $productTypeId)
             ->where('is_active', true)
-            ->orderBy('version', 'desc')
-            ->first();
+            ->when($revisionId, fn ($q) => $q->where('product_revision_id', $revisionId))
+            ->orderBy('version', 'desc');
+
+        if ($revisionId) {
+            $activeTemplates = $query->get();
+
+            if ($activeTemplates->count() > 1) {
+                throw new \InvalidArgumentException(
+                    'Select a process template for this revision; more than one active variant is available.'
+                );
+            }
+
+            return new EloquentCollection($activeTemplates->all());
+        }
+
+        $active = $query->first();
 
         return new EloquentCollection($active ? [$active] : []);
     }
@@ -497,7 +524,7 @@ class WorkOrderService
      */
     public function rebuildProcessSnapshot(?int $productTypeId, array $templateIds, ?int $revisionId): ?array
     {
-        $snapshot = $this->buildProcessSnapshot($productTypeId, $templateIds);
+        $snapshot = $this->buildProcessSnapshot($productTypeId, $templateIds, $revisionId);
 
         // No applicable BOM means there is no process structure to move onto. Report
         // that as null so the caller keeps the current configuration: attaching the

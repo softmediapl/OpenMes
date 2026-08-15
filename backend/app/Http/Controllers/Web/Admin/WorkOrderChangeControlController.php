@@ -207,8 +207,16 @@ class WorkOrderChangeControlController extends Controller
                 ->orderBy('revision_code')
                 ->get(['id', 'revision_code', 'lifecycle_status']),
             'bomTemplates' => ProcessTemplate::where('product_type_id', $workOrder->product_type_id)
+                ->with('productRevision:id,revision_code')
                 ->orderBy('name')
-                ->get(['id', 'name', 'version']),
+                ->get(['id', 'name', 'version', 'product_revision_id'])
+                ->map(fn ($template) => [
+                    'id' => $template->id,
+                    'name' => $template->name,
+                    'version' => $template->version,
+                    'product_revision_id' => $template->product_revision_id,
+                    'revision_code' => $template->productRevision?->revision_code,
+                ]),
             // What each proposable field is set to right now, so the form can seed a
             // field the moment it is ticked. A ticked field left at its current value
             // is still a deliberate proposal, and has to submit as one.

@@ -44,6 +44,11 @@ class ProductType extends Model
         return $this->hasMany(ProcessTemplate::class);
     }
 
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(ProductRevision::class);
+    }
+
     /**
      * Get the active process template for this product type.
      */

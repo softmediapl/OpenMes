@@ -549,6 +549,7 @@ Route::middleware('auth')->group(function () {
             Route::get('/{process_template}/edit', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'edit'])->name('edit');
             Route::put('/{process_template}', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'update'])->name('update');
             Route::delete('/{process_template}', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'destroy'])->name('destroy');
+            Route::post('/{process_template}/copy', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'copy'])->name('copy');
             Route::post('/{process_template}/toggle-active', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'toggleActive'])->name('toggle-active');
 
             // Template steps management

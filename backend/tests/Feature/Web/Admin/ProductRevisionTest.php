@@ -116,24 +116,15 @@ class ProductRevisionTest extends TestCase
         ])->assertSessionHasNoErrors();
     }
 
-    public function test_process_template_must_belong_to_the_product_type(): void
-    {
-        $type = ProductType::factory()->create();
-        $otherType = ProductType::factory()->create();
-        $foreignTemplate = ProcessTemplate::factory()->create(['product_type_id' => $otherType->id]);
-
-        $this->actingAs($this->admin)->post(route('admin.product-revisions.store'), [
-            'product_type_id' => $type->id,
-            'revision_code' => 'A',
-            'process_template_id' => $foreignTemplate->id,
-        ])->assertSessionHasErrors('process_template_id');
-    }
-
     // ── Lifecycle ──────────────────────────────────────────────────
 
-    public function test_release_requires_a_process_template(): void
+    public function test_release_requires_an_active_process_template_assigned_to_the_revision(): void
     {
         $rev = ProductRevision::factory()->create();
+        ProcessTemplate::factory()->inactive()->create([
+            'product_type_id' => $rev->product_type_id,
+            'product_revision_id' => $rev->id,
+        ]);
 
         $this->actingAs($this->admin)
             ->post(route('admin.product-revisions.release', $rev))
@@ -145,10 +136,12 @@ class ProductRevisionTest extends TestCase
     public function test_admin_can_release_a_draft_with_a_template(): void
     {
         $type = ProductType::factory()->create();
-        $template = ProcessTemplate::factory()->create(['product_type_id' => $type->id]);
         $rev = ProductRevision::factory()->create([
             'product_type_id' => $type->id,
-            'process_template_id' => $template->id,
+        ]);
+        ProcessTemplate::factory()->create([
+            'product_type_id' => $type->id,
+            'product_revision_id' => $rev->id,
         ]);
 
         $this->actingAs($this->admin)->post(route('admin.product-revisions.release', $rev));

@@ -57,7 +57,7 @@ class ShapeRegistry
         ],
         'product_revisions' => [
             'table' => 'product_revisions',
-            'columns' => ['id', 'product_type_id', 'revision_code', 'description', 'lifecycle_status', 'process_template_id', 'change_reason', 'external_ref', 'effective_from', 'effective_to', 'released_at', 'obsolete_at', 'created_at', 'updated_at'],
+            'columns' => ['id', 'product_type_id', 'revision_code', 'description', 'lifecycle_status', 'change_reason', 'external_ref', 'effective_from', 'effective_to', 'released_at', 'obsolete_at', 'created_at', 'updated_at'],
         ],
         'cost_sources' => [
             'table' => 'cost_sources',

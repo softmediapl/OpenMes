@@ -6,10 +6,11 @@ import BatchPolicyFields from './BatchPolicyFields';
 import PackagingPolicyFields from './PackagingPolicyFields';
 
 export default function ProcessTemplatesEdit() {
-    const { productType, processTemplate } = usePage().props;
+    const { productType, processTemplate, revisions = [] } = usePage().props;
 
     const form = useForm({
         name: processTemplate.name ?? '',
+        product_revision_id: processTemplate.product_revision_id != null ? String(processTemplate.product_revision_id) : '',
         is_active: !!processTemplate.is_active,
         preferred_batch_quantity: processTemplate.preferred_batch_quantity ?? '',
         min_batch_quantity: processTemplate.min_batch_quantity ?? '',
@@ -65,6 +66,25 @@ export default function ProcessTemplatesEdit() {
                             />
                             <p className="text-sm text-om-muted mt-1">{__("Descriptive name for this manufacturing process")}</p>
                             {errors.name && <p className="text-om-blocked text-sm mt-1">{errors.name}</p>}
+                        </div>
+
+                        <div className="mb-6">
+                            <label htmlFor="product_revision_id" className="form-label">{__("Product Revision")}</label>
+                            <select
+                                id="product_revision_id"
+                                value={data.product_revision_id}
+                                onChange={(e) => setData('product_revision_id', e.target.value)}
+                                className={`form-input w-full${errors.product_revision_id ? ' border-om-blocked' : ''}`}
+                            >
+                                <option value="">{__("— None —")}</option>
+                                {revisions.map((revision) => (
+                                    <option key={revision.id} value={revision.id}>
+                                        {revision.revision_code} ({revision.lifecycle_status})
+                                    </option>
+                                ))}
+                            </select>
+                            <p className="text-sm text-om-muted mt-1">{__("Assign the process+BOM variant to the product revision it applies to.")}</p>
+                            {errors.product_revision_id && <p className="text-om-blocked text-sm mt-1">{errors.product_revision_id}</p>}
                         </div>
 
                         <div className="mb-6">

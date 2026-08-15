@@ -5,10 +5,9 @@ import { LIFECYCLE_BADGE_STYLES, lifecycleLabel } from './fields';
 import { __ } from '../../../lib/i18n';
 
 export default function ProductRevisionsIndex() {
-    const { productTypes = [], processTemplates = [], counts = {} } = usePage().props;
+    const { productTypes = [], counts = {} } = usePage().props;
 
     const typeById = Object.fromEntries(productTypes.map((p) => [String(p.id), p]));
-    const templateById = Object.fromEntries(processTemplates.map((t) => [String(t.id), t]));
 
     const columns = [
         {
@@ -28,14 +27,11 @@ export default function ProductRevisionsIndex() {
             ),
         },
         {
-            key: 'process_template_id', label: __('Process Template'), className: 'text-om-muted',
-            render: (r) => {
-                const t = templateById[String(r.process_template_id)];
-                return t ? `${t.name} v${t.version}` : '—';
-            },
+            key: 'process_templates', label: __('Process templates'), align: 'right',
+            render: (r) => counts[r.id]?.process_templates ?? 0,
         },
         { key: 'description', label: __('Description'), className: 'text-om-muted', render: (r) => r.description ?? '—' },
-        { key: 'work_orders', label: __('Work orders'), align: 'right', render: (r) => counts[r.id] ?? 0 },
+        { key: 'work_orders', label: __('Work orders'), align: 'right', render: (r) => counts[r.id]?.work_orders ?? 0 },
     ];
 
     const actions = (r) => {

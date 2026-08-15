@@ -219,6 +219,11 @@ export default function ProductTypeShow({
                                                 <p className="text-xs text-om-muted">
                                                     {__("Version")} {template.version} &bull; {__(":count steps", { count: template.steps?.length ?? 0 })}
                                                 </p>
+                                                <p className="text-xs text-om-muted mt-1">
+                                                    {template.product_revision
+                                                        ? __("Revision :code", { code: template.product_revision.revision_code })
+                                                        : __("No revision assigned")}
+                                                </p>
                                             </div>
                                             <svg className="w-5 h-5 text-om-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

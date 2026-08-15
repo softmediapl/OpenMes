@@ -3,8 +3,10 @@
 namespace App\Http\Requests\Web\Admin;
 
 use App\Http\Requests\Concerns\MergesCustomFieldRules;
+use App\Models\ProcessTemplate;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreWorkOrderRequest extends FormRequest
 {
@@ -54,5 +56,32 @@ class StoreWorkOrderRequest extends FormRequest
             'due_date' => ['nullable', 'date'],
             'description' => ['nullable', 'string', 'max:2000'],
         ], $this->customFieldRules());
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $this->validateBomRevisionMatch($validator);
+        });
+    }
+
+    private function validateBomRevisionMatch(Validator $validator): void
+    {
+        $revisionId = $this->input('product_revision_id');
+        $templateIds = array_filter((array) $this->input('bom_template_ids', []), fn ($id) => $id !== null && $id !== '');
+
+        if (! $revisionId || $templateIds === []) {
+            return;
+        }
+
+        $mismatched = ProcessTemplate::whereIn('id', $templateIds)
+            ->where(fn ($query) => $query
+                ->where('product_revision_id', '!=', $revisionId)
+                ->orWhereNull('product_revision_id'))
+            ->exists();
+
+        if ($mismatched) {
+            $validator->errors()->add('bom_template_ids', __('Selected process templates must belong to the selected product revision.'));
+        }
     }
 }

@@ -5,7 +5,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import { __ } from '../../../lib/i18n';
 
 export default function ProcessTemplatesIndex() {
-    const { productType, templates = [] } = usePage().props;
+    const { productType, templates = [], activeRevisions = [], revisionFilter = '' } = usePage().props;
 
     const [toDelete, setToDelete] = useState(null);
 
@@ -15,6 +15,23 @@ export default function ProcessTemplatesIndex() {
             {},
             { preserveScroll: true },
         );
+    };
+
+    const handleRevisionFilter = (revisionId) => {
+        const url = revisionId
+            ? `/admin/product-types/${productType.id}/process-templates?revision_id=${revisionId}`
+            : `/admin/product-types/${productType.id}/process-templates`;
+        router.visit(url, { preserveScroll: true, preserveState: true });
+    };
+
+    const handleCopy = (template) => {
+        if (confirm(__('Copy process template ":name"?', { name: `${template.name} v${template.version}` }))) {
+            router.post(
+                `/admin/product-types/${productType.id}/process-templates/${template.id}/copy`,
+                {},
+                { preserveScroll: true },
+            );
+        }
     };
 
     const confirmDestroy = () => {
@@ -43,7 +60,7 @@ export default function ProcessTemplatesIndex() {
                         {__('Back to :name', { name: productType.name })}
                     </Link>
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                         <div>
                             <h1 className="text-[26px] font-semibold tracking-[-0.02em] text-om-ink">
                                 {__('Process Templates')}
@@ -61,6 +78,22 @@ export default function ProcessTemplatesIndex() {
                             </svg>
                             {__('Create Template')}
                         </Button>
+                    </div>
+
+                    <div className="mt-4 max-w-xs">
+                        <label className="form-label">{__('Released revision filter')}</label>
+                        <select
+                            value={revisionFilter}
+                            onChange={(e) => handleRevisionFilter(e.target.value)}
+                            className="form-input w-full"
+                        >
+                            <option value="">{__('All templates')}</option>
+                            {activeRevisions.map((revision) => (
+                                <option key={revision.id} value={revision.id}>
+                                    {revision.revision_code}
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
@@ -82,6 +115,11 @@ export default function ProcessTemplatesIndex() {
                                             )}
                                             <span className="px-3 py-1 bg-om-chip text-om-accent rounded-full text-sm font-medium">
                                                 v{template.version}
+                                            </span>
+                                            <span className="px-3 py-1 bg-om-panel border border-om-line text-om-muted rounded-full text-sm font-medium">
+                                                {template.product_revision
+                                                    ? __('Revision :code', { code: template.product_revision.revision_code })
+                                                    : __('No revision')}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-4 text-sm text-om-muted">
@@ -110,6 +148,16 @@ export default function ProcessTemplatesIndex() {
                                             </svg>
                                             {__('View Steps')}
                                         </Button>
+
+                                        <IconButton
+                                            onClick={() => handleCopy(template)}
+                                            title={__('Copy')}
+                                            aria-label={__('Copy')}
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                            </svg>
+                                        </IconButton>
 
                                         <IconButton
                                             onClick={() =>
