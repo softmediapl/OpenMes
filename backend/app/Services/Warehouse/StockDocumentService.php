@@ -127,8 +127,10 @@ class StockDocumentService
                 ]);
             }
 
-            foreach ($document->lines as $line) {
-                $this->applyLine($document, $line, reverse: false, user: $user);
+            if ($document->affects_inventory) {
+                foreach ($document->lines as $line) {
+                    $this->applyLine($document, $line, reverse: false, user: $user);
+                }
             }
 
             $document->update([
@@ -164,7 +166,7 @@ class StockDocumentService
 
             $document = $locked;
 
-            if ($document->isPosted()) {
+            if ($document->isPosted() && $document->affects_inventory) {
                 $document->load('lines');
 
                 foreach ($document->lines as $line) {

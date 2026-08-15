@@ -60,6 +60,7 @@ class StockDocument extends Model
         'document_no',
         'type',
         'status',
+        'affects_inventory',
         'warehouse_id',
         'work_order_id',
         'batch_id',
@@ -74,11 +75,13 @@ class StockDocument extends Model
 
     protected $attributes = [
         'status' => self::STATUS_DRAFT,
+        'affects_inventory' => true,
     ];
 
     protected function casts(): array
     {
         return [
+            'affects_inventory' => 'boolean',
             'posted_at' => 'datetime',
             'erp_synced_at' => 'datetime',
         ];

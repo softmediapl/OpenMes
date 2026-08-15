@@ -93,6 +93,34 @@ class StockDocumentServiceTest extends TestCase
             ->value('quantity'));
     }
 
+    public function test_posting_a_document_for_already_booked_consumption_does_not_move_stock_again(): void
+    {
+        $warehouse = $this->rawWarehouse();
+        $material = Material::factory()->create(['stock_quantity' => 380]);
+
+        WarehouseStock::factory()->create([
+            'warehouse_id' => $warehouse->id,
+            'material_id' => $material->id,
+            'quantity' => 380,
+        ]);
+
+        $document = $this->service->createDraft([
+            'type' => StockDocument::TYPE_MATERIAL_ISSUE,
+            'affects_inventory' => false,
+            'warehouse_id' => $warehouse->id,
+            'lines' => [['material_id' => $material->id, 'quantity' => 120]],
+        ]);
+
+        $this->service->post($document);
+        $this->service->cancel($document->fresh());
+
+        $this->assertEquals(380, (float) $material->fresh()->stock_quantity);
+        $this->assertEquals(380, (float) WarehouseStock::where('warehouse_id', $warehouse->id)
+            ->where('material_id', $material->id)
+            ->value('quantity'));
+        $this->assertSame(0, StockMovement::where('source_id', $document->id)->count());
+    }
+
     public function test_posting_a_lot_line_keeps_the_lot_and_the_warehouse_total_in_step(): void
     {
         $warehouse = $this->rawWarehouse();

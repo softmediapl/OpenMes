@@ -293,7 +293,7 @@ class ShapeRegistry
         // them joined to material / product names anyway.
         'stock_documents' => [
             'table' => 'stock_documents',
-            'columns' => ['id', 'document_no', 'type', 'status', 'warehouse_id', 'work_order_id', 'notes', 'erp_reference', 'erp_synced_at', 'posted_at', 'created_at', 'updated_at'],
+            'columns' => ['id', 'document_no', 'type', 'status', 'affects_inventory', 'warehouse_id', 'work_order_id', 'notes', 'erp_reference', 'erp_synced_at', 'posted_at', 'created_at', 'updated_at'],
         ],
     ];
 

@@ -72,6 +72,9 @@ export default function StockDocumentShow({ document: doc }) {
                 <Field label={__('Direction')}>
                     {doc.direction === 'in' ? __('Into warehouse') : __('Out of warehouse')}
                 </Field>
+                <Field label={__('Inventory effect')}>
+                    {doc.affects_inventory ? __('Moves inventory') : __('Already booked by production')}
+                </Field>
                 <Field label={__('Created')}>{dt(doc.created_at)}</Field>
                 <Field label={__('Created By')}>{doc.created_by}</Field>
                 <Field label={__('Posted')}>{dt(doc.posted_at)}</Field>

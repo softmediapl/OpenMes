@@ -75,6 +75,10 @@ class WorkOrderStockDocumentService
 
         return $this->documents->createDraft([
             'type' => StockDocument::TYPE_MATERIAL_ISSUE,
+            // MaterialAllocationService already books the physical consumption.
+            // This document is the auditable/ERP counterpart and must not remove
+            // the same stock a second time when a warehouse keeper posts it.
+            'affects_inventory' => false,
             'work_order_id' => $workOrder->id,
             'notes' => __('Material released for work order :order', ['order' => $workOrder->order_no]),
             'lines' => $lines,

@@ -76,7 +76,7 @@ class StockDocumentController extends Controller
         return Inertia::render('admin/stock-documents/Show', [
             'document' => [
                 ...$stockDocument->only(
-                    'id', 'document_no', 'type', 'status', 'notes', 'erp_reference'
+                    'id', 'document_no', 'type', 'status', 'affects_inventory', 'notes', 'erp_reference'
                 ),
                 'direction' => $stockDocument->direction() > 0 ? 'in' : 'out',
                 'warehouse' => $stockDocument->warehouse?->only('id', 'code', 'name', 'kind'),

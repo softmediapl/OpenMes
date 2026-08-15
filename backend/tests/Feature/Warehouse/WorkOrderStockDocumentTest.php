@@ -74,6 +74,7 @@ class WorkOrderStockDocumentTest extends TestCase
         // 0.5 kg per unit + 10% scrap, times the 80 produced.
         $this->assertEquals(44.0, (float) $issue->lines->first()->quantity);
         $this->assertTrue($issue->isDraft());
+        $this->assertFalse($issue->affects_inventory);
 
         $receipt = StockDocument::where('work_order_id', $workOrder->id)
             ->where('type', StockDocument::TYPE_PRODUCT_RECEIPT)
@@ -82,6 +83,7 @@ class WorkOrderStockDocumentTest extends TestCase
 
         $this->assertEquals(80.0, (float) $receipt->lines->first()->quantity);
         $this->assertSame($workOrder->product_type_id, $receipt->lines->first()->product_type_id);
+        $this->assertTrue($receipt->affects_inventory);
         // Drafts only: generation must never move stock on its own.
         $this->assertTrue($receipt->isDraft());
     }

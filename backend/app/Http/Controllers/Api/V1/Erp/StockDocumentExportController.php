@@ -96,6 +96,7 @@ class StockDocumentExportController extends Controller
             'document_no' => $doc->document_no,
             'type' => $doc->type,
             'status' => $doc->status,
+            'affects_inventory' => $doc->affects_inventory,
             'direction' => $doc->direction() > 0 ? 'in' : 'out',
             'warehouse_code' => $doc->warehouse?->code,
             'warehouse_erp_code' => $doc->warehouse?->erp_code,
