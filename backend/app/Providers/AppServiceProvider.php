@@ -123,6 +123,17 @@ class AppServiceProvider extends ServiceProvider
             \App\Listeners\GenerateWorkOrderStockDocuments::class,
         );
 
+        // Keep rolling schedule forecasts current after execution changes. The
+        // queued job runs after commit, so it never projects partially saved data.
+        Event::listen(
+            \App\Events\BatchStep\StepStarted::class,
+            \App\Listeners\QueueWorkOrderForecastRefresh::class,
+        );
+        Event::listen(
+            \App\Events\BatchStep\StepCompleted::class,
+            \App\Listeners\QueueWorkOrderForecastRefresh::class,
+        );
+
         // Outgoing webhooks (#20): observe the source models so a status change /
         // creation fans out to subscribed endpoints. The dispatcher is
         // best-effort and never breaks the underlying write.

@@ -19,3 +19,6 @@ Schedule::command('quality:fire-due-triggers')->everyMinute()->withoutOverlappin
 Schedule::command('quality:notify-overdue-actions')->dailyAt('07:00');
 // Keep time-based priority rules (hours-until-due) fresh as due dates approach.
 Schedule::command('priority:recalculate')->hourly()->withoutOverlapping();
+// Capture execution drift as well as calendar, staffing and maintenance changes.
+// The service deduplicates unchanged inputs at its configured refresh interval.
+Schedule::command('schedule:refresh-forecasts')->everyFiveMinutes()->withoutOverlapping();
