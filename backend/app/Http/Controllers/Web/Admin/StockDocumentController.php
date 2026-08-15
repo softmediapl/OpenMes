@@ -47,7 +47,7 @@ class StockDocumentController extends Controller
             'id', 'code', 'name', 'unit_of_measure', 'tracking_type', 'unit_price', 'price_currency',
         ])->each(fn (Material $material) => $material->setAttribute(
             'quantity_precision',
-            (int) ($unitPrecisions[$material->unit_of_measure] ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure)),
+            UnitOfMeasure::precisionForCode($material->unit_of_measure),
         ));
 
         return Inertia::render('admin/stock-documents/Create', [

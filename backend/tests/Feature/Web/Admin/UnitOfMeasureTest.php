@@ -24,20 +24,20 @@ class UnitOfMeasureTest extends TestCase
         $this->admin->assignRole('Admin');
     }
 
-    public function test_new_tenant_receives_standard_units_with_precision(): void
+    public function test_units_are_global_and_are_not_duplicated_for_new_tenants(): void
     {
+        $count = UnitOfMeasure::query()->count();
         $tenant = Tenant::create(['name' => 'Precision tenant']);
 
         $this->assertDatabaseHas('units_of_measure', [
-            'tenant_id' => $tenant->id,
             'code' => 'pcs',
             'quantity_precision' => 0,
         ]);
         $this->assertDatabaseHas('units_of_measure', [
-            'tenant_id' => $tenant->id,
             'code' => 'kg',
             'quantity_precision' => 4,
         ]);
+        $this->assertSame($count, UnitOfMeasure::query()->count());
     }
 
     public function test_admin_can_define_a_unit_and_assign_it_to_a_product(): void
@@ -63,6 +63,27 @@ class UnitOfMeasureTest extends TestCase
 
         $product = ProductType::query()->where('code', 'PACKED')->firstOrFail();
         $this->assertSame(0, $product->quantity_precision);
+    }
+
+    public function test_product_rejects_an_unconfigured_unit(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('admin.product-types.store'), [
+                'code' => 'UNKNOWN-UNIT',
+                'name' => 'Unknown unit product',
+                'unit_of_measure' => 'box',
+                'is_active' => true,
+            ])
+            ->assertSessionHasErrors(['unit_of_measure']);
+
+        $this->assertDatabaseMissing('product_types', ['code' => 'UNKNOWN-UNIT']);
+    }
+
+    public function test_precision_lookup_never_infers_an_unknown_unit(): void
+    {
+        $this->expectException(\RuntimeException::class);
+
+        UnitOfMeasure::precisionForCode('box');
     }
 
     public function test_used_unit_cannot_be_deleted(): void

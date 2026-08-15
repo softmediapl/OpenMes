@@ -4,10 +4,12 @@ import AppLayout from '../../../layouts/AppLayout';
 import ResourceForm from '../../../components/ResourceForm';
 import { materialLotFields } from './fields';
 import { quantityInputValue } from '../../../lib/operationQuantity';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 
 export default function MaterialLotEdit() {
     const { lot, materials = [], sources = [], statuses = [] } = usePage().props;
-    const precision = materials.find((material) => String(material.id) === String(lot.material_id))?.quantity_precision ?? 4;
+    const material = materials.find((candidate) => String(candidate.id) === String(lot.material_id));
+    const precision = assertQuantityPrecision(material?.quantity_precision, material?.unit_of_measure);
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={`Edit ${lot.lot_number}`} />

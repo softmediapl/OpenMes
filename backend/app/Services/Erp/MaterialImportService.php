@@ -54,18 +54,21 @@ class MaterialImportService
                 return $this->error('code', __("Material ':code' already exists", ['code' => $code]));
             }
 
+            $unit = trim((string) ($row['unit_of_measure'] ?? $existing?->unit_of_measure ?? ''));
+            if ($unit === '' || ! UnitOfMeasure::query()->where('code', $unit)->where('is_active', true)->exists()) {
+                return $this->error('unit_of_measure', __('Unit of measure must be configured before import'));
+            }
+
             $attributes = [
                 'name' => trim((string) ($row['name'] ?? $code)),
                 'description' => $row['description'] ?? null,
-                'unit_of_measure' => $row['unit_of_measure'] ?? 'pcs',
+                'unit_of_measure' => $unit,
                 'external_code' => $row['external_code'] ?? $code,
                 'external_system' => $row['external_system'] ?? $system,
                 'supplier_name' => $row['supplier_name'] ?? null,
                 'supplier_code' => $row['supplier_code'] ?? null,
                 'ean' => $row['ean'] ?? null,
             ];
-            UnitOfMeasure::ensureCode($attributes['unit_of_measure']);
-
             // The ERP classification has no dedicated column on materials — it is
             // the material type, which is what OpenMES groups materials by.
             $typeCode = trim((string) ($row['material_type_code'] ?? $category ?? ''));

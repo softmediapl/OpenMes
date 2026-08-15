@@ -7,6 +7,7 @@ use App\Models\BomItem;
 use App\Models\Material;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
+use App\Models\UnitOfMeasure;
 use App\Services\Material\BomQuantityCalculator;
 use App\Services\Material\BomService;
 use Illuminate\Http\Request;
@@ -31,7 +32,7 @@ class BomManagementController extends Controller
         $steps = $processTemplate->steps()->orderBy('step_number')->get();
 
         return Inertia::render('admin/process-templates/Bom', [
-            'productType' => $productType->only('id', 'name'),
+            'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'processTemplate' => [
                 'id' => $processTemplate->id,
                 'name' => $processTemplate->name,
@@ -44,6 +45,7 @@ class BomManagementController extends Controller
                 'material_type_name' => $item->material->materialType->name,
                 'material_type_code' => $item->material->materialType->code,
                 'unit_of_measure' => $item->material->unit_of_measure,
+                'quantity_precision' => UnitOfMeasure::precisionForCode($item->material->unit_of_measure),
                 'tracking_type' => $item->material->tracking_type,
                 'template_step_id' => $item->template_step_id,
                 'step_number' => $item->templateStep?->step_number,
@@ -63,6 +65,7 @@ class BomManagementController extends Controller
                 'name' => $m->name,
                 'material_type_name' => $m->materialType->name,
                 'unit_of_measure' => $m->unit_of_measure,
+                'quantity_precision' => UnitOfMeasure::precisionForCode($m->unit_of_measure),
                 'default_scrap_percentage' => $m->default_scrap_percentage,
             ]),
             'steps' => $steps->map(fn ($s) => [

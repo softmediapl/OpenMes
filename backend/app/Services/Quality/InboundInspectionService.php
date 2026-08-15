@@ -151,7 +151,7 @@ class InboundInspectionService
             'tenant_id' => $inspection->tenant_id,
             'material_id' => $inspection->material_id,
             'lot_number' => $inspection->lot_number,
-            'unit_of_measure' => $inspection->material?->unit_of_measure ?? 'pcs',
+            'unit_of_measure' => $inspection->material->unit_of_measure,
             'supplier_lot_no' => $inspection->supplier_lot_ref,
             'source_container_no' => $inspection->source_container_no,
             'quantity_received' => $qty,

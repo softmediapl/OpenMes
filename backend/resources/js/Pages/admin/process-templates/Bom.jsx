@@ -9,6 +9,7 @@ import {
     formatRoundingRule,
     quantityRuleMode,
 } from '../../../lib/bomQuantityRule';
+import { compactQuantity, quantityInputConfig } from '../../../lib/configuredQuantity';
 
 const TYPE_COLORS = {
     raw_material:  'bg-om-downtime-bg text-om-downtime',
@@ -23,16 +24,18 @@ function typeColorClass(code) {
 function MaterialForm({ productType, processTemplate, materials, steps, item, onCancel }) {
     const isEdit = !!item;
     const usesExactRatio = quantityRuleMode(item) === 'ratio';
+    const itemPrecision = item?.quantity_precision;
+    const outputPrecision = productType.quantity_precision;
     const form = useForm({
         material_id: item ? String(item.material_id ?? '') : '',
         quantity_rule: usesExactRatio ? 'ratio' : 'per_unit',
-        quantity_per_unit: item && !usesExactRatio ? String(item.quantity_per_unit ?? '') : '',
-        component_quantity: usesExactRatio ? String(item.component_quantity) : '',
-        output_quantity: usesExactRatio ? String(item.output_quantity) : '',
+        quantity_per_unit: item && !usesExactRatio ? compactQuantity(item.quantity_per_unit, itemPrecision, item.unit_of_measure) : '',
+        component_quantity: usesExactRatio ? compactQuantity(item.component_quantity, itemPrecision, item.unit_of_measure) : '',
+        output_quantity: usesExactRatio ? compactQuantity(item.output_quantity, outputPrecision, productType.unit_of_measure) : '',
         template_step_id: item && item.template_step_id != null ? String(item.template_step_id) : '',
-        scrap_percentage: item ? String(item.scrap_percentage ?? '0') : '0',
+        scrap_percentage: item ? String(Number(item.scrap_percentage ?? 0)) : '0',
         rounding_mode: item ? (item.rounding_mode ?? 'none') : 'none',
-        rounding_multiple: item ? String(item.rounding_multiple ?? '1') : '1',
+        rounding_multiple: item ? compactQuantity(item.rounding_multiple ?? 1, itemPrecision, item.unit_of_measure) : '1',
         consumed_at: item ? (item.consumed_at ?? 'start') : 'start',
         notes: item ? (item.notes ?? '') : '',
     });
@@ -43,6 +46,9 @@ function MaterialForm({ productType, processTemplate, materials, steps, item, on
         ? null
         : materials.find((m) => String(m.id) === String(data.material_id));
     const unit = isEdit ? item.unit_of_measure : selectedMaterial?.unit_of_measure;
+    const materialPrecision = isEdit ? item.quantity_precision : selectedMaterial?.quantity_precision;
+    const materialInput = materialPrecision == null ? null : quantityInputConfig(materialPrecision, unit);
+    const outputInput = quantityInputConfig(outputPrecision, productType.unit_of_measure);
 
     // When a material with a default scrap % is picked, pre-fill it (only while
     // the field still holds the untouched default) and surface that it was auto-set.
@@ -134,8 +140,9 @@ function MaterialForm({ productType, processTemplate, materials, steps, item, on
                                 </label>
                                 <input
                                     type="number"
-                                    step="0.0001"
-                                    min="0.0001"
+                                    step={materialInput?.step}
+                                    min={materialInput?.min}
+                                    disabled={!materialInput}
                                     required
                                     value={data.quantity_per_unit}
                                     onChange={(e) => setData('quantity_per_unit', e.target.value)}
@@ -150,8 +157,9 @@ function MaterialForm({ productType, processTemplate, materials, steps, item, on
                                     </label>
                                     <input
                                         type="number"
-                                        step="0.0001"
-                                        min="0.0001"
+                                        step={materialInput?.step}
+                                        min={materialInput?.min}
+                                        disabled={!materialInput}
                                         required
                                         value={data.component_quantity}
                                         onChange={(e) => setData('component_quantity', e.target.value)}
@@ -165,8 +173,8 @@ function MaterialForm({ productType, processTemplate, materials, steps, item, on
                                     </label>
                                     <input
                                         type="number"
-                                        step="0.0001"
-                                        min="0.0001"
+                                        step={outputInput.step}
+                                        min={outputInput.min}
                                         required
                                         value={data.output_quantity}
                                         onChange={(e) => setData('output_quantity', e.target.value)}
@@ -245,8 +253,9 @@ function MaterialForm({ productType, processTemplate, materials, steps, item, on
                             </label>
                             <input
                                 type="number"
-                                step="0.0001"
-                                min="0.0001"
+                                step={materialInput?.step}
+                                min={materialInput?.min}
+                                disabled={!materialInput}
                                 required
                                 value={data.rounding_multiple}
                                 onChange={(e) => setData('rounding_multiple', e.target.value)}
@@ -367,7 +376,7 @@ export default function ProcessTemplatesBom() {
             meta: { align: 'right' },
             cell: ({ row }) => (
                 <span className="text-sm font-mono">
-                    {formatQuantityRule(row.original)}
+                    {formatQuantityRule(row.original, row.original.quantity_precision, productType.quantity_precision)}
                 </span>
             ),
         },
@@ -377,7 +386,7 @@ export default function ProcessTemplatesBom() {
             header: __('Rounding'),
             cell: ({ row }) => (
                 <span className="text-sm text-om-muted">
-                    {formatRoundingRule(row.original, __)}
+                    {formatRoundingRule(row.original, row.original.quantity_precision, __)}
                 </span>
             ),
         },
@@ -387,7 +396,7 @@ export default function ProcessTemplatesBom() {
             header: __('Scrap %'),
             meta: { align: 'right' },
             cell: ({ row }) => (
-                <span className="text-sm">{row.original.scrap_percentage}%</span>
+                <span className="text-sm">{Number(row.original.scrap_percentage)}%</span>
             ),
         },
         {
@@ -430,7 +439,7 @@ export default function ProcessTemplatesBom() {
                 </>
             ),
         },
-    ], [productType.id, processTemplate.id]);
+    ], [productType.id, productType.quantity_precision, processTemplate.id]);
 
     return (
         <>

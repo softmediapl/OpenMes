@@ -5,6 +5,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable from '../../../components/ResourceTable';
 import { STATUS_STYLES, materialLotStatusLabel } from './fields';
 import { __, formatNumber } from '../../../lib/i18n';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 
 export default function MaterialLotsIndex() {
     const { materialNames = {}, sourceNames = {}, materialUnits = {}, unitPrecisions = {} } = usePage().props;
@@ -58,7 +59,7 @@ export default function MaterialLotsIndex() {
             className: 'text-om-muted',
             render: (r) => {
                 const unit = r.unit_of_measure || materialUnits[r.material_id];
-                const options = { maximumFractionDigits: unitPrecisions[unit] ?? 4 };
+                const options = { maximumFractionDigits: assertQuantityPrecision(unitPrecisions[unit], unit) };
                 return `${formatNumber(r.quantity_available, options) || '—'} / ${formatNumber(r.quantity_received, options) || '—'}`;
             },
         },

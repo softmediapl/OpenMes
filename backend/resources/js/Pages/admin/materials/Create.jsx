@@ -16,7 +16,7 @@ export default function MaterialCreate() {
                 fields={materialFields(materialTypes, unitsOfMeasure)}
                 customFields={customFields}
                 initial={{
-                    code: '', name: '', material_type_id: '', unit_of_measure: 'pcs',
+                    code: '', name: '', material_type_id: '', unit_of_measure: '',
                     tracking_type: 'none', lot_picking_strategy: '', default_scrap_percentage: '', description: '',
                     external_code: '', external_system: '', is_active: true, custom_fields: {},
                 }}

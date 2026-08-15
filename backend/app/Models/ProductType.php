@@ -42,14 +42,7 @@ class ProductType extends Model
 
     public function quantityPrecision(): int
     {
-        $unit = UnitOfMeasure::withoutGlobalScopes()
-            ->where('tenant_id', $this->tenant_id)
-            ->where('code', $this->unit_of_measure)
-            ->first();
-
-        return $unit
-            ? max(0, min(4, (int) $unit->quantity_precision))
-            : UnitOfMeasure::inferredPrecision($this->unit_of_measure);
+        return UnitOfMeasure::precisionForCode($this->unit_of_measure);
     }
 
     public function getQuantityPrecisionAttribute(): int

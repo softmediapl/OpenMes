@@ -28,7 +28,7 @@ class UnitOfMeasureController extends Controller
         $data = $request->validate([
             'code' => [
                 'required', 'string', 'max:20', 'regex:/^[A-Za-z0-9._-]+$/',
-                Rule::unique('units_of_measure', 'code')->where('tenant_id', $request->user()->tenant_id),
+                Rule::unique('units_of_measure', 'code'),
             ],
             'name' => ['required', 'string', 'max:100'],
             'symbol' => ['nullable', 'string', 'max:20'],
@@ -67,7 +67,7 @@ class UnitOfMeasureController extends Controller
 
     public function destroy(Request $request, UnitOfMeasure $unitOfMeasure)
     {
-        if ($this->isUsed($request->user()->tenant_id, $unitOfMeasure->code)) {
+        if ($this->isUsed($unitOfMeasure->code)) {
             return back()->with('error', __('A unit used by existing data cannot be deleted. Deactivate it instead.'));
         }
 
@@ -84,7 +84,7 @@ class UnitOfMeasureController extends Controller
         return back()->with('success', __('Unit of measure updated.'));
     }
 
-    private function isUsed(int $tenantId, string $code): bool
+    private function isUsed(string $code): bool
     {
         foreach ([
             'product_types', 'materials', 'material_lots', 'material_sublots',
@@ -93,9 +93,8 @@ class UnitOfMeasureController extends Controller
             'material_replenishment_requests',
         ] as $table) {
             if (Schema::hasTable($table)
-                && Schema::hasColumn($table, 'tenant_id')
                 && Schema::hasColumn($table, 'unit_of_measure')
-                && DB::table($table)->where('tenant_id', $tenantId)->where('unit_of_measure', $code)->exists()) {
+                && DB::table($table)->where('unit_of_measure', $code)->exists()) {
                 return true;
             }
         }

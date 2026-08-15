@@ -22,12 +22,10 @@ class UpdateProductTypeRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string'],
             'unit_of_measure' => [
-                'sometimes', 'nullable', 'string', 'max:20',
+                'sometimes', 'required', 'string', 'max:20',
                 Rule::exists('units_of_measure', 'code')->where(function ($query) use ($productType) {
-                    $query->where('tenant_id', $this->user()?->tenant_id)
-                        ->where(fn ($units) => $units
-                            ->where('is_active', true)
-                            ->orWhere('code', $productType?->unit_of_measure));
+                    $query->where('is_active', true)
+                        ->orWhere('code', $productType?->unit_of_measure);
                 }),
             ],
             'is_active' => ['sometimes', 'boolean'],

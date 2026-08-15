@@ -8,6 +8,7 @@ import LineSync from '../../components/LineSync';
 import { formatDate, formatNumber, formatTime } from '../../lib/i18n';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { workItemsForStation } from '../../lib/workstationQueue';
+import { assertQuantityPrecision } from '../../lib/configuredQuantity';
 
 // Geist White restyle: light-only v1 — former `dark:` classes removed.
 
@@ -911,7 +912,10 @@ export default function Queue() {
                             {workstationWorkItems.map(({ workOrder: wo, batch: currentBatch, step: currentStep }) => {
                                 const operationQuantity = currentStep?.input_quantity ?? currentBatch?.target_qty ?? wo.planned_qty;
                                 const batchReference = currentBatch?.lot_number || (currentBatch ? `#${currentBatch.batch_number}` : '—');
-                                const quantityPrecision = wo.product_type?.quantity_precision ?? 4;
+                                const quantityPrecision = assertQuantityPrecision(
+                                    wo.product_type?.quantity_precision,
+                                    wo.product_type?.unit_of_measure,
+                                );
 
                                 return (
                                     <Link key={`${wo.id}:${currentBatch.id}`}

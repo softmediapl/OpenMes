@@ -1,4 +1,5 @@
 import { __ } from '../../../lib/i18n';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 
 /** Localized display label for a material-lot status enum value. */
 export function materialLotStatusLabel(status) {
@@ -18,11 +19,14 @@ export function materialUnitFor(materials, materialId) {
 }
 
 export function materialPrecisionFor(materials, materialId) {
-    return materials.find((material) => String(material.id) === String(materialId))?.quantity_precision ?? 4;
+    const material = materials.find((candidate) => String(candidate.id) === String(materialId));
+    if (!material) return null;
+    return assertQuantityPrecision(material?.quantity_precision, material?.unit_of_measure);
 }
 
 function quantityStep(materials, data) {
-    return 10 ** -materialPrecisionFor(materials, data.material_id);
+    const precision = materialPrecisionFor(materials, data.material_id);
+    return precision == null ? undefined : 10 ** -precision;
 }
 
 export function materialLotFields(materials, sources, statuses) {

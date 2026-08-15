@@ -127,8 +127,14 @@ class StoreStockDocumentRequest extends FormRequest
                     : $productTypes->get((int) ($line['product_type_id'] ?? 0));
                 $quantity = $line['quantity'] ?? null;
                 if ($item && is_numeric($quantity)) {
-                    $precision = (int) ($unitPrecisions[$item->unit_of_measure]
-                        ?? UnitOfMeasure::inferredPrecision($item->unit_of_measure));
+                    if (! isset($unitPrecisions[$item->unit_of_measure])) {
+                        $validator->errors()->add(
+                            "lines.{$index}.unit_of_measure",
+                            __('The selected unit of measure is not configured.'),
+                        );
+                        continue;
+                    }
+                    $precision = (int) $unitPrecisions[$item->unit_of_measure];
                     $factor = 10 ** $precision;
                     if (abs(((float) $quantity * $factor) - round((float) $quantity * $factor)) > 0.000001) {
                         $validator->errors()->add(

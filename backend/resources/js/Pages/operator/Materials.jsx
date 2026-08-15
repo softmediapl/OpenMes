@@ -1,6 +1,7 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import OperatorLayout from '../../layouts/OperatorLayout';
+import { assertQuantityPrecision, quantityInputConfig } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
 import { buildMaterialRows } from './materials/helpers';
 
@@ -18,8 +19,9 @@ const levelLabels = {
     unmanaged: 'No policy',
 };
 
-function quantity(value, unit) {
-    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(Number(value) || 0)} ${unit ?? ''}`.trim();
+function quantity(value, unit, unitPrecisions) {
+    const precision = assertQuantityPrecision(unitPrecisions[unit], unit);
+    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: precision }).format(Number(value) || 0)} ${unit}`;
 }
 
 function dateValue(value) {
@@ -40,7 +42,7 @@ function cancelRequest(requestId) {
     router.post(`/operator/materials/replenishments/${requestId}/cancel`, {}, { preserveScroll: true });
 }
 
-export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation }) {
+export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation, unitPrecisions = {} }) {
     const [countedStock, setCountedStock] = useState(null);
     const [requestingPolicyId, setRequestingPolicyId] = useState(null);
     const rows = useMemo(
@@ -49,6 +51,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
     );
     const lowCount = rows.filter((row) => row.level === 'low').length;
     const openCount = rows.filter((row) => row.request).length;
+    const displayQuantity = (value, unit) => quantity(value, unit, unitPrecisions);
 
     return (
         <>
@@ -100,7 +103,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                                     <div key={stock.id} className="mb-2 text-xs text-om-muted last:mb-0">
                                                         <div>
                                                             <span className="font-mono text-om-ink">{stock.material_lot?.lot_number ?? __('Bulk')}</span>
-                                                            <span className="ml-2 font-mono">{quantity(stock.quantity, row.material.unit_of_measure)}</span>
+                                                            <span className="ml-2 font-mono">{displayQuantity(stock.quantity, row.material.unit_of_measure)}</span>
                                                             {stock.material_lot?.expiry_date && (
                                                                 <span className="ml-2">{__('Expiry')}: {dateValue(stock.material_lot.expiry_date)}</span>
                                                             )}
@@ -108,23 +111,23 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                                     </div>
                                                 )) : <span className="text-xs text-om-faint">{__('No local stock')}</span>}
                                             </td>
-                                            <td className="px-4 py-4 text-right font-mono text-sm text-om-ink">{quantity(row.onHand, row.material.unit_of_measure)}</td>
-                                            <td className="px-4 py-4 text-right font-mono text-sm text-om-muted">{quantity(row.reserved, row.material.unit_of_measure)}</td>
-                                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold text-om-ink">{quantity(row.available, row.material.unit_of_measure)}</td>
+                                            <td className="px-4 py-4 text-right font-mono text-sm text-om-ink">{displayQuantity(row.onHand, row.material.unit_of_measure)}</td>
+                                            <td className="px-4 py-4 text-right font-mono text-sm text-om-muted">{displayQuantity(row.reserved, row.material.unit_of_measure)}</td>
+                                            <td className="px-4 py-4 text-right font-mono text-sm font-semibold text-om-ink">{displayQuantity(row.available, row.material.unit_of_measure)}</td>
                                             <td className="px-4 py-4">
                                                 <span className={`inline-flex rounded-om-sm border px-2 py-1 text-xs font-medium ${levelStyles[row.level]}`}>
                                                     {__(levelLabels[row.level])}
                                                 </span>
                                                 {row.policy && (
                                                     <div className="mt-2 text-xs text-om-muted">
-                                                        {__('Target')}: {quantity(row.policy.target_quantity, row.material.unit_of_measure)}
+                                                        {__('Target')}: {displayQuantity(row.policy.target_quantity, row.material.unit_of_measure)}
                                                         <span className="mx-1">·</span>
                                                         {row.policy.replenishment_mode === 'self_service' ? __('Self-service') : __('Assigned')}
                                                     </div>
                                                 )}
                                                 {row.request && (
                                                     <div className="mt-1 text-xs text-om-muted">
-                                                        {__('Requested')}: {quantity(row.request.requested_quantity, row.request.unit_of_measure)}
+                                                        {__('Requested')}: {displayQuantity(row.request.requested_quantity, row.request.unit_of_measure)}
                                                     </div>
                                                 )}
                                             </td>
@@ -166,13 +169,13 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                         </div>
                     </div>
                 )}
-                {countedStock && <CountModal stock={countedStock} onClose={() => setCountedStock(null)} />}
+                {countedStock && <CountModal stock={countedStock} unitPrecisions={unitPrecisions} onClose={() => setCountedStock(null)} />}
             </div>
         </>
     );
 }
 
-function CountModal({ stock, onClose }) {
+function CountModal({ stock, unitPrecisions, onClose }) {
     const form = useForm({
         counted_quantity: String(stock.quantity),
         notes: '',
@@ -181,6 +184,10 @@ function CountModal({ stock, onClose }) {
     const book = Number(stock.quantity);
     const difference = Number.isFinite(counted) ? counted - book : 0;
     const valid = Number.isFinite(counted) && counted >= 0;
+    const unit = stock.material?.unit_of_measure ?? stock.unit_of_measure;
+    const precision = assertQuantityPrecision(unitPrecisions[unit], unit);
+    const inputConfig = quantityInputConfig(precision, unit);
+    const displayQuantity = (value) => quantity(value, unit, unitPrecisions);
 
     const submit = (event) => {
         event.preventDefault();
@@ -207,18 +214,18 @@ function CountModal({ stock, onClose }) {
                 </div>
                 <div className="space-y-4 px-5 py-4">
                     <div className="grid grid-cols-2 gap-3 rounded-om-sm bg-om-panel p-3 font-mono text-xs">
-                        <span className="text-om-muted">{__('System quantity')}<strong className="mt-1 block text-base text-om-ink">{quantity(book, stock.unit_of_measure)}</strong></span>
-                        <span className="text-om-muted">{__('Reserved')}<strong className="mt-1 block text-base text-om-ink">{quantity(stock.reserved_quantity, stock.unit_of_measure)}</strong></span>
+                        <span className="text-om-muted">{__('System quantity')}<strong className="mt-1 block text-base text-om-ink">{displayQuantity(book)}</strong></span>
+                        <span className="text-om-muted">{__('Reserved')}<strong className="mt-1 block text-base text-om-ink">{displayQuantity(stock.reserved_quantity)}</strong></span>
                     </div>
                     <div>
                         <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Measured quantity')}</label>
-                        <input type="number" min="0" step="0.0001" inputMode="decimal" autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />
+                        <input type="number" min="0" step={inputConfig.step} inputMode={precision === 0 ? 'numeric' : 'decimal'} autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />
                         <p className="mt-1 text-xs text-om-muted">{__('The difference from the system quantity is settled as use to this point. The measured quantity becomes the new baseline.')}</p>
                         {form.errors.counted_quantity && <p className="mt-1 text-xs text-om-blocked">{form.errors.counted_quantity}</p>}
                     </div>
                     <div className={`flex justify-between rounded-om-sm px-3 py-2 text-sm ${difference < 0 ? 'bg-om-downtime-bg text-om-downtime' : 'bg-om-done-bg text-om-running'}`}>
                         <span>{difference < 0 ? __('Use to settle') : __('Count difference')}</span>
-                        <strong className="font-mono">{quantity(Math.abs(difference), stock.unit_of_measure)}</strong>
+                        <strong className="font-mono">{displayQuantity(Math.abs(difference))}</strong>
                     </div>
                     <div>
                         <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Notes')}</label>

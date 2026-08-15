@@ -7,6 +7,7 @@ use App\Http\Requests\MaterialImportProcessRequest;
 use App\Http\Requests\MaterialImportUploadRequest;
 use App\Models\Material;
 use App\Models\MaterialType;
+use App\Models\UnitOfMeasure;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
@@ -86,6 +87,10 @@ class MaterialImportController extends Controller
             return redirect()->route('admin.materials.import')
                 ->with('error', 'You must map the "Name" field.');
         }
+        if (! in_array('unit_of_measure', $mappedTargets)) {
+            return redirect()->route('admin.materials.import')
+                ->with('error', 'You must map the "Unit of Measure" field.');
+        }
 
         $fullPath = Storage::disk('local')->path($filePath);
         if (! file_exists($fullPath)) {
@@ -109,6 +114,9 @@ class MaterialImportController extends Controller
             $total++;
             try {
                 $data = $this->mapRow($rowData, $mapping, $typeCache, $typeNameCache, $defaultTypeId, $externalSystem);
+                if (! UnitOfMeasure::query()->where('code', $data['unit_of_measure'] ?? '')->where('is_active', true)->exists()) {
+                    throw new \InvalidArgumentException('Unit of measure must be configured before import.');
+                }
 
                 $existing = $this->findExistingMaterial($data);
 
@@ -193,7 +201,6 @@ class MaterialImportController extends Controller
     {
         $data = [
             'is_active' => true,
-            'unit_of_measure' => 'pcs',
             'tracking_type' => 'none',
         ];
 

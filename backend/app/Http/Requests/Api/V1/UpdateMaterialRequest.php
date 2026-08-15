@@ -19,7 +19,9 @@ class UpdateMaterialRequest extends FormRequest
             'name' => ['sometimes', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'material_type_id' => ['sometimes', 'exists:material_types,id'],
-            'unit_of_measure' => ['sometimes', 'string', 'max:20'],
+            'unit_of_measure' => ['sometimes', 'required', 'string', 'max:20', Rule::exists('units_of_measure', 'code')->where(function ($query) {
+                $query->where('is_active', true)->orWhere('code', $this->route('material')?->unit_of_measure);
+            })],
             'tracking_type' => ['sometimes', 'string', 'in:none,batch,serial'],
             'lot_picking_strategy' => ['nullable', 'string', 'in:fefo,fifo,lifo,manual'],
             // Make-or-buy: a manufactured material is a subassembly that BOM

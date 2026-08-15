@@ -7,6 +7,7 @@ use App\Http\Requests\Web\Operator\CancelMaterialReplenishmentRequest;
 use App\Http\Requests\Web\Operator\ReconcileWorkstationMaterialCountRequest;
 use App\Http\Requests\Web\Operator\RequestMaterialReplenishmentRequest;
 use App\Models\MaterialReplenishmentRequest;
+use App\Models\UnitOfMeasure;
 use App\Models\Workstation;
 use App\Models\WorkstationMaterialPolicy;
 use App\Models\WorkstationMaterialStock;
@@ -28,6 +29,7 @@ class WorkstationMaterialController extends Controller
             'line' => $workstation->line,
             'selectedWorkstation' => $workstation,
             'workstationLocked' => $this->workstationContext->isLocked($request->user()),
+            'unitPrecisions' => UnitOfMeasure::query()->pluck('quantity_precision', 'code'),
             'stocks' => WorkstationMaterialStock::query()
                 ->where('workstation_id', $workstation->id)
                 ->with([

@@ -139,7 +139,7 @@ class BomService
     {
         $items = $this->listForTemplate($template);
 
-        return $items->map(function (BomItem $item) use ($productionQty) {
+        return $items->map(function (BomItem $item) use ($productionQty, $template) {
             $calculated = $this->quantities->calculate($item, $productionQty);
 
             return [
@@ -148,6 +148,8 @@ class BomService
                 'material_name' => $item->material->name,
                 'material_type' => $item->material->materialType?->code,
                 'unit_of_measure' => $item->material->unit_of_measure,
+                'quantity_precision' => \App\Models\UnitOfMeasure::precisionForCode($item->material->unit_of_measure),
+                'output_quantity_precision' => $template->productType->quantity_precision,
                 'quantity_per_unit' => (float) $item->quantity_per_unit,
                 'component_quantity' => $item->component_quantity !== null ? (float) $item->component_quantity : null,
                 'output_quantity' => $item->output_quantity !== null ? (float) $item->output_quantity : null,
@@ -167,9 +169,14 @@ class BomService
     public function calculateFromSnapshot(array $snapshot, float $productionQty): array
     {
         $bom = $snapshot['bom'] ?? [];
+        $outputPrecision = $snapshot['product_quantity_precision']
+            ?? \App\Models\ProductType::query()->findOrFail($snapshot['product_type_id'])->quantity_precision;
 
-        return array_map(function ($item) use ($productionQty) {
-            return array_merge($item, $this->quantities->calculate($item, $productionQty));
+        return array_map(function ($item) use ($productionQty, $outputPrecision) {
+            return array_merge($item, [
+                'quantity_precision' => \App\Models\UnitOfMeasure::precisionForCode($item['unit_of_measure']),
+                'output_quantity_precision' => $outputPrecision,
+            ], $this->quantities->calculate($item, $productionQty));
         }, $bom);
     }
 }

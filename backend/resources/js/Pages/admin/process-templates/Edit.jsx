@@ -4,18 +4,20 @@ import { Button, Checkbox } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import BatchPolicyFields from './BatchPolicyFields';
 import PackagingPolicyFields from './PackagingPolicyFields';
+import { compactQuantity } from '../../../lib/configuredQuantity';
 
 export default function ProcessTemplatesEdit() {
     const { productType, processTemplate, revisions = [] } = usePage().props;
+    const quantity = (value) => compactQuantity(value, productType.quantity_precision, productType.unit_of_measure);
 
     const form = useForm({
         name: processTemplate.name ?? '',
         product_revision_id: processTemplate.product_revision_id != null ? String(processTemplate.product_revision_id) : '',
         is_active: !!processTemplate.is_active,
-        preferred_batch_quantity: processTemplate.preferred_batch_quantity ?? '',
-        min_batch_quantity: processTemplate.min_batch_quantity ?? '',
-        max_batch_quantity: processTemplate.max_batch_quantity ?? '',
-        batch_quantity_multiple: processTemplate.batch_quantity_multiple ?? '',
+        preferred_batch_quantity: quantity(processTemplate.preferred_batch_quantity),
+        min_batch_quantity: quantity(processTemplate.min_batch_quantity),
+        max_batch_quantity: quantity(processTemplate.max_batch_quantity),
+        batch_quantity_multiple: quantity(processTemplate.batch_quantity_multiple),
         allow_partial_final_batch: !!processTemplate.allow_partial_final_batch,
         pallet_capacity_quantity: processTemplate.pallet_capacity_quantity ?? '',
     });
@@ -95,7 +97,13 @@ export default function ProcessTemplatesEdit() {
                             />
                         </div>
 
-                        <BatchPolicyFields data={data} setData={setData} errors={errors} />
+                        <BatchPolicyFields
+                            data={data}
+                            setData={setData}
+                            errors={errors}
+                            unit={productType.unit_of_measure}
+                            precision={productType.quantity_precision}
+                        />
                         <PackagingPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="flex justify-end gap-3">

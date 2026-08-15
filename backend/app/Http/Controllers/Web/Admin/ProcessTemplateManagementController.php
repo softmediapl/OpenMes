@@ -34,7 +34,7 @@ class ProcessTemplateManagementController extends Controller
             ->get();
 
         return Inertia::render('admin/process-templates/Index', [
-            'productType' => $productType->only('id', 'name'),
+            'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'activeRevisions' => $this->activeRevisionOptions($productType),
             'revisionFilter' => $revisionId ? (string) $revisionId : '',
             'templates' => $templates->map(fn ($t) => [
@@ -59,7 +59,7 @@ class ProcessTemplateManagementController extends Controller
     public function create(ProductType $productType)
     {
         return Inertia::render('admin/process-templates/Create', [
-            'productType' => $productType->only('id', 'name'),
+            'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'revisions' => $this->assignableRevisionOptions($productType),
         ]);
     }
@@ -234,7 +234,7 @@ class ProcessTemplateManagementController extends Controller
         }
 
         return Inertia::render('admin/process-templates/Edit', [
-            'productType' => $productType->only('id', 'name'),
+            'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'revisions' => $this->assignableRevisionOptions($productType),
             'processTemplate' => [
                 'id' => $processTemplate->id,

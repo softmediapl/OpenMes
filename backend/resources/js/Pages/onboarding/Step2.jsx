@@ -1,5 +1,5 @@
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Button, TextField } from '@openmes/ui';
+import { Button, Dropdown, TextField } from '@openmes/ui';
 import OnboardingLayout from '../../layouts/OnboardingLayout';
 import { __ } from '../../lib/i18n';
 
@@ -9,8 +9,8 @@ import { __ } from '../../lib/i18n';
  *
  * Geist White restyle: light-only v1 — om-* tokens, @openmes/ui controls.
  */
-export default function Step2() {
-    const form = useForm({ name: '', code: '', unit_of_measure: 'pcs' });
+export default function Step2({ unitsOfMeasure = [] }) {
+    const form = useForm({ name: '', code: '', unit_of_measure: '' });
     const { data, setData, post, processing, errors } = form;
 
     const submit = (e) => {
@@ -47,13 +47,21 @@ export default function Step2() {
                         placeholder={__('e.g. FILTER')}
                     />
 
-                    <TextField
-                        label={__('Unit of Measure')}
-                        id="unit_of_measure"
+                    <div>
+                        <label className="mb-1 block text-[12.5px] font-medium text-om-ink">
+                            {__('Unit of Measure')} <span className="text-om-accent">*</span>
+                        </label>
+                        <Dropdown
                         value={data.unit_of_measure}
-                        onChange={(v) => setData('unit_of_measure', v)}
-                        placeholder={__('pcs, kg, m...')}
-                    />
+                            onChange={(v) => setData('unit_of_measure', v)}
+                            placeholder={__('Select unit of measure…')}
+                            options={unitsOfMeasure.map((unit) => ({
+                                value: unit.code,
+                                label: `${unit.name} (${unit.symbol || unit.code})`,
+                            }))}
+                        />
+                        {errors.unit_of_measure && <p className="mt-1 text-sm text-om-blocked">{errors.unit_of_measure}</p>}
+                    </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-6">

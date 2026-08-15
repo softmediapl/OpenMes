@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Checkbox } from '@openmes/ui';
 import { __ } from '../../../lib/i18n';
+import { quantityInputConfig } from '../../../lib/configuredQuantity';
 
 const numericFields = [
     ['preferred_batch_quantity', 'Preferred batch quantity'],
@@ -9,8 +10,9 @@ const numericFields = [
     ['batch_quantity_multiple', 'Quantity increment'],
 ];
 
-export default function BatchPolicyFields({ data, setData, errors = {} }) {
+export default function BatchPolicyFields({ data, setData, errors = {}, unit, precision }) {
     const [enabled, setEnabled] = useState(data.preferred_batch_quantity !== '');
+    const input = quantityInputConfig(precision, unit);
 
     const togglePolicy = (next) => {
         setEnabled(next);
@@ -36,12 +38,12 @@ export default function BatchPolicyFields({ data, setData, errors = {} }) {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                     {numericFields.map(([field, label]) => (
                         <div key={field}>
-                            <label htmlFor={field} className="form-label">{__(label)}</label>
+                            <label htmlFor={field} className="form-label">{__(label)} ({unit})</label>
                             <input
                                 id={field}
                                 type="number"
-                                min="0.0001"
-                                step="0.0001"
+                                min={input.min}
+                                step={input.step}
                                 value={data[field]}
                                 onChange={(event) => setData(field, event.target.value)}
                                 className={`form-input w-full${errors[field] ? ' border-om-blocked' : ''}`}

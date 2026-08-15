@@ -15,13 +15,13 @@ class UnitsOfMeasureShape extends Shape
     public function columns(): array
     {
         return [
-            'id', 'tenant_id', 'code', 'name', 'symbol', 'quantity_precision',
+            'id', 'code', 'name', 'symbol', 'quantity_precision',
             'is_active', 'created_at', 'updated_at',
         ];
     }
 
     public function where(User $user): ?string
     {
-        return 'tenant_id = '.(int) $user->tenant_id;
+        return null;
     }
 }

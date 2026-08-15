@@ -32,9 +32,6 @@ class UpdateMaterialRequest extends FormRequest
         if ($this->input('default_scrap_percentage') === null || $this->input('default_scrap_percentage') === '') {
             $this->merge(['default_scrap_percentage' => 0]);
         }
-        if ($this->input('unit_of_measure') === null || $this->input('unit_of_measure') === '') {
-            $this->merge(['unit_of_measure' => 'pcs']);
-        }
     }
 
     public function rules(): array
@@ -44,7 +41,9 @@ class UpdateMaterialRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'material_type_id' => ['nullable', 'exists:material_types,id'],
-            'unit_of_measure' => ['nullable', 'string', 'max:20'],
+            'unit_of_measure' => ['required', 'string', 'max:20', Rule::exists('units_of_measure', 'code')->where(function ($query) {
+                $query->where('is_active', true)->orWhere('code', $this->route('material')?->unit_of_measure);
+            })],
             'tracking_type' => ['nullable', 'in:none,batch,serial'],
             'lot_picking_strategy' => ['nullable', 'in:fefo,fifo,lifo,manual'],
             // Make-or-buy: a manufactured material is a subassembly that BOM

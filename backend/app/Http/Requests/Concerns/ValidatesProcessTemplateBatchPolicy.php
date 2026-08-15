@@ -26,6 +26,22 @@ trait ValidatesProcessTemplateBatchPolicy
                 return;
             }
 
+            $productType = $this->route('product_type');
+            $precision = $productType?->quantity_precision;
+            foreach (array_column($this->batchPolicyFields(), 0) as $field) {
+                $value = $this->input($field);
+                if ($value !== null && $value !== '' && ! $this->matchesQuantityPrecision((string) $value, $precision)) {
+                    $validator->errors()->add(
+                        $field,
+                        __('The quantity exceeds the precision configured for the product unit of measure.'),
+                    );
+                }
+            }
+
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
             $preferred = $this->batchPolicyNumber('preferred_batch_quantity');
             $minimum = $this->batchPolicyNumber('min_batch_quantity');
             $maximum = $this->batchPolicyNumber('max_batch_quantity');
@@ -77,5 +93,27 @@ trait ValidatesProcessTemplateBatchPolicy
         $ratio = $value / $multiple;
 
         return abs($ratio - round($ratio)) < 0.000001;
+    }
+
+    /** @return array<int, array{0: string, 1: string}> */
+    private function batchPolicyFields(): array
+    {
+        return [
+            ['preferred_batch_quantity', 'Preferred batch quantity'],
+            ['min_batch_quantity', 'Minimum regular batch quantity'],
+            ['max_batch_quantity', 'Maximum regular batch quantity'],
+            ['batch_quantity_multiple', 'Quantity increment'],
+        ];
+    }
+
+    private function matchesQuantityPrecision(string $value, ?int $precision): bool
+    {
+        if ($precision === null) {
+            return false;
+        }
+
+        $fraction = str_contains($value, '.') ? rtrim(substr(strrchr($value, '.'), 1), '0') : '';
+
+        return strlen($fraction) <= $precision;
     }
 }

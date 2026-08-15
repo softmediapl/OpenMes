@@ -55,9 +55,7 @@ class UpsertMaterialLotRequest extends FormRequest
                 return;
             }
 
-            $precision = (int) (UnitOfMeasure::query()
-                ->where('code', $material->unit_of_measure)
-                ->value('quantity_precision') ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure));
+            $precision = UnitOfMeasure::precisionForCode($material->unit_of_measure);
             $factor = 10 ** $precision;
 
             foreach (['quantity_received', 'quantity_available'] as $field) {

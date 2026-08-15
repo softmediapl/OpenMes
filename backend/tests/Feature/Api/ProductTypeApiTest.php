@@ -58,6 +58,7 @@ class ProductTypeApiTest extends TestCase
         $response = $this->authAdmin()->postJson('/api/v1/product-types', [
             'code' => 'PT-A',
             'name' => 'Widget',
+            'unit_of_measure' => 'pcs',
         ]);
         $response->assertStatus(201)->assertJsonPath('data.code', 'PT-A');
     }

@@ -4,6 +4,7 @@ import { Switch } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable from '../../../components/ResourceTable';
 import { __, formatDateTime, formatNumber } from '../../../lib/i18n';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 import { warehouseStockRows } from './helpers';
 
 /**
@@ -56,7 +57,7 @@ export default function WarehouseStockIndex() {
             key: 'quantity',
             label: __('Quantity'),
             align: 'right',
-            render: (r) => `${formatNumber(r.quantity, { maximumFractionDigits: unitPrecisions[r.unit_of_measure] ?? 4 })} ${r.unit_of_measure ?? ''}`.trim(),
+            render: (r) => `${formatNumber(r.quantity, { maximumFractionDigits: assertQuantityPrecision(unitPrecisions[r.unit_of_measure], r.unit_of_measure) })} ${r.unit_of_measure ?? ''}`.trim(),
         },
         {
             key: 'erp_synced_at',

@@ -83,7 +83,13 @@ export default function ProcessTemplatesCreate() {
                             {errors.product_revision_id && <p className="text-om-blocked text-sm mt-1">{errors.product_revision_id}</p>}
                         </div>
 
-                        <BatchPolicyFields data={data} setData={setData} errors={errors} />
+                        <BatchPolicyFields
+                            data={data}
+                            setData={setData}
+                            errors={errors}
+                            unit={productType.unit_of_measure}
+                            precision={productType.quantity_precision}
+                        />
                         <PackagingPolicyFields data={data} setData={setData} errors={errors} />
 
                         <div className="mb-6 p-4 bg-om-chip border border-om-line rounded-om-sm">

@@ -19,9 +19,8 @@ class StoreProductTypeRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'unit_of_measure' => [
-                'nullable', 'string', 'max:20',
+                'required', 'string', 'max:20',
                 Rule::exists('units_of_measure', 'code')
-                    ->where('tenant_id', $this->user()?->tenant_id)
                     ->where('is_active', true),
             ],
             'is_active' => ['nullable', 'boolean'],

@@ -4,6 +4,7 @@ namespace App\Services\Material;
 
 use App\Models\Material;
 use App\Models\MaterialType;
+use App\Models\UnitOfMeasure;
 use Illuminate\Support\Str;
 
 class MaterialSyncService
@@ -31,13 +32,17 @@ class MaterialSyncService
                 $existing = Material::where('external_code', $row['external_code'])
                     ->where('external_system', $sourceSystem)
                     ->first();
+                $unit = trim((string) ($row['unit'] ?? $existing?->unit_of_measure ?? ''));
+                if ($unit === '' || ! UnitOfMeasure::query()->where('code', $unit)->where('is_active', true)->exists()) {
+                    throw new \InvalidArgumentException('Unit of measure must be configured before import.');
+                }
 
                 if ($existing) {
                     $updateData = [
                         'name' => $row['name'],
                         'description' => $row['description'] ?? $existing->description,
                         'material_type_id' => $typeId,
-                        'unit_of_measure' => $row['unit'] ?? $existing->unit_of_measure,
+                        'unit_of_measure' => $unit,
                         'extra_data' => $row['extra_data'] ?? $existing->extra_data,
                         'last_stock_sync_at' => now(),
                     ];
@@ -72,7 +77,7 @@ class MaterialSyncService
                         'name' => $row['name'],
                         'description' => $row['description'] ?? null,
                         'material_type_id' => $typeId,
-                        'unit_of_measure' => $row['unit'] ?? 'pcs',
+                        'unit_of_measure' => $unit,
                         'external_code' => $row['external_code'],
                         'external_system' => $sourceSystem,
                         'extra_data' => $row['extra_data'] ?? null,

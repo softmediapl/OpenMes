@@ -59,14 +59,12 @@ class ProductTypeManagementController extends Controller
             'unit_of_measure' => [
                 'required', 'string', 'max:20',
                 Rule::exists('units_of_measure', 'code')
-                    ->where('tenant_id', $request->user()->tenant_id)
                     ->where('is_active', true),
             ],
             'is_active' => 'boolean',
         ], $cf->rules('product_type')), [], $cf->attributeNames('product_type'));
 
         $validated['is_active'] = $request->boolean('is_active', true);
-        $validated['unit_of_measure'] = $validated['unit_of_measure'] ?? 'pcs';
         unset($validated['custom_field_files']);
         if ($cf->touched($request)) {
             $validated['custom_fields'] = $cf->fromRequest($request, 'product_type') ?: null;
@@ -248,18 +246,15 @@ class ProductTypeManagementController extends Controller
             'description' => 'nullable|string',
             'unit_of_measure' => [
                 'required', 'string', 'max:20',
-                Rule::exists('units_of_measure', 'code')->where(function ($query) use ($request, $productType) {
-                    $query->where('tenant_id', $request->user()->tenant_id)
-                        ->where(fn ($units) => $units
-                            ->where('is_active', true)
-                            ->orWhere('code', $productType->unit_of_measure));
+                Rule::exists('units_of_measure', 'code')->where(function ($query) use ($productType) {
+                    $query->where('is_active', true)
+                        ->orWhere('code', $productType->unit_of_measure);
                 }),
             ],
             'is_active' => 'boolean',
         ], $cf->rules('product_type')), [], $cf->attributeNames('product_type'));
 
         $validated['is_active'] = $request->boolean('is_active');
-        $validated['unit_of_measure'] = $validated['unit_of_measure'] ?? 'pcs';
         unset($validated['custom_field_files']);
         if ($cf->touched($request)) {
             $validated['custom_fields'] = $cf->fromRequest($request, 'product_type', $productType->custom_fields) ?: null;

@@ -3,6 +3,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable, { ActiveBadge } from '../../../components/ResourceTable';
 import { TRACKING_LABELS } from './fields';
 import { __, formatNumber } from '../../../lib/i18n';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 
 export default function MaterialsIndex() {
     const { counts = {}, materialTypeNames = {}, unitPrecisions = {} } = usePage().props;
@@ -19,7 +20,7 @@ export default function MaterialsIndex() {
             className: 'text-om-muted',
             render: (r) => r.stock_quantity == null
                 ? '—'
-                : formatNumber(r.stock_quantity, { maximumFractionDigits: unitPrecisions[r.unit_of_measure] ?? 4 }),
+                : formatNumber(r.stock_quantity, { maximumFractionDigits: assertQuantityPrecision(unitPrecisions[r.unit_of_measure], r.unit_of_measure) }),
         },
         { key: 'bom', label: __('In BOMs'), render: (r) => counts[r.id] ?? 0 },
         { key: 'is_active', label: __('Status'), render: (r) => <ActiveBadge active={r.is_active} /> },

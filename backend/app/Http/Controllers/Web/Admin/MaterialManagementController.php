@@ -43,7 +43,6 @@ class MaterialManagementController extends Controller
         unset($validated['custom_field_files']);
 
         $validated['is_active'] = $request->boolean('is_active', true);
-        $validated['unit_of_measure'] = $validated['unit_of_measure'] ?? 'pcs';
         $validated['tracking_type'] = $validated['tracking_type'] ?? 'none';
 
         if ($cf->touched($request)) {

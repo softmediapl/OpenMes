@@ -3,6 +3,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Dropdown, IconButton } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import { __, formatDateTime, formatNumber } from '../../../lib/i18n';
+import { assertQuantityPrecision, quantityInputConfig } from '../../../lib/configuredQuantity';
 import {
     OPEN_REPLENISHMENT_STATUSES,
     asNumber,
@@ -91,7 +92,19 @@ const QuantityPrecisionContext = createContext({});
 
 function Quantity({ value, unit }) {
     const unitPrecisions = useContext(QuantityPrecisionContext);
-    return <span className="font-mono tabular-nums">{formatNumber(asNumber(value), { maximumFractionDigits: unitPrecisions[unit] ?? 4 })} {unit || ''}</span>;
+    return <span className="font-mono tabular-nums">{formatNumber(asNumber(value), { maximumFractionDigits: assertQuantityPrecision(unitPrecisions[unit], unit) })} {unit || ''}</span>;
+}
+
+function useConfiguredQuantity(unit) {
+    const unitPrecisions = useContext(QuantityPrecisionContext);
+    const precision = unit ? assertQuantityPrecision(unitPrecisions[unit], unit) : null;
+
+    return {
+        format: (value) => formatNumber(asNumber(value), {
+            maximumFractionDigits: assertQuantityPrecision(unitPrecisions[unit], unit),
+        }),
+        input: precision === null ? null : quantityInputConfig(precision, unit),
+    };
 }
 
 function StatusBadge({ status }) {
@@ -141,6 +154,7 @@ function IssueModal({ workstations, materials, warehouses, warehouseStocks, onCl
         workstation_id: '', warehouse_id: '', material_id: '', material_lot_id: '', quantity: '', reason: '',
     });
     const material = materials.find((item) => Number(item.id) === Number(form.data.material_id));
+    const configuredQuantity = useConfiguredQuantity(material?.unit_of_measure);
     const stockOptions = warehouseStockOptions(
         warehouseStocks,
         form.data.warehouse_id,
@@ -184,7 +198,7 @@ function IssueModal({ workstations, materials, warehouses, warehouseStocks, onCl
                             <option value="">{__('Select available lot')}</option>
                             {stockOptions.map((item) => (
                                 <option key={item.id} value={item.material_lot_id}>
-                                    {item.material_lot?.lot_number} - {formatNumber(asNumber(item.quantity), { maximumFractionDigits: 4 })} {item.unit_of_measure}
+                                    {item.material_lot?.lot_number} - {configuredQuantity.format(item.quantity)} {item.unit_of_measure}
                                 </option>
                             ))}
                         </select>
@@ -194,7 +208,7 @@ function IssueModal({ workstations, materials, warehouses, warehouseStocks, onCl
                     <p className="rounded-md bg-om-blocked-bg px-3 py-2 text-sm text-om-blocked">{__('No available stock in the selected warehouse.')}</p>
                 )}
                 <Field label={__('Quantity')} error={form.errors.quantity} hint={material?.unit_of_measure}>
-                    <input required min="0" step="any" type="number" value={form.data.quantity} onChange={(event) => form.setData('quantity', event.target.value)} className={inputClass} />
+                    <input required disabled={!configuredQuantity.input} min="0" step={configuredQuantity.input?.step} type="number" value={form.data.quantity} onChange={(event) => form.setData('quantity', event.target.value)} className={inputClass} />
                 </Field>
                 <Field label={__('Reason')} error={form.errors.reason}>
                     <textarea rows="2" value={form.data.reason} onChange={(event) => form.setData('reason', event.target.value)} className={inputClass} />
@@ -387,6 +401,7 @@ function DeliverModal({ request, materials, warehouseStocks, onClose }) {
     const material = materials.find((item) => Number(item.id) === Number(request.material_id)) ?? request.material;
     const stockOptions = warehouseStockOptions(warehouseStocks, request.source_warehouse_id, request.material_id, material?.tracking_type);
     const tracked = material?.tracking_type && material.tracking_type !== 'none';
+    const configuredQuantity = useConfiguredQuantity(request.unit_of_measure);
 
     function submit(event) {
         event.preventDefault();
@@ -400,15 +415,15 @@ function DeliverModal({ request, materials, warehouseStocks, onClose }) {
                     <Field label={__('Material lot')} error={form.errors.material_lot_id}>
                         <select required value={form.data.material_lot_id} onChange={(event) => form.setData('material_lot_id', event.target.value)} className={inputClass}>
                             <option value="">{__('Select available lot')}</option>
-                            {stockOptions.map((item) => <option key={item.id} value={item.material_lot_id}>{item.material_lot?.lot_number} - {formatNumber(asNumber(item.quantity), { maximumFractionDigits: 4 })} {item.unit_of_measure}</option>)}
+                            {stockOptions.map((item) => <option key={item.id} value={item.material_lot_id}>{item.material_lot?.lot_number} - {configuredQuantity.format(item.quantity)} {item.unit_of_measure}</option>)}
                         </select>
                     </Field>
                 )}
                 {stockOptions.length === 0 && (
                     <p className="rounded-md bg-om-blocked-bg px-3 py-2 text-sm text-om-blocked">{__('No available stock in the source warehouse.')}</p>
                 )}
-                <Field label={__('Quantity')} error={form.errors.quantity} hint={`${__('Remaining')}: ${formatNumber(remainingQuantity(request), { maximumFractionDigits: 4 })} ${request.unit_of_measure}`}>
-                    <input required min="0" step="any" type="number" value={form.data.quantity} onChange={(event) => form.setData('quantity', event.target.value)} className={inputClass} />
+                <Field label={__('Quantity')} error={form.errors.quantity} hint={`${__('Remaining')}: ${configuredQuantity.format(remainingQuantity(request))} ${request.unit_of_measure}`}>
+                    <input required min="0" step={configuredQuantity.input.step} type="number" value={form.data.quantity} onChange={(event) => form.setData('quantity', event.target.value)} className={inputClass} />
                 </Field>
                 <Field label={__('Delivery notes')} error={form.errors.notes}>
                     <textarea rows="2" value={form.data.notes} onChange={(event) => form.setData('notes', event.target.value)} className={inputClass} />

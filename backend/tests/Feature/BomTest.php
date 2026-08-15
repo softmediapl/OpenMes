@@ -357,6 +357,7 @@ class BomTest extends TestCase
                 'code' => 'TEST-001',
                 'name' => 'Test Material',
                 'material_type_id' => $this->rawMaterial->id,
+                'unit_of_measure' => 'pcs',
             ]);
 
         $response->assertStatus(403);
@@ -369,6 +370,7 @@ class BomTest extends TestCase
                 'code' => 'TEST-001',
                 'name' => 'Test Material',
                 'material_type_id' => $this->rawMaterial->id,
+                'unit_of_measure' => 'pcs',
             ]);
 
         $response->assertStatus(201)
@@ -385,6 +387,7 @@ class BomTest extends TestCase
                         'external_code' => 'EXT-001',
                         'name' => 'Imported Material',
                         'type' => 'raw_material',
+                        'unit' => 'pcs',
                     ],
                 ],
             ]);

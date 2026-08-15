@@ -17,7 +17,7 @@ describe('BOM quantity rule presentation', () => {
 
         expect(hasExactQuantityRatio(item)).toBe(true);
         expect(quantityRuleMode(item)).toBe('ratio');
-        expect(formatQuantityRule(item)).toBe('1.0000 pcs / 12.0000');
+        expect(formatQuantityRule(item, 0, 0)).toBe('1 pcs / 12');
     });
 
     it('falls back to the legacy per-unit rule', () => {
@@ -30,14 +30,14 @@ describe('BOM quantity rule presentation', () => {
 
         expect(hasExactQuantityRatio(item)).toBe(false);
         expect(quantityRuleMode(item)).toBe('per_unit');
-        expect(formatQuantityRule(item)).toBe('0.0200 l');
+        expect(formatQuantityRule(item, 4, 0)).toBe('0.02 l');
     });
 
     it('formats package rounding with translated labels', () => {
         const translate = (value) => `translated:${value}`;
 
-        expect(formatRoundingRule({ rounding_mode: 'none' }, translate)).toBe('translated:None');
-        expect(formatRoundingRule({ rounding_mode: 'up', rounding_multiple: '12' }, translate))
+        expect(formatRoundingRule({ rounding_mode: 'none' }, 0, translate)).toBe('translated:None');
+        expect(formatRoundingRule({ rounding_mode: 'up', rounding_multiple: '12' }, 0, translate))
             .toBe('translated:Round up · 12');
     });
 });

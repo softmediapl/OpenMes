@@ -52,16 +52,19 @@ class ProductImportService
                 return $this->error('code', __("Product ':code' already exists", ['code' => $code]));
             }
 
+            $unit = trim((string) ($row['unit_of_measure'] ?? $existing?->unit_of_measure ?? ''));
+            if ($unit === '' || ! UnitOfMeasure::query()->where('code', $unit)->where('is_active', true)->exists()) {
+                return $this->error('unit_of_measure', __('Unit of measure must be configured before import'));
+            }
+
             $attributes = [
                 'name' => trim((string) ($row['name'] ?? $code)),
                 'description' => $row['description'] ?? null,
                 'category' => $category,
-                'unit_of_measure' => $row['unit_of_measure'] ?? 'pcs',
+                'unit_of_measure' => $unit,
                 'external_code' => $row['external_code'] ?? $code,
                 'external_system' => $row['external_system'] ?? $system,
             ];
-            UnitOfMeasure::ensureCode($attributes['unit_of_measure']);
-
             // A row that omits is_active leaves the current flag alone on update
             // and defaults to active on create.
             if (array_key_exists('is_active', $row)) {

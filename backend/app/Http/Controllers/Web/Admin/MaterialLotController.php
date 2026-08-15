@@ -222,7 +222,7 @@ class MaterialLotController extends Controller
             ->get(['id', 'name', 'unit_of_measure'])
             ->each(fn (Material $material) => $material->setAttribute(
                 'quantity_precision',
-                (int) ($precisions[$material->unit_of_measure] ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure)),
+                UnitOfMeasure::precisionForCode($material->unit_of_measure),
             ));
     }
 }

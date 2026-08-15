@@ -4,6 +4,7 @@ namespace App\Http\Requests\Web\Admin;
 
 use App\Http\Requests\Concerns\MergesCustomFieldRules;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreMaterialRequest extends FormRequest
 {
@@ -40,7 +41,7 @@ class StoreMaterialRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'material_type_id' => ['nullable', 'exists:material_types,id'],
-            'unit_of_measure' => ['nullable', 'string', 'max:20'],
+            'unit_of_measure' => ['required', 'string', 'max:20', Rule::exists('units_of_measure', 'code')->where('is_active', true)],
             'tracking_type' => ['nullable', 'in:none,batch,serial'],
             'lot_picking_strategy' => ['nullable', 'in:fefo,fifo,lifo,manual'],
             // Make-or-buy: a manufactured material is a subassembly that BOM

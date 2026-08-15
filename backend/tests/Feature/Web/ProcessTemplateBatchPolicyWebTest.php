@@ -120,7 +120,9 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
 
     public function test_edit_form_exposes_the_persisted_policy(): void
     {
+        $productType = \App\Models\ProductType::factory()->create(['unit_of_measure' => 'pcs']);
         $template = ProcessTemplate::factory()->create([
+            'product_type_id' => $productType->id,
             'preferred_batch_quantity' => 200,
             'min_batch_quantity' => 100,
             'max_batch_quantity' => 200,
@@ -137,6 +139,24 @@ class ProcessTemplateBatchPolicyWebTest extends TestCase
                 ->where('processTemplate.preferred_batch_quantity', '200.0000')
                 ->where('processTemplate.batch_quantity_multiple', '50.0000')
                 ->where('processTemplate.allow_partial_final_batch', false)
-                ->where('processTemplate.pallet_capacity_quantity', 4800));
+                ->where('processTemplate.pallet_capacity_quantity', 4800)
+                ->where('productType.unit_of_measure', 'pcs')
+                ->where('productType.quantity_precision', 0));
+    }
+
+    public function test_whole_unit_product_rejects_fractional_batch_quantities(): void
+    {
+        $productType = \App\Models\ProductType::factory()->create(['unit_of_measure' => 'pcs']);
+
+        $this->actingAs($this->admin)
+            ->post("/admin/product-types/{$productType->id}/process-templates", [
+                'name' => 'Fractional pieces',
+                'is_active' => true,
+                'preferred_batch_quantity' => '200.5',
+                'allow_partial_final_batch' => true,
+            ])
+            ->assertSessionHasErrors(['preferred_batch_quantity']);
+
+        $this->assertDatabaseMissing('process_templates', ['name' => 'Fractional pieces']);
     }
 }

@@ -3,6 +3,7 @@ import { Button, StatusPill } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import { documentTypeLabels } from './types';
 import { __, formatDateTime, formatNumber } from '../../../lib/i18n';
+import { assertQuantityPrecision } from '../../../lib/configuredQuantity';
 
 const STATUS_PILL = { draft: 'pending', posted: 'done', cancelled: 'blocked' };
 
@@ -119,7 +120,7 @@ export default function StockDocumentShow({ document: doc, unitPrecisions = {} }
                                     <td className="px-5 py-2.5 font-mono text-om-muted">{line.lot_number ?? '—'}</td>
                                     <td className="px-5 py-2.5 text-right text-om-ink">
                                         {sign}
-                                        {formatNumber(line.quantity, { maximumFractionDigits: unitPrecisions[line.unit_of_measure] ?? 4 })} {line.unit_of_measure ?? ''}
+                                        {formatNumber(line.quantity, { maximumFractionDigits: assertQuantityPrecision(unitPrecisions[line.unit_of_measure], line.unit_of_measure) })} {line.unit_of_measure ?? ''}
                                     </td>
                                     <td className="px-5 py-2.5 text-right font-mono text-om-muted">
                                         {line.unit_price == null

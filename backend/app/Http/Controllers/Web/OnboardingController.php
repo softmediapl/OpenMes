@@ -7,6 +7,7 @@ use App\Models\Line;
 use App\Models\ProcessTemplate;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
+use App\Models\UnitOfMeasure;
 use App\Services\WorkOrder\WorkOrderService;
 use App\Support\ModuleRegistry;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -83,7 +84,10 @@ class OnboardingController extends Controller
             return redirect()->route('onboarding.step1');
         }
 
-        return Inertia::render('onboarding/Step2', ['step' => 3]);
+        return Inertia::render('onboarding/Step2', [
+            'step' => 3,
+            'unitsOfMeasure' => UnitOfMeasure::query()->where('is_active', true)->orderBy('code')->get(['code', 'name', 'symbol']),
+        ]);
     }
 
     public function storeStep2(Request $request)
@@ -91,10 +95,9 @@ class OnboardingController extends Controller
         $validated = $request->validate([
             'code' => 'required|string|max:50|unique:product_types,code',
             'name' => 'required|string|max:255',
-            'unit_of_measure' => 'nullable|string|max:20',
+            'unit_of_measure' => 'required|string|max:20|exists:units_of_measure,code',
         ]);
 
-        $validated['unit_of_measure'] = $validated['unit_of_measure'] ?? 'pcs';
         $validated['is_active'] = true;
 
         $productType = ProductType::create($validated);

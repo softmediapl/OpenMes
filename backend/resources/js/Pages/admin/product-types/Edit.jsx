@@ -25,7 +25,7 @@ export default function ProductTypeEdit({ productType, customFields = [], unitsO
                     code: productType.code ?? '',
                     name: productType.name ?? '',
                     description: productType.description ?? '',
-                    unit_of_measure: productType.unit_of_measure ?? 'pcs',
+                    unit_of_measure: productType.unit_of_measure ?? '',
                     is_active: !!productType.is_active,
                     custom_fields: productType.custom_fields ?? {},
                 }}

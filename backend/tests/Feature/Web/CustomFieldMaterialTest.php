@@ -53,6 +53,7 @@ class CustomFieldMaterialTest extends TestCase
             'code' => 'MAT-CF-1',
             'name' => 'Custom Field Material',
             'material_type_id' => $this->materialType->id,
+            'unit_of_measure' => 'pcs',
             'custom_fields' => ['color' => 'red', 'shelf_qty' => '5'],
         ], $overrides);
     }
@@ -115,6 +116,7 @@ class CustomFieldMaterialTest extends TestCase
             'code' => $material->code,
             'name' => $material->name,
             'material_type_id' => $this->materialType->id,
+            'unit_of_measure' => $material->unit_of_measure,
             'is_active' => true,
             'custom_fields' => ['color' => 'blue'],
         ]);

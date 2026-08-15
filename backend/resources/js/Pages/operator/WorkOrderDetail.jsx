@@ -17,6 +17,7 @@ import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdown
 import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
+import { assertQuantityPrecision } from '../../lib/configuredQuantity';
 
 // Geist White restyle: light-only v1 — former `dark:` variants removed.
 
@@ -24,9 +25,10 @@ import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtQty(n, decimals = 2) {
+function fmtQty(n, decimals) {
     if (n == null) return '—';
-    return formatNumber(Number(n), { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    const configuredDecimals = assertQuantityPrecision(decimals);
+    return formatNumber(Number(n), { minimumFractionDigits: configuredDecimals, maximumFractionDigits: configuredDecimals });
 }
 
 /** Map domain statuses onto the design system's StatusPill states. */
@@ -129,7 +131,7 @@ const modalFooterCls = 'flex justify-end gap-[9px] border-t border-om-line2 bg-o
 // BOM accordion
 // ---------------------------------------------------------------------------
 
-function BomSection({ materialRequirements, productionQuantity }) {
+function BomSection({ materialRequirements, productionQuantity, productPrecision }) {
     const [open, setOpen] = useState(false);
     const bom = materialRequirements;
 
@@ -171,13 +173,13 @@ function BomSection({ materialRequirements, productionQuantity }) {
         {
             id: 'total',
             accessorFn: (r) => r.required_qty,
-            header: `${__('Required')} (${fmtQty(productionQuantity)} ${__('pcs')})`,
+            header: `${__('Required')} (${fmtQty(productionQuantity, productPrecision)} ${__('pcs')})`,
             meta: { align: 'right' },
             cell: ({ row }) => {
                 const item = row.original;
                 return (
                     <span className="font-mono font-medium text-om-ink">
-                        {fmtQty(item.required_qty, 4)} {item.unit_of_measure}
+                        {fmtQty(item.required_qty, item.quantity_precision)} {item.unit_of_measure}
                         {item.scrap_percentage > 0 && (
                             <span className="text-xs text-om-faint ml-1">(+{item.scrap_percentage}% {__('scrap')})</span>
                         )}
@@ -196,7 +198,7 @@ function BomSection({ materialRequirements, productionQuantity }) {
                 </span>
             ),
         },
-    ], [productionQuantity]);
+    ], [productionQuantity, productPrecision]);
 
     if (!bom || bom.length === 0) return null;
 
@@ -2773,7 +2775,10 @@ export default function WorkOrderDetail() {
 
     const plannedQty = workOrder.planned_qty ?? 0;
     const producedQty = workOrder.produced_qty ?? 0;
-    const quantityPrecision = workOrder.product_type?.quantity_precision ?? 4;
+    const quantityPrecision = assertQuantityPrecision(
+        workOrder.product_type?.quantity_precision,
+        workOrder.product_type?.unit_of_measure,
+    );
     const remaining = Math.max(plannedQty - producedQty, 0);
     const pct = plannedQty > 0 ? Math.min((producedQty / plannedQty) * 100, 100) : 0;
 
@@ -2900,6 +2905,7 @@ export default function WorkOrderDetail() {
                         <BomSection
                             materialRequirements={materialRequirements}
                             productionQuantity={materialRequirementQuantity}
+                            productPrecision={quantityPrecision}
                         />
 
                         {/* Process reference photos (work instructions) */}
