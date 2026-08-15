@@ -109,7 +109,12 @@ class WorkOrderOperationPlanTest extends TestCase
         ]);
         $workers = Worker::factory()->count(2)->create();
 
-        $plan->plannedWorkers()->attach($workers->modelKeys());
+        $plan->plannedWorkers()->attach($workers->mapWithKeys(fn (Worker $worker) => [
+            $worker->id => [
+                'reserved_start_at' => '2026-08-17 06:00:00',
+                'reserved_end_at' => '2026-08-17 07:30:00',
+            ],
+        ])->all());
 
         $this->assertSame(
             $workers->modelKeys(),
@@ -133,9 +138,15 @@ class WorkOrderOperationPlanTest extends TestCase
             'duration_minutes' => 60,
         ]);
         $worker = Worker::factory()->create();
-        $plan->plannedWorkers()->attach($worker);
+        $plan->plannedWorkers()->attach($worker, [
+            'reserved_start_at' => '2026-08-17 06:00:00',
+            'reserved_end_at' => '2026-08-17 07:00:00',
+        ]);
 
         $this->expectException(\Illuminate\Database\QueryException::class);
-        $plan->plannedWorkers()->attach($worker);
+        $plan->plannedWorkers()->attach($worker, [
+            'reserved_start_at' => '2026-08-17 06:00:00',
+            'reserved_end_at' => '2026-08-17 07:00:00',
+        ]);
     }
 }

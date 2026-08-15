@@ -6,6 +6,7 @@ use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A committed reservation of one released operation on a workstation slot.
@@ -76,6 +77,14 @@ class WorkOrderOperationPlan extends Model
         return $this->belongsToMany(
             Worker::class,
             'work_order_operation_plan_workers',
-        )->withTimestamps();
+        )->withPivot(['reserved_start_at', 'reserved_end_at'])->withTimestamps();
+    }
+
+    /**
+     * Time-bounded worker assignments, including shift handovers.
+     */
+    public function workerAssignments(): HasMany
+    {
+        return $this->hasMany(WorkOrderOperationPlanWorker::class);
     }
 }

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Worker extends Model
 {
@@ -70,7 +71,12 @@ class Worker extends Model
         return $this->belongsToMany(
             WorkOrderOperationPlan::class,
             'work_order_operation_plan_workers',
-        )->withTimestamps();
+        )->withPivot(['reserved_start_at', 'reserved_end_at'])->withTimestamps();
+    }
+
+    public function operationAssignments(): HasMany
+    {
+        return $this->hasMany(WorkOrderOperationPlanWorker::class);
     }
 
     /**
@@ -129,9 +135,14 @@ class Worker extends Model
      * Recorded absences (vacation / sick / …). See WorkerAvailabilityService
      * for the availability logic that consumes these.
      */
-    public function absences(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function absences(): HasMany
     {
         return $this->hasMany(WorkerAbsence::class);
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(EmployeeActivity::class);
     }
 
     /** True if an approved absence covers the given date. */
