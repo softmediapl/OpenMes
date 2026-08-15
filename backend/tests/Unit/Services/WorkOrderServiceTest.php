@@ -87,6 +87,7 @@ class WorkOrderServiceTest extends TestCase
         $snapshot = $workOrder->process_snapshot;
         $snapshot['steps'][0]['transport_unit_type_id'] = $transportUnitType->id;
         $snapshot['steps'][0]['labor_mode'] = 'unattended';
+        $snapshot['steps'][0]['requires_palletization'] = true;
         $workOrder->update(['process_snapshot' => $snapshot]);
         $this->assertCount(3, $workOrder->process_snapshot['steps']); // From factory
 
@@ -113,6 +114,7 @@ class WorkOrderServiceTest extends TestCase
             );
             $this->assertEquals($snapshotStep['min_duration_minutes'], $step->min_duration_minutes);
             $this->assertEquals($snapshotStep['transport_unit_type_id'] ?? null, $step->transport_unit_type_id);
+            $this->assertSame((bool) ($snapshotStep['requires_palletization'] ?? false), $step->requires_palletization);
             // First step is promoted to READY ("ready to start"); the rest stay
             // PENDING until their predecessor completes.
             $this->assertEquals($index === 0 ? 'READY' : 'PENDING', $step->status);

@@ -121,6 +121,7 @@ class ProcessTemplateManagementController extends Controller
                     'instruction' => $s->instruction,
                     'requires_confirmation' => (bool) $s->requires_confirmation,
                     'quantity_reporting_required' => (bool) $s->quantity_reporting_required,
+                    'requires_palletization' => (bool) $s->requires_palletization,
                     'estimated_duration_minutes' => $s->estimated_duration_minutes,
                     'execution_mode' => $s->execution_mode->value,
                     'labor_mode' => $s->labor_mode?->value,
@@ -366,6 +367,7 @@ class ProcessTemplateManagementController extends Controller
         $data = $request->validated();
         $data['requires_confirmation'] = $request->boolean('requires_confirmation');
         $data['quantity_reporting_required'] = $request->boolean('quantity_reporting_required');
+        $data['requires_palletization'] = $request->boolean('requires_palletization');
         $data['quality_gate_required'] = $request->boolean('quality_gate_required');
         $data['quality_check_template_id'] = $data['quality_gate_required']
             ? ($data['quality_check_template_id'] ?? null)

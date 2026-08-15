@@ -76,6 +76,23 @@ class ProcessTemplateStepWebTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_require_palletized_output(): void
+    {
+        [$pt, $tpl] = $this->template();
+
+        $this->actingAs($this->admin)
+            ->post($this->base($pt, $tpl).'/steps', [
+                'name' => 'Palletize finished goods',
+                'requires_palletization' => true,
+            ])->assertRedirect();
+
+        $this->assertDatabaseHas('template_steps', [
+            'process_template_id' => $tpl->id,
+            'name' => 'Palletize finished goods',
+            'requires_palletization' => true,
+        ]);
+    }
+
     public function test_admin_can_override_operation_labor_mode(): void
     {
         [$pt, $tpl] = $this->template();

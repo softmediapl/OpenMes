@@ -81,6 +81,17 @@ function OptionalVariantFields({ data, setData, errors }) {
             <p className="md:col-span-3 -mt-2 text-xs text-om-muted">
                 {__('The operator must account for the complete input as good, rework or scrap before completing this step.')}
             </p>
+
+            <div className="md:col-span-3 flex items-center border-t border-om-line pt-3">
+                <Checkbox
+                    checked={!!data.requires_palletization}
+                    onChange={(next) => setData('requires_palletization', next)}
+                    label={__('Require output to be registered on closed pallets')}
+                />
+            </div>
+            <p className="md:col-span-3 -mt-2 text-xs text-om-muted">
+                {__('The step cannot be completed until closed pallets linked to this operation cover its released quantity.')}
+            </p>
         </div>
     );
 }
@@ -276,6 +287,7 @@ function AddStepForm({
         instruction: '',
         requires_confirmation: false,
         quantity_reporting_required: false,
+        requires_palletization: false,
         estimated_duration_minutes: '',
         execution_mode: 'per_unit',
         labor_mode: '',
@@ -460,6 +472,7 @@ function EditStepForm({
         instruction: step.instruction ?? '',
         requires_confirmation: !!step.requires_confirmation,
         quantity_reporting_required: !!step.quantity_reporting_required,
+        requires_palletization: !!step.requires_palletization,
         estimated_duration_minutes: step.estimated_duration_minutes != null ? String(step.estimated_duration_minutes) : '',
         execution_mode: step.execution_mode ?? 'per_unit',
         labor_mode: step.labor_mode ?? '',
@@ -871,6 +884,11 @@ function StepCard({
                                         {step.quantity_reporting_required && (
                                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-done-bg text-om-done">
                                                 {__('Quantity balance')}
+                                            </span>
+                                        )}
+                                        {step.requires_palletization && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-chip text-om-accent">
+                                                {__('Palletized output')}
                                             </span>
                                         )}
                                         {step.quality_gate_required && (

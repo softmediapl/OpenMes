@@ -33,6 +33,7 @@ abstract class TemplateStepRequest extends FormRequest
             'instruction' => 'nullable|string',
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
+            'requires_palletization' => 'boolean',
             'estimated_duration_minutes' => 'nullable|integer|min:0',
             'execution_mode' => ['sometimes', Rule::enum(OperationExecutionMode::class)],
             'min_duration_minutes' => 'nullable|integer|min:0',

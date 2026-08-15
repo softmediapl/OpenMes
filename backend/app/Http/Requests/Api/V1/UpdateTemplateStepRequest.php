@@ -29,6 +29,7 @@ class UpdateTemplateStepRequest extends FormRequest
             'instruction' => ['sometimes', 'nullable', 'string'],
             'requires_confirmation' => ['sometimes', 'boolean'],
             'quantity_reporting_required' => ['sometimes', 'boolean'],
+            'requires_palletization' => ['sometimes', 'boolean'],
             'estimated_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:0'],
             'execution_mode' => ['sometimes', Rule::enum(OperationExecutionMode::class)],
             'min_duration_minutes' => ['sometimes', 'nullable', 'integer', 'min:0'],

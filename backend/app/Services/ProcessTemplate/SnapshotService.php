@@ -74,6 +74,7 @@ class SnapshotService
                     'requires_confirmation' => (bool) $step->requires_confirmation
                         && $step->hasConfirmableInstructionContent(),
                     'quantity_reporting_required' => (bool) $step->quantity_reporting_required,
+                    'requires_palletization' => (bool) $step->requires_palletization,
                     'estimated_duration_minutes' => $step->estimated_duration_minutes,
                     'execution_mode' => $step->execution_mode->value,
                     'min_duration_minutes' => $step->min_duration_minutes,

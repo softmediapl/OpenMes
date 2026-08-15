@@ -733,6 +733,7 @@ class WorkOrderService
                 'instruction' => $stepData['instruction'] ?? null,
                 'requires_confirmation' => $stepData['requires_confirmation'] ?? false,
                 'quantity_reporting_required' => $stepData['quantity_reporting_required'] ?? false,
+                'requires_palletization' => $stepData['requires_palletization'] ?? false,
                 'workstation_id' => $stepData['workstation_id'] ?? null,
                 // ISA-95 (#52): carry the required Equipment Class + planning times
                 // down from the snapshot so pool dispatch and the actual-vs-standard

@@ -130,6 +130,18 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('run_time_per_unit_minutes', $step);
         $this->assertArrayHasKey('execution_mode', $step);
         $this->assertArrayHasKey('min_duration_minutes', $step);
+        $this->assertArrayHasKey('requires_palletization', $step);
+    }
+
+    public function test_snapshot_freezes_the_palletization_contract(): void
+    {
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update(['requires_palletization' => true]);
+
+        $snapshot = $this->service->createSnapshot($template->fresh());
+        $template->steps()->first()->update(['requires_palletization' => false]);
+
+        $this->assertTrue($snapshot['steps'][0]['requires_palletization']);
     }
 
     public function test_snapshot_step_carries_isa95_standard_times(): void
