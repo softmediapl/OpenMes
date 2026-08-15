@@ -63,6 +63,7 @@
     "Enable PIN login": "Włącz logowanie PIN",
     "Modbus connection created.": "Utworzono połączenie Modbus.",
     "IN PROGRESS": "W TOKU",
+    "In progress by :name": "W toku: :name",
     "Workstation View Columns": "Kolumny widoku stanowiska",
     "Minimum cert level": "Minimalny poziom certyfikatu",
     "Modbus Connections": "Połączenia Modbus",

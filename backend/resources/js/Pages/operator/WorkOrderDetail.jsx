@@ -650,8 +650,7 @@ function ProductionControls({ batch }) {
 // Single Batch card
 // ---------------------------------------------------------------------------
 
-function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
-    const [expanded, setExpanded] = useState(defaultOpen);
+function BatchCard({ batch, expanded, onToggle, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], workstationLocked = false, canOverrideOperationHold = false }) {
     const showControls = batch.status === 'IN_PROGRESS' || batch.status === 'DONE';
     const runningHoldStep = (batch.steps ?? []).find((step) => (
         step.status === 'IN_PROGRESS'
@@ -670,7 +669,8 @@ function BatchCard({ batch, defaultOpen, quantityUnit, quantityPrecision, labelT
                 <button
                     type="button"
                     className="flex flex-1 justify-between items-center text-left cursor-pointer"
-                    onClick={() => setExpanded((v) => !v)}
+                    onClick={onToggle}
+                    aria-expanded={expanded}
                 >
                     <div className="flex items-center gap-4">
                         <h3 className="text-[16px] font-semibold tracking-[-0.01em] text-om-ink">
@@ -2562,6 +2562,16 @@ export default function WorkOrderDetail() {
     const [createBatchOpen, setCreateBatchOpen] = useState(false);
     const [reportIssueOpen, setReportIssueOpen] = useState(false);
     const [reportScrapOpen, setReportScrapOpen] = useState(false);
+    const [expandedBatchId, setExpandedBatchId] = useState(() => workOrder.batches?.[0]?.id ?? null);
+
+    const batchIdsKey = (workOrder.batches ?? []).map((batch) => batch.id).join(',');
+    useEffect(() => {
+        setExpandedBatchId((currentId) => (
+            workOrder.batches?.some((batch) => batch.id === currentId)
+                ? currentId
+                : (workOrder.batches?.[0]?.id ?? null)
+        ));
+    }, [batchIdsKey]);
 
     const plannedQty = workOrder.planned_qty ?? 0;
     const producedQty = workOrder.produced_qty ?? 0;
@@ -2721,11 +2731,14 @@ export default function WorkOrderDetail() {
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {workOrder.batches.map((batch, idx) => (
+                                    {workOrder.batches.map((batch) => (
                                         <BatchCard
                                             key={batch.id}
                                             batch={batch}
-                                            defaultOpen={idx === 0}
+                                            expanded={expandedBatchId === batch.id}
+                                            onToggle={() => setExpandedBatchId((currentId) => (
+                                                currentId === batch.id ? null : batch.id
+                                            ))}
                                             quantityUnit={workOrder.product_type?.unit_of_measure}
                                             quantityPrecision={workOrder.product_type?.quantity_precision}
                                             labelTemplates={labelTemplates}
