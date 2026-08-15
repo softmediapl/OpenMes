@@ -24,6 +24,8 @@ class StockDocumentLine extends Model
         'lot_number',
         'quantity',
         'unit_of_measure',
+        'unit_price',
+        'price_currency',
         'notes',
         'sort_order',
     ];
@@ -32,6 +34,7 @@ class StockDocumentLine extends Model
     {
         return [
             'quantity' => 'decimal:3',
+            'unit_price' => 'decimal:4',
             'sort_order' => 'integer',
         ];
     }

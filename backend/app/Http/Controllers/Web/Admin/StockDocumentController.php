@@ -43,7 +43,9 @@ class StockDocumentController extends Controller
     {
         return Inertia::render('admin/stock-documents/Create', [
             'warehouses' => Warehouse::active()->orderBy('code')->get(['id', 'code', 'name', 'kind', 'is_default']),
-            'materials' => Material::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'unit_of_measure']),
+            'materials' => Material::where('is_active', true)->orderBy('code')->get([
+                'id', 'code', 'name', 'unit_of_measure', 'tracking_type', 'unit_price', 'price_currency',
+            ]),
             'productTypes' => ProductType::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'unit_of_measure']),
             'types' => StockDocument::TYPES,
         ]);
@@ -96,6 +98,8 @@ class StockDocumentController extends Controller
                     'lot_number' => $line->effectiveLotNumber(),
                     'quantity' => (float) $line->quantity,
                     'unit_of_measure' => $line->unit_of_measure,
+                    'unit_price' => $line->unit_price !== null ? (float) $line->unit_price : null,
+                    'price_currency' => $line->price_currency,
                     'notes' => $line->notes,
                 ]),
             ],

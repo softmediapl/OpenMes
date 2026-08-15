@@ -5,6 +5,7 @@ namespace App\Services\Warehouse;
 use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\StockDocument;
+use App\Models\StockDocumentLine;
 use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -129,6 +130,7 @@ class StockDocumentService
 
             if ($document->affects_inventory) {
                 foreach ($document->lines as $line) {
+                    $this->prepareMaterialReceiptLine($document, $line, $user);
                     $this->applyLine($document, $line, reverse: false, user: $user);
                 }
             }
@@ -267,7 +269,132 @@ class StockDocumentService
         );
 
         if ($line->material_lot_id !== null) {
-            $this->adjustLot($line->material_lot_id, $signed, (int) $line->material_id);
+            $this->adjustLot(
+                $line->material_lot_id,
+                $signed,
+                (int) $line->material_id,
+                $document->type === StockDocument::TYPE_MATERIAL_RECEIPT,
+            );
+        }
+    }
+
+    /**
+     * Resolve the physical lot represented by a material receipt line.
+     *
+     * Drafts remain inert. The lot is created or linked only while the receipt
+     * is posted, inside the same transaction that moves every stock balance.
+     */
+    private function prepareMaterialReceiptLine(
+        StockDocument $document,
+        StockDocumentLine $line,
+        ?User $user,
+    ): void {
+        if ($document->type !== StockDocument::TYPE_MATERIAL_RECEIPT || $line->material_id === null) {
+            return;
+        }
+
+        $material = Material::query()->lockForUpdate()->find($line->material_id);
+        if (! $material) {
+            throw ValidationException::withMessages([
+                'lines' => __('The receipt references a material that no longer exists.'),
+            ]);
+        }
+
+        if ($line->unit_price === null || blank($line->price_currency)) {
+            throw ValidationException::withMessages([
+                'lines' => __('Every material receipt line requires a unit price and currency.'),
+            ]);
+        }
+
+        $currency = strtoupper((string) $line->price_currency);
+        if ($material->tracking_type === 'none' && $line->material_lot_id === null && blank($line->lot_number)) {
+            $line->update(['price_currency' => $currency]);
+
+            return;
+        }
+
+        $lot = $line->material_lot_id !== null
+            ? MaterialLot::query()->lockForUpdate()->find($line->material_lot_id)
+            : MaterialLot::query()
+                ->where('lot_number', trim((string) $line->lot_number))
+                ->lockForUpdate()
+                ->first();
+
+        if (! $lot) {
+            if (blank($line->lot_number)) {
+                throw ValidationException::withMessages([
+                    'lines' => __('A lot number is required for tracked material receipts.'),
+                ]);
+            }
+
+            $lot = MaterialLot::create([
+                'lot_number' => trim((string) $line->lot_number),
+                'material_id' => $material->id,
+                'warehouse_id' => $document->warehouse_id,
+                'quantity_received' => 0,
+                'quantity_available' => 0,
+                'unit_of_measure' => $line->unit_of_measure ?: $material->unit_of_measure,
+                'unit_price' => $line->unit_price,
+                'price_currency' => $currency,
+                'received_at' => now(),
+                'status' => MaterialLot::STATUS_RECEIVED,
+                'created_by_id' => $user?->id,
+                'tenant_id' => $document->tenant_id,
+            ]);
+        } else {
+            $this->guardReceiptLotCompatibility($document, $line, $lot, $currency);
+
+            $updates = [];
+            if ($lot->warehouse_id === null) {
+                $updates['warehouse_id'] = $document->warehouse_id;
+            }
+            if ($lot->unit_price === null) {
+                $updates['unit_price'] = $line->unit_price;
+                $updates['price_currency'] = $currency;
+            }
+            if ($updates !== []) {
+                $lot->update($updates);
+            }
+        }
+
+        $line->update([
+            'material_lot_id' => $lot->id,
+            'lot_number' => $lot->lot_number,
+            'price_currency' => $currency,
+        ]);
+    }
+
+    private function guardReceiptLotCompatibility(
+        StockDocument $document,
+        StockDocumentLine $line,
+        MaterialLot $lot,
+        string $currency,
+    ): void {
+        if ((int) $lot->material_id !== (int) $line->material_id) {
+            throw ValidationException::withMessages([
+                'lines' => __('Lot :lot belongs to a different material.', ['lot' => $lot->lot_number]),
+            ]);
+        }
+
+        if ($lot->warehouse_id !== null && (int) $lot->warehouse_id !== (int) $document->warehouse_id) {
+            throw ValidationException::withMessages([
+                'lines' => __('Lot :lot is stored in a different warehouse.', ['lot' => $lot->lot_number]),
+            ]);
+        }
+
+        if ($lot->unit_of_measure !== null && $line->unit_of_measure !== null
+            && $lot->unit_of_measure !== $line->unit_of_measure) {
+            throw ValidationException::withMessages([
+                'lines' => __('Lot :lot uses a different unit of measure.', ['lot' => $lot->lot_number]),
+            ]);
+        }
+
+        if ($lot->unit_price !== null
+            && (abs((float) $lot->unit_price - (float) $line->unit_price) > 0.00005
+                || strtoupper((string) $lot->price_currency) !== $currency)) {
+            throw ValidationException::withMessages([
+                'lines' => __('Lot :lot already has a different valuation.', ['lot' => $lot->lot_number]),
+            ]);
         }
     }
 
@@ -337,7 +464,7 @@ class StockDocumentService
     }
 
     /** Keep the lot's remaining quantity in step with what was issued/returned. */
-    private function adjustLot(int $lotId, float $signed, int $materialId): void
+    private function adjustLot(int $lotId, float $signed, int $materialId, bool $isReceipt): void
     {
         $lot = MaterialLot::where('id', $lotId)->lockForUpdate()->first();
 
@@ -345,10 +472,32 @@ class StockDocumentService
         // the form request rejects it, and a payload assembled elsewhere must not
         // slip past that.
         if (! $lot || (int) $lot->material_id !== $materialId) {
-            return;
+            throw ValidationException::withMessages([
+                'lines' => __('That lot belongs to a different material.'),
+            ]);
         }
 
-        $lot->quantity_available = max(0, round((float) $lot->quantity_available + $signed, 4));
+        $available = round((float) $lot->quantity_available + $signed, 4);
+        if ($available < 0) {
+            throw ValidationException::withMessages([
+                'lines' => __('Lot :lot does not have enough available quantity for this reversal.', [
+                    'lot' => $lot->lot_number,
+                ]),
+            ]);
+        }
+
+        $lot->quantity_available = $available;
+        if ($isReceipt) {
+            $received = round((float) $lot->quantity_received + $signed, 4);
+            if ($received < 0) {
+                throw ValidationException::withMessages([
+                    'lines' => __('Receipt reversal exceeds the quantity received for lot :lot.', [
+                        'lot' => $lot->lot_number,
+                    ]),
+                ]);
+            }
+            $lot->quantity_received = $received;
+        }
 
         // A lot drained by an issue is consumed; returning stock to an emptied
         // lot makes it usable again.
@@ -410,6 +559,10 @@ class StockDocumentService
             'lot_number' => $line['lot_number'] ?? null,
             'quantity' => abs((float) ($line['quantity'] ?? 0)),
             'unit_of_measure' => $line['unit_of_measure'] ?? null,
+            'unit_price' => $isMaterial ? ($line['unit_price'] ?? null) : null,
+            'price_currency' => $isMaterial && isset($line['price_currency'])
+                ? strtoupper((string) $line['price_currency'])
+                : null,
             'notes' => $line['notes'] ?? null,
         ];
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Web\Admin;
 
+use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\StockDocument;
 use Illuminate\Foundation\Http\FormRequest;
@@ -31,6 +32,8 @@ class StoreStockDocumentRequest extends FormRequest
             'lines.*.lot_number' => ['nullable', 'string', 'max:100'],
             'lines.*.quantity' => ['required', 'numeric', 'gt:0', 'max:99999999'],
             'lines.*.unit_of_measure' => ['nullable', 'string', 'max:20'],
+            'lines.*.unit_price' => ['nullable', 'numeric', 'min:0', 'max:9999999999'],
+            'lines.*.price_currency' => ['nullable', 'string', 'size:3'],
             'lines.*.notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -63,6 +66,9 @@ class StoreStockDocumentRequest extends FormRequest
             // One query for every lot referenced by the payload: lot id => material id.
             $lotOwners = MaterialLot::whereIn('id', array_filter(array_column($lines, 'material_lot_id')))
                 ->pluck('material_id', 'id');
+            $materials = Material::whereIn('id', array_filter(array_column($lines, 'material_id')))
+                ->get(['id', 'tracking_type'])
+                ->keyBy('id');
 
             foreach ($lines as $index => $line) {
                 $field = $expectsMaterial ? 'material_id' : 'product_type_id';
@@ -102,6 +108,33 @@ class StoreStockDocumentRequest extends FormRequest
                     $validator->errors()->add(
                         "lines.{$index}.material_lot_id",
                         __('That lot belongs to a different material.'),
+                    );
+                }
+
+                if ($type !== StockDocument::TYPE_MATERIAL_RECEIPT) {
+                    continue;
+                }
+
+                $material = $materials->get((int) ($line['material_id'] ?? 0));
+                if ($material && $material->tracking_type !== 'none'
+                    && empty($lotId) && blank($line['lot_number'] ?? null)) {
+                    $validator->errors()->add(
+                        "lines.{$index}.lot_number",
+                        __('A lot number is required for tracked material receipts.'),
+                    );
+                }
+
+                if (! array_key_exists('unit_price', $line) || $line['unit_price'] === null || $line['unit_price'] === '') {
+                    $validator->errors()->add(
+                        "lines.{$index}.unit_price",
+                        __('A unit price is required for material receipts.'),
+                    );
+                }
+
+                if (blank($line['price_currency'] ?? null)) {
+                    $validator->errors()->add(
+                        "lines.{$index}.price_currency",
+                        __('A currency is required for material receipts.'),
                     );
                 }
             }

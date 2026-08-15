@@ -100,13 +100,14 @@ export default function StockDocumentShow({ document: doc }) {
                                 <th className="text-left px-5 py-2">{__('Item')}</th>
                                 <th className="text-left px-5 py-2">{__('Lot')}</th>
                                 <th className="text-right px-5 py-2">{__('Quantity')}</th>
+                                <th className="text-right px-5 py-2">{__('Unit Price')}</th>
                                 <th className="text-left px-5 py-2">{__('Notes')}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {doc.lines.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-5 py-4 text-om-muted">
+                                    <td colSpan={6} className="px-5 py-4 text-om-muted">
                                         {__('This document has no lines.')}
                                     </td>
                                 </tr>
@@ -119,6 +120,11 @@ export default function StockDocumentShow({ document: doc }) {
                                     <td className="px-5 py-2.5 text-right text-om-ink">
                                         {sign}
                                         {Number(line.quantity).toLocaleString()} {line.unit_of_measure ?? ''}
+                                    </td>
+                                    <td className="px-5 py-2.5 text-right font-mono text-om-muted">
+                                        {line.unit_price == null
+                                            ? '—'
+                                            : `${Number(line.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${line.price_currency ?? ''}`}
                                     </td>
                                     <td className="px-5 py-2.5 text-om-muted">{line.notes ?? '—'}</td>
                                 </tr>

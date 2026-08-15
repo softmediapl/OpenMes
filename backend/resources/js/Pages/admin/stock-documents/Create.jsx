@@ -11,7 +11,9 @@ const INPUT_CLASS =
 
 const MATERIAL_TYPES = ['material_issue', 'material_receipt'];
 
-const emptyLine = () => ({ item_id: '', lot_number: '', quantity: '', unit_of_measure: '', notes: '' });
+const emptyLine = () => ({
+    item_id: '', lot_number: '', quantity: '', unit_of_measure: '', unit_price: '', price_currency: 'PLN', notes: '',
+});
 
 /**
  * Manual stock document entry. A custom form rather than ResourceForm because a
@@ -35,6 +37,7 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
     const { data, setData, errors, processing } = form;
 
     const isMaterialDocument = MATERIAL_TYPES.includes(data.type);
+    const isMaterialReceipt = data.type === 'material_receipt';
     const items = isMaterialDocument ? materials : productTypes;
 
     // Only warehouses that may hold what this document moves.
@@ -59,6 +62,8 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                 lot_number: line.lot_number || null,
                 quantity: line.quantity,
                 unit_of_measure: line.unit_of_measure || null,
+                unit_price: isMaterialReceipt && line.unit_price !== '' ? line.unit_price : null,
+                price_currency: isMaterialReceipt ? (line.price_currency || null) : null,
                 notes: line.notes || null,
             }));
 
@@ -151,6 +156,8 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                                 item_id: e.target.value,
                                                 // Prefill the item's own unit; still editable.
                                                 unit_of_measure: line.unit_of_measure || item?.unit_of_measure || '',
+                                                unit_price: isMaterialReceipt ? (item?.unit_price ?? '') : '',
+                                                price_currency: isMaterialReceipt ? (item?.price_currency || 'PLN') : 'PLN',
                                             });
                                         }}
                                     >
@@ -176,6 +183,9 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                             value={line.lot_number}
                                             onChange={(e) => updateLine(index, { lot_number: e.target.value })}
                                         />
+                                        {errors[`lines.${index}.lot_number`] && (
+                                            <p className="mt-1 text-[12px] text-om-danger">{errors[`lines.${index}.lot_number`]}</p>
+                                        )}
                                     </div>
                                 )}
 
@@ -203,7 +213,38 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                     />
                                 </div>
 
-                                <div className={isMaterialDocument ? 'md:col-span-2' : 'md:col-span-4'}>
+                                {isMaterialReceipt && (
+                                    <>
+                                        <div className="md:col-span-1">
+                                            <label className={LABEL_CLASS}>{__('Unit Price')}</label>
+                                            <input
+                                                type="number"
+                                                step="0.0001"
+                                                min="0"
+                                                className={INPUT_CLASS}
+                                                value={line.unit_price}
+                                                onChange={(e) => updateLine(index, { unit_price: e.target.value })}
+                                            />
+                                            {errors[`lines.${index}.unit_price`] && (
+                                                <p className="mt-1 text-[12px] text-om-danger">{errors[`lines.${index}.unit_price`]}</p>
+                                            )}
+                                        </div>
+                                        <div className="md:col-span-1">
+                                            <label className={LABEL_CLASS}>{__('Currency')}</label>
+                                            <input
+                                                maxLength={3}
+                                                className={INPUT_CLASS}
+                                                value={line.price_currency}
+                                                onChange={(e) => updateLine(index, { price_currency: e.target.value.toUpperCase() })}
+                                            />
+                                            {errors[`lines.${index}.price_currency`] && (
+                                                <p className="mt-1 text-[12px] text-om-danger">{errors[`lines.${index}.price_currency`]}</p>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+
+                                <div className={isMaterialDocument ? (isMaterialReceipt ? 'md:col-span-12' : 'md:col-span-2') : 'md:col-span-4'}>
                                     <label className={LABEL_CLASS}>{__('Notes')}</label>
                                     <input
                                         className={INPUT_CLASS}

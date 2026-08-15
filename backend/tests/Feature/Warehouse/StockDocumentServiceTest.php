@@ -93,6 +93,106 @@ class StockDocumentServiceTest extends TestCase
             ->value('quantity'));
     }
 
+    public function test_posting_a_material_receipt_creates_and_values_its_lot_atomically(): void
+    {
+        $warehouse = $this->rawWarehouse();
+        $material = Material::factory()->create([
+            'tracking_type' => 'batch',
+            'unit_of_measure' => 'kg',
+            'stock_quantity' => 0,
+        ]);
+
+        $document = $this->service->createDraft([
+            'type' => StockDocument::TYPE_MATERIAL_RECEIPT,
+            'warehouse_id' => $warehouse->id,
+            'lines' => [[
+                'material_id' => $material->id,
+                'lot_number' => 'SUP-LOT-2026-001',
+                'quantity' => 125.5,
+                'unit_of_measure' => 'kg',
+                'unit_price' => 7.45,
+                'price_currency' => 'pln',
+            ]],
+        ]);
+
+        $this->assertSame(0, MaterialLot::count());
+
+        $this->service->post($document);
+
+        $lot = MaterialLot::sole();
+        $line = $document->fresh('lines')->lines->sole();
+
+        $this->assertSame($lot->id, $line->material_lot_id);
+        $this->assertSame($warehouse->id, $lot->warehouse_id);
+        $this->assertSame(MaterialLot::STATUS_RECEIVED, $lot->status);
+        $this->assertEquals(125.5, (float) $lot->quantity_received);
+        $this->assertEquals(125.5, (float) $lot->quantity_available);
+        $this->assertEquals(7.45, (float) $lot->unit_price);
+        $this->assertSame('PLN', $lot->price_currency);
+        $this->assertEquals(125.5, (float) $material->fresh()->stock_quantity);
+    }
+
+    public function test_cancelling_an_unconsumed_material_receipt_reverses_the_lot_quantities(): void
+    {
+        $warehouse = $this->rawWarehouse();
+        $material = Material::factory()->create(['tracking_type' => 'batch', 'stock_quantity' => 0]);
+        $document = $this->service->createDraft([
+            'type' => StockDocument::TYPE_MATERIAL_RECEIPT,
+            'warehouse_id' => $warehouse->id,
+            'lines' => [[
+                'material_id' => $material->id,
+                'lot_number' => 'REVERSIBLE-LOT',
+                'quantity' => 50,
+                'unit_of_measure' => 'pcs',
+                'unit_price' => 2,
+                'price_currency' => 'PLN',
+            ]],
+        ]);
+
+        $this->service->post($document);
+        $this->service->cancel($document->fresh());
+
+        $lot = MaterialLot::sole();
+        $this->assertEquals(0, (float) $lot->quantity_received);
+        $this->assertEquals(0, (float) $lot->quantity_available);
+        $this->assertEquals(0, (float) $material->fresh()->stock_quantity);
+    }
+
+    public function test_receipt_cannot_reuse_a_lot_with_a_different_material_or_price(): void
+    {
+        $warehouse = $this->rawWarehouse();
+        $material = Material::factory()->create(['tracking_type' => 'batch', 'stock_quantity' => 0]);
+        $foreignLot = MaterialLot::factory()->create([
+            'lot_number' => 'DUPLICATE-LOT',
+            'material_id' => Material::factory(),
+            'warehouse_id' => $warehouse->id,
+            'unit_price' => 4,
+            'price_currency' => 'PLN',
+        ]);
+        $document = $this->service->createDraft([
+            'type' => StockDocument::TYPE_MATERIAL_RECEIPT,
+            'warehouse_id' => $warehouse->id,
+            'lines' => [[
+                'material_id' => $material->id,
+                'lot_number' => $foreignLot->lot_number,
+                'quantity' => 10,
+                'unit_of_measure' => 'pcs',
+                'unit_price' => 5,
+                'price_currency' => 'PLN',
+            ]],
+        ]);
+
+        try {
+            $this->service->post($document);
+            $this->fail('A receipt must not attach a foreign lot.');
+        } catch (ValidationException) {
+            $this->assertTrue($document->fresh()->isDraft());
+        }
+
+        $this->assertEquals(0, (float) $material->fresh()->stock_quantity);
+        $this->assertEquals((float) $foreignLot->quantity_available, (float) $foreignLot->fresh()->quantity_available);
+    }
+
     public function test_posting_a_document_for_already_booked_consumption_does_not_move_stock_again(): void
     {
         $warehouse = $this->rawWarehouse();
@@ -373,7 +473,7 @@ class StockDocumentServiceTest extends TestCase
         $this->assertDatabaseHas('stock_document_lines', ['id' => $lineId, 'deleted_at' => null]);
     }
 
-    public function test_a_lot_belonging_to_another_material_is_left_alone(): void
+    public function test_a_lot_belonging_to_another_material_aborts_the_document(): void
     {
         $warehouse = $this->rawWarehouse();
         $material = Material::factory()->create(['stock_quantity' => 100]);
@@ -396,11 +496,15 @@ class StockDocumentServiceTest extends TestCase
             ]],
         ]);
 
-        $this->service->post($document);
+        try {
+            $this->service->post($document);
+            $this->fail('A foreign lot must abort the whole stock movement.');
+        } catch (ValidationException) {
+            $this->assertTrue($document->fresh()->isDraft());
+        }
 
         $this->assertEquals(500, (float) $foreignLot->fresh()->quantity_available);
-        // The material's own stock still moved — only the foreign lot was spared.
-        $this->assertEquals(60, (float) $material->fresh()->stock_quantity);
+        $this->assertEquals(100, (float) $material->fresh()->stock_quantity);
     }
 
     public function test_document_numbers_survive_a_collision(): void

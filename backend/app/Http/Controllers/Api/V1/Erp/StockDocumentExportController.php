@@ -112,6 +112,8 @@ class StockDocumentExportController extends Controller
                 'lot_number' => $line->effectiveLotNumber(),
                 'quantity' => (float) $line->quantity,
                 'unit_of_measure' => $line->unit_of_measure,
+                'unit_price' => $line->unit_price !== null ? (float) $line->unit_price : null,
+                'price_currency' => $line->price_currency,
                 'notes' => $line->notes,
             ])->values(),
         ];

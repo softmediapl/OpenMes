@@ -78,6 +78,25 @@ class StockDocumentControllerTest extends TestCase
             ->assertSessionHasErrors('lines.0.material_id');
     }
 
+    public function test_a_tracked_material_receipt_requires_lot_and_valuation(): void
+    {
+        Warehouse::factory()->rawMaterial()->create();
+        $material = Material::factory()->create(['tracking_type' => 'batch']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.stock-documents.store'), [
+                'type' => StockDocument::TYPE_MATERIAL_RECEIPT,
+                'lines' => [['material_id' => $material->id, 'quantity' => 5]],
+            ])
+            ->assertSessionHasErrors([
+                'lines.0.lot_number',
+                'lines.0.unit_price',
+                'lines.0.price_currency',
+            ]);
+
+        $this->assertSame(0, StockDocument::count());
+    }
+
     public function test_a_document_needs_at_least_one_line_with_a_positive_quantity(): void
     {
         Warehouse::factory()->rawMaterial()->create();
