@@ -25,6 +25,7 @@ const WHOLE_QUANTITY_UNITS = new Set([
     'unit',
     'units',
 ]);
+const QUANTITY_STEPS = [1, 0.1, 0.01, 0.001, 0.0001];
 
 export function operationQuantityInput(quantityPrecision, unitOfMeasure) {
     const parsedPrecision = Number(quantityPrecision);
@@ -34,7 +35,7 @@ export function operationQuantityInput(quantityPrecision, unitOfMeasure) {
     if (hasConfiguredPrecision && Number.isInteger(parsedPrecision) && parsedPrecision >= 0 && parsedPrecision <= 4) {
         return {
             precision: parsedPrecision,
-            step: 10 ** -parsedPrecision,
+            step: QUANTITY_STEPS[parsedPrecision],
             inputMode: parsedPrecision === 0 ? 'numeric' : 'decimal',
         };
     }
