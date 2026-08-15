@@ -5678,5 +5678,21 @@
     "none": "none",
     "up": "up",
     "down": "down",
-    "nearest": "nearest"
+    "nearest": "nearest",
+    "Production batch to load": "Production batch to load",
+    "— Select production batch —": "— Select production batch —",
+    "Quantity to load": "Quantity to load",
+    "Load batch": "Load batch",
+    "Operation not started": "Operation not started",
+    "Unable to load production batch.": "Unable to load production batch.",
+    "No palletization operation is ready for this order.": "No palletization operation is ready for this order.",
+    "No orders ready for packing or palletization": "No orders ready for packing or palletization",
+    "Production batch loaded onto pallet.": "Production batch loaded onto pallet.",
+    "Pallet content quantity must be greater than zero.": "Pallet content quantity must be greater than zero.",
+    "The selected operation does not produce palletized output.": "The selected operation does not produce palletized output.",
+    "Start the palletization operation before loading its output.": "Start the palletization operation before loading its output.",
+    "The selected batch does not belong to this pallet's work order.": "The selected batch does not belong to this pallet's work order.",
+    "Pallet load exceeds available operation output: :available remaining.": "Pallet load exceeds available operation output: :available remaining.",
+    "Pallet capacity exceeded: :available remaining.": "Pallet capacity exceeded: :available remaining.",
+    "Palletization quantity is invalid: pallet contents account for :actual, but the operation releases :required.": "Palletization quantity is invalid: pallet contents account for :actual, but the operation releases :required."
 }

@@ -5678,5 +5678,21 @@
     "none": "brak",
     "up": "w górę",
     "down": "w dół",
-    "nearest": "najbliższa"
+    "nearest": "najbliższa",
+    "Production batch to load": "Batch produkcyjny do załadunku",
+    "— Select production batch —": "— Wybierz batch produkcyjny —",
+    "Quantity to load": "Ilość do załadunku",
+    "Load batch": "Załaduj batch",
+    "Operation not started": "Operacja nierozpoczęta",
+    "Unable to load production batch.": "Nie udało się załadować batcha produkcyjnego.",
+    "No palletization operation is ready for this order.": "Żadna operacja paletyzacji nie jest gotowa dla tego zlecenia.",
+    "No orders ready for packing or palletization": "Brak zleceń gotowych do pakowania lub paletyzacji",
+    "Production batch loaded onto pallet.": "Batch produkcyjny został załadowany na paletę.",
+    "Pallet content quantity must be greater than zero.": "Ilość zawartości palety musi być większa od zera.",
+    "The selected operation does not produce palletized output.": "Wybrana operacja nie wytwarza wyjścia paletyzowanego.",
+    "Start the palletization operation before loading its output.": "Rozpocznij operację paletyzacji przed załadunkiem jej wyjścia.",
+    "The selected batch does not belong to this pallet's work order.": "Wybrany batch nie należy do zlecenia produkcyjnego tej palety.",
+    "Pallet load exceeds available operation output: :available remaining.": "Załadunek przekracza dostępne wyjście operacji. Pozostało: :available.",
+    "Pallet capacity exceeded: :available remaining.": "Przekroczono pojemność palety. Pozostało: :available.",
+    "Palletization quantity is invalid: pallet contents account for :actual, but the operation releases :required.": "Bilans paletyzacji jest nieprawidłowy: zawartość palet wynosi :actual, a operacja zwalnia :required."
 }

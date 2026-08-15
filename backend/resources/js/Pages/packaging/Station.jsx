@@ -6,6 +6,7 @@ import { DataTable } from '@openmes/ui/table';
 import AppLayout from '../../layouts/AppLayout';
 import { __, formatTime } from '../../lib/i18n';
 import LabelPrintMenu from '../../components/LabelPrintMenu';
+import { palletLoadLimit, selectPalletBatch } from './palletLoading';
 
 function csrf() {
     const meta = document.querySelector('meta[name="csrf-token"]');
@@ -41,7 +42,13 @@ function ShiftLabel() {
 }
 
 export default function Station() {
-    const { auth, labelTemplates = [], currentShift = null } = usePage().props;
+    const {
+        auth,
+        labelTemplates = [],
+        currentShift = null,
+        initialWorkOrderId = null,
+        initialBatchId = null,
+    } = usePage().props;
 
     const [items, setItems] = useState([]);
     const [history, setHistory] = useState([]);
@@ -50,8 +57,10 @@ export default function Station() {
     const [flash, setFlash] = useState(null); // 'success' | 'error' | null
     const [activePallet, setActivePallet] = useState(null); // { id, pallet_no, work_order_id, order_no, qty }
     const [openPallets, setOpenPallets] = useState([]); // all currently open pallets (persist across shifts)
-    const [palletWoId, setPalletWoId] = useState(''); // selected work order for a new pallet
-    const [palletBatchId, setPalletBatchId] = useState(''); // selected batch (when the WO has several)
+    const [palletWoId, setPalletWoId] = useState(initialWorkOrderId ? String(initialWorkOrderId) : '');
+    const [palletLoadBatchId, setPalletLoadBatchId] = useState(initialBatchId ? String(initialBatchId) : '');
+    const [palletLoadQty, setPalletLoadQty] = useState('');
+    const [palletError, setPalletError] = useState('');
     const [palletBusy, setPalletBusy] = useState(false);
     const lastHistoryIdRef = useRef(0);
     const bufferRef = useRef('');
@@ -260,14 +269,13 @@ export default function Station() {
                 },
                 body: JSON.stringify({
                     work_order_id: Number(palletWoId),
-                    ...(palletBatchId ? { batch_id: Number(palletBatchId) } : {}),
                 }),
             });
             const data = await res.json();
             if (res.ok) {
                 setActivePallet(data.pallet);
                 setPalletWoId('');
-                setPalletBatchId('');
+                setPalletError('');
                 fetchOpenPallets();
             } else {
                 setLastScan({ success: false, ean: '—', error: data.message, scanned_at: formatTime(new Date()) });
@@ -279,11 +287,49 @@ export default function Station() {
         } finally {
             setPalletBusy(false);
         }
-    }, [palletWoId, palletBatchId, palletBusy, fetchOpenPallets]);
+    }, [palletWoId, palletBusy, fetchOpenPallets]);
+
+    const loadPalletContent = useCallback(async () => {
+        const pallet = activePalletRef.current;
+        if (!pallet || !palletLoadBatchId || palletBusy) return;
+
+        setPalletBusy(true);
+        setPalletError('');
+        try {
+            const item = items.find((candidate) => candidate.id === pallet.work_order_id);
+            const batch = item?.batches?.find((candidate) => String(candidate.id) === String(palletLoadBatchId));
+            const quantity = Number(palletLoadQty);
+            const res = await fetch(`/packaging/pallets/${pallet.id}/contents`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrf(),
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                body: JSON.stringify({
+                    batch_step_id: batch?.palletization_step_id,
+                    quantity,
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setPalletError(data.message ?? __('Unable to load production batch.'));
+                return;
+            }
+
+            setActivePallet(data.pallet);
+            await Promise.all([fetchItems(), fetchOpenPallets()]);
+        } catch {
+            setPalletError(__('Connection error'));
+        } finally {
+            setPalletBusy(false);
+        }
+    }, [items, palletLoadBatchId, palletLoadQty, palletBusy, fetchItems, fetchOpenPallets]);
 
     // Resume an already-open pallet (e.g. one started on a previous shift) so the
     // next scans keep filling it instead of creating a new pallet.
     const resumePallet = useCallback((pallet) => {
+        setPalletError('');
         setActivePallet(pallet);
     }, []);
 
@@ -302,6 +348,8 @@ export default function Station() {
             if (res.ok) {
                 setActivePallet(null);
                 setPalletWoId('');
+                setPalletLoadBatchId('');
+                setPalletLoadQty('');
                 fetchOpenPallets();
             }
         } catch {
@@ -347,11 +395,23 @@ export default function Station() {
             ? 'bg-om-blocked-bg border-om-blocked/30'
             : 'bg-om-card border-om-line';
 
-    // Work order selected for a new pallet + its batches (one lookup, reused by
-    // the batch picker and the create-button guard). A single batch auto-links
-    // server-side, so the picker only shows when there are 2+.
-    const palletWo = items.find((it) => String(it.id) === String(palletWoId));
-    const palletBatches = palletWo?.batches ?? [];
+    const activePalletItem = items.find((item) => item.id === activePallet?.work_order_id);
+    const palletBatches = activePalletItem?.batches ?? [];
+    const palletLoadBatch = palletBatches.find((batch) => String(batch.id) === String(palletLoadBatchId));
+    const loadLimit = palletLoadLimit(palletLoadBatch, activePallet);
+
+    useEffect(() => {
+        if (!activePallet) return;
+
+        const selected = selectPalletBatch(palletBatches, palletLoadBatchId || initialBatchId);
+        if (selected && String(selected.id) !== String(palletLoadBatchId)) {
+            setPalletLoadBatchId(String(selected.id));
+        }
+    }, [activePallet, palletBatches, palletLoadBatchId, initialBatchId]);
+
+    useEffect(() => {
+        setPalletLoadQty(loadLimit > 0 ? String(loadLimit) : '');
+    }, [palletLoadBatchId, activePallet?.id, activePallet?.qty, loadLimit]);
 
     return (
         <>
@@ -416,7 +476,7 @@ export default function Station() {
                                 </label>
                                 <Dropdown
                                     value={palletWoId == null ? '' : String(palletWoId)}
-                                    onChange={(v) => { setPalletWoId(v); setPalletBatchId(''); }}
+                                    onChange={(v) => setPalletWoId(v)}
                                     placeholder={__('— Select order —')}
                                     options={items.map((it) => ({
                                         value: String(it.id),
@@ -425,32 +485,19 @@ export default function Station() {
                                     className="w-full"
                                 />
                             </div>
-                            {palletBatches.length >= 2 && (
-                                <div className="flex-1">
-                                    <label className="block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-[7px]">
-                                        {__('Batch')}
-                                    </label>
-                                    <Dropdown
-                                        value={palletBatchId == null ? '' : String(palletBatchId)}
-                                        onChange={(v) => setPalletBatchId(v)}
-                                        placeholder={__('— Select batch —')}
-                                        options={palletBatches.map((b) => ({ value: String(b.id), label: b.label }))}
-                                        className="w-full"
-                                    />
-                                </div>
-                            )}
                             <Button
                                 variant="accent"
                                 onClick={createPallet}
-                                disabled={!palletWoId || palletBusy || (palletBatches.length >= 2 && !palletBatchId)}
+                                disabled={!palletWoId || palletBusy}
                                 className="px-6 py-4 text-[15px]"
                             >
                                 {__('+ Create pallet')}
                             </Button>
                         </div>
                     ) : (
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div>
+                        <div className="space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
                                 <p className="font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint">{__('Active pallet')}</p>
                                 <p className="font-mono text-[40px] leading-tight font-semibold tracking-[-0.02em] text-om-ink">
                                     {activePallet.pallet_no}
@@ -467,17 +514,79 @@ export default function Station() {
                                         <StatusPill status="done" label={__('Pallet full')} />
                                     </div>
                                 )}
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <LabelPrintMenu kind="pallet" id={activePallet.id} templates={labelTemplates} label={__('Label')} />
+                                    <Button
+                                        variant="primary"
+                                        onClick={closePallet}
+                                        disabled={palletBusy}
+                                        className="px-6 py-4 text-[15px]"
+                                    >
+                                        {__('Close pallet')}
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <LabelPrintMenu kind="pallet" id={activePallet.id} templates={labelTemplates} label={__('Label')} />
-                                <Button
-                                    variant="primary"
-                                    onClick={closePallet}
-                                    disabled={palletBusy}
-                                    className="px-6 py-4 text-[15px]"
-                                >
-                                    {__('Close pallet')}
-                                </Button>
+
+                            <div className="border-t border-om-line pt-4">
+                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_140px_auto] gap-3 items-end">
+                                    <div>
+                                        <label className="block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-[7px]">
+                                            {__('Production batch to load')}
+                                        </label>
+                                        <Dropdown
+                                            value={palletLoadBatchId}
+                                            onChange={setPalletLoadBatchId}
+                                            placeholder={__('— Select production batch —')}
+                                            options={palletBatches.map((batch) => ({
+                                                value: String(batch.id),
+                                                label: `${batch.label} · ${batch.available_quantity} ${__('pcs')} · ${batch.can_load ? __('Ready') : __('Operation not started')}`,
+                                            }))}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-[7px]">
+                                            {__('Quantity to load')}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            max={loadLimit || undefined}
+                                            step="1"
+                                            value={palletLoadQty}
+                                            onChange={(event) => setPalletLoadQty(event.target.value)}
+                                            className="w-full h-11 rounded-[6px] border border-om-line bg-om-card px-3 font-mono text-om-ink"
+                                        />
+                                    </div>
+                                    <Button
+                                        variant="accent"
+                                        onClick={loadPalletContent}
+                                        disabled={palletBusy || loadLimit < 1 || Number(palletLoadQty) < 1 || Number(palletLoadQty) > loadLimit}
+                                        className="h-11 px-6"
+                                    >
+                                        {__('Load batch')}
+                                    </Button>
+                                </div>
+                                {palletError && <p className="mt-2 text-[12.5px] font-medium text-om-blocked">{palletError}</p>}
+                                {palletBatches.length === 0 && (
+                                    <p className="mt-2 text-[12.5px] text-om-muted">
+                                        {__('No palletization operation is ready for this order.')}
+                                    </p>
+                                )}
+                                {(activePallet.contents ?? []).length > 0 && (
+                                    <div className="mt-4 border border-om-line rounded-[6px] overflow-hidden">
+                                        {(activePallet.contents ?? []).map((content) => (
+                                            <div key={content.id} className="px-3 py-2 flex flex-wrap items-center justify-between gap-2 border-b last:border-b-0 border-om-line">
+                                                <span className="font-mono text-[12px] font-semibold text-om-ink">{content.batch_label}</span>
+                                                <span className="text-[12.5px] text-om-muted">
+                                                    {content.step_number}. {content.step_name} · <strong className="text-om-ink">{content.quantity} {__('pcs')}</strong>
+                                                    {content.loaded_by ? ` · ${content.loaded_by}` : ''}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -630,7 +739,7 @@ export default function Station() {
                         columnToggle
                         paginated
                         searchPlaceholder={__('Search orders…')}
-                        emptyLabel={__('No orders with assigned EAN codes')}
+                        emptyLabel={__('No orders ready for packing or palletization')}
                     />
                 </div>
 
