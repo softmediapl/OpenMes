@@ -5,7 +5,7 @@ import ResourceForm from '../../../components/ResourceForm';
 import { materialFields } from './fields';
 
 export default function MaterialEdit() {
-    const { material, materialTypes = [], customFields = [] } = usePage().props;
+    const { material, materialTypes = [], unitsOfMeasure = [], customFields = [] } = usePage().props;
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={`${__("Edit")} ${material.name}`} />
@@ -13,7 +13,7 @@ export default function MaterialEdit() {
             <ResourceForm
                 action={`/admin/materials/${material.id}`}
                 method="put"
-                fields={materialFields(materialTypes)}
+                fields={materialFields(materialTypes, unitsOfMeasure)}
                 customFields={customFields}
                 initial={{
                     code: material.code ?? '',

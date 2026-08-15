@@ -9,6 +9,7 @@ use App\Models\Issue;
 use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\MaterialSource;
+use App\Models\UnitOfMeasure;
 use App\Services\Quality\MaterialHoldService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,7 +20,9 @@ class MaterialLotController extends Controller
     {
         return Inertia::render('admin/material-lots/Index', [
             'materialNames' => Material::pluck('name', 'id'),
+            'materialUnits' => Material::pluck('unit_of_measure', 'id'),
             'sourceNames' => MaterialSource::pluck('external_name', 'id'),
+            'unitPrecisions' => UnitOfMeasure::pluck('quantity_precision', 'code'),
         ]);
     }
 
@@ -107,7 +110,7 @@ class MaterialLotController extends Controller
     public function create()
     {
         return Inertia::render('admin/material-lots/Create', [
-            'materials' => Material::orderBy('name')->get(['id', 'name', 'unit_of_measure']),
+            'materials' => $this->materialsForForm(),
             'sources' => MaterialSource::orderBy('external_name')->get(['id', 'external_name']),
             'statuses' => MaterialLot::STATUSES,
         ]);
@@ -144,7 +147,7 @@ class MaterialLotController extends Controller
                 'supplier_lot_no' => $materialLot->supplier_lot_no,
                 'supplier_reference' => $materialLot->supplier_reference,
             ],
-            'materials' => Material::orderBy('name')->get(['id', 'name', 'unit_of_measure']),
+            'materials' => $this->materialsForForm(),
             'sources' => MaterialSource::orderBy('external_name')->get(['id', 'external_name']),
             'statuses' => MaterialLot::STATUSES,
         ]);
@@ -211,4 +214,15 @@ class MaterialLotController extends Controller
         return redirect()->back()->with('success', __('Lot released.'));
     }
 
+    private function materialsForForm()
+    {
+        $precisions = UnitOfMeasure::pluck('quantity_precision', 'code');
+
+        return Material::orderBy('name')
+            ->get(['id', 'name', 'unit_of_measure'])
+            ->each(fn (Material $material) => $material->setAttribute(
+                'quantity_precision',
+                (int) ($precisions[$material->unit_of_measure] ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure)),
+            ));
+    }
 }

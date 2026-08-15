@@ -4,6 +4,7 @@ import { Button } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import { documentTypeLabels } from './types';
 import { __ } from '../../../lib/i18n';
+import { operationQuantityInput } from '../../../lib/operationQuantity';
 
 const LABEL_CLASS = 'block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-[7px]';
 const INPUT_CLASS =
@@ -155,8 +156,7 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                             const item = items.find((i) => String(i.id) === e.target.value);
                                             updateLine(index, {
                                                 item_id: e.target.value,
-                                                // Prefill the item's own unit; still editable.
-                                                unit_of_measure: line.unit_of_measure || item?.unit_of_measure || '',
+                                                unit_of_measure: item?.unit_of_measure || '',
                                                 unit_price: isMaterialReceipt ? (item?.unit_price ?? '') : '',
                                                 price_currency: isMaterialReceipt ? (item?.price_currency || 'PLN') : 'PLN',
                                             });
@@ -194,7 +194,14 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                     <label className={LABEL_CLASS}>{__('Quantity')}</label>
                                     <input
                                         type="number"
-                                        step="0.001"
+                                        step={operationQuantityInput(
+                                            items.find((item) => String(item.id) === String(line.item_id))?.quantity_precision,
+                                            line.unit_of_measure,
+                                        ).step}
+                                        inputMode={operationQuantityInput(
+                                            items.find((item) => String(item.id) === String(line.item_id))?.quantity_precision,
+                                            line.unit_of_measure,
+                                        ).inputMode}
                                         min="0"
                                         className={INPUT_CLASS}
                                         value={line.quantity}
@@ -210,7 +217,8 @@ export default function StockDocumentCreate({ warehouses = [], materials = [], p
                                     <input
                                         className={INPUT_CLASS}
                                         value={line.unit_of_measure}
-                                        onChange={(e) => updateLine(index, { unit_of_measure: e.target.value })}
+                                        readOnly
+                                        aria-readonly="true"
                                     />
                                 </div>
 

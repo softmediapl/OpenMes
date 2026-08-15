@@ -454,7 +454,7 @@ class StockDocumentService
             ]);
         }
 
-        $stock->quantity = round((float) $stock->quantity + $signed, 3);
+        $stock->quantity = round((float) $stock->quantity + $signed, 4);
 
         if ($unit && ! $stock->unit_of_measure) {
             $stock->unit_of_measure = $unit;

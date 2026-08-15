@@ -4,8 +4,10 @@ namespace App\Http\Requests\Web\Admin;
 
 use App\Models\Material;
 use App\Models\MaterialLot;
+use App\Models\UnitOfMeasure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpsertMaterialLotRequest extends FormRequest
 {
@@ -43,6 +45,37 @@ class UpsertMaterialLotRequest extends FormRequest
             'source_container_no' => ['nullable', 'string', 'max:100'],
             'inspection_id' => ['nullable', 'integer', 'exists:inspections,id'],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $material = Material::query()->find($this->input('material_id'));
+            if (! $material) {
+                return;
+            }
+
+            $precision = (int) (UnitOfMeasure::query()
+                ->where('code', $material->unit_of_measure)
+                ->value('quantity_precision') ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure));
+            $factor = 10 ** $precision;
+
+            foreach (['quantity_received', 'quantity_available'] as $field) {
+                $value = $this->input($field);
+                if ($value === null || $value === '' || ! is_numeric($value)) {
+                    continue;
+                }
+                if (abs(((float) $value * $factor) - round((float) $value * $factor)) > 0.000001) {
+                    $validator->errors()->add(
+                        $field,
+                        __('Quantity may have at most :precision decimal places for unit :unit.', [
+                            'precision' => $precision,
+                            'unit' => $material->unit_of_measure,
+                        ]),
+                    );
+                }
+            }
+        });
     }
 
     /**

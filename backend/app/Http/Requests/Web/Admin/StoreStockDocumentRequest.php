@@ -4,7 +4,9 @@ namespace App\Http\Requests\Web\Admin;
 
 use App\Models\Material;
 use App\Models\MaterialLot;
+use App\Models\ProductType;
 use App\Models\StockDocument;
+use App\Models\UnitOfMeasure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -14,6 +16,30 @@ class StoreStockDocumentRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $lines = (array) $this->input('lines', []);
+        $isMaterial = in_array($this->input('type'), [
+            StockDocument::TYPE_MATERIAL_ISSUE,
+            StockDocument::TYPE_MATERIAL_RECEIPT,
+        ], true);
+        $itemKey = $isMaterial ? 'material_id' : 'product_type_id';
+        $model = $isMaterial ? Material::class : ProductType::class;
+        $units = $model::query()
+            ->whereIn('id', array_filter(array_column($lines, $itemKey)))
+            ->pluck('unit_of_measure', 'id');
+
+        foreach ($lines as &$line) {
+            $itemId = $line[$itemKey] ?? null;
+            if ($itemId && isset($units[$itemId])) {
+                $line['unit_of_measure'] = $units[$itemId];
+            }
+        }
+        unset($line);
+
+        $this->merge(['lines' => $lines]);
     }
 
     public function rules(): array
@@ -67,8 +93,12 @@ class StoreStockDocumentRequest extends FormRequest
             $lotOwners = MaterialLot::whereIn('id', array_filter(array_column($lines, 'material_lot_id')))
                 ->pluck('material_id', 'id');
             $materials = Material::whereIn('id', array_filter(array_column($lines, 'material_id')))
-                ->get(['id', 'tracking_type'])
+                ->get(['id', 'tracking_type', 'unit_of_measure'])
                 ->keyBy('id');
+            $productTypes = ProductType::whereIn('id', array_filter(array_column($lines, 'product_type_id')))
+                ->get(['id', 'unit_of_measure'])
+                ->keyBy('id');
+            $unitPrecisions = UnitOfMeasure::pluck('quantity_precision', 'code');
 
             foreach ($lines as $index => $line) {
                 $field = $expectsMaterial ? 'material_id' : 'product_type_id';
@@ -90,6 +120,25 @@ class StoreStockDocumentRequest extends FormRequest
                             ? __('This document moves materials, not products.')
                             : __('This document moves products, not materials.'),
                     );
+                }
+
+                $item = $expectsMaterial
+                    ? $materials->get((int) ($line['material_id'] ?? 0))
+                    : $productTypes->get((int) ($line['product_type_id'] ?? 0));
+                $quantity = $line['quantity'] ?? null;
+                if ($item && is_numeric($quantity)) {
+                    $precision = (int) ($unitPrecisions[$item->unit_of_measure]
+                        ?? UnitOfMeasure::inferredPrecision($item->unit_of_measure));
+                    $factor = 10 ** $precision;
+                    if (abs(((float) $quantity * $factor) - round((float) $quantity * $factor)) > 0.000001) {
+                        $validator->errors()->add(
+                            "lines.{$index}.quantity",
+                            __('Quantity may have at most :precision decimal places for unit :unit.', [
+                                'precision' => $precision,
+                                'unit' => $item->unit_of_measure,
+                            ]),
+                        );
+                    }
                 }
 
                 $lotId = $line['material_lot_id'] ?? null;

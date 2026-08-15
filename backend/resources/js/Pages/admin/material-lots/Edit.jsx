@@ -3,9 +3,11 @@ import { __ } from '../../../lib/i18n';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceForm from '../../../components/ResourceForm';
 import { materialLotFields } from './fields';
+import { quantityInputValue } from '../../../lib/operationQuantity';
 
 export default function MaterialLotEdit() {
     const { lot, materials = [], sources = [], statuses = [] } = usePage().props;
+    const precision = materials.find((material) => String(material.id) === String(lot.material_id))?.quantity_precision ?? 4;
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={`Edit ${lot.lot_number}`} />
@@ -18,8 +20,8 @@ export default function MaterialLotEdit() {
                     lot_number: lot.lot_number ?? '',
                     material_id: lot.material_id != null ? String(lot.material_id) : '',
                     source_id: lot.source_id != null ? String(lot.source_id) : '',
-                    quantity_received: lot.quantity_received ?? '',
-                    quantity_available: lot.quantity_available ?? '',
+                    quantity_received: quantityInputValue(lot.quantity_received, precision),
+                    quantity_available: quantityInputValue(lot.quantity_available, precision),
                     unit_of_measure: lot.unit_of_measure ?? '',
                     received_at: (lot.received_at ?? '').slice(0, 10),
                     manufacturing_date: (lot.manufacturing_date ?? '').slice(0, 10),

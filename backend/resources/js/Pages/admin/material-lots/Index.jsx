@@ -4,10 +4,10 @@ import { Button, ConfirmDialog, Modal, TextField } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable from '../../../components/ResourceTable';
 import { STATUS_STYLES, materialLotStatusLabel } from './fields';
-import { __ } from '../../../lib/i18n';
+import { __, formatNumber } from '../../../lib/i18n';
 
 export default function MaterialLotsIndex() {
-    const { materialNames = {}, sourceNames = {} } = usePage().props;
+    const { materialNames = {}, sourceNames = {}, materialUnits = {}, unitPrecisions = {} } = usePage().props;
 
     // Quality hold / release. `holdFor` drives the hold modal (reason + optional
     // linked issue); `releaseFor` drives the release confirm dialog.
@@ -52,7 +52,16 @@ export default function MaterialLotsIndex() {
     const columns = [
         { key: 'lot_number', label: __('Lot Number'), className: 'font-mono text-om-muted' },
         { key: 'material', label: __('Material'), className: 'text-om-muted', render: (r) => materialNames[r.material_id] ?? '—' },
-        { key: 'qty', label: __('Avail / Recv'), className: 'text-om-muted', render: (r) => `${r.quantity_available ?? '—'} / ${r.quantity_received ?? '—'}` },
+        {
+            key: 'qty',
+            label: __('Avail / Recv'),
+            className: 'text-om-muted',
+            render: (r) => {
+                const unit = r.unit_of_measure || materialUnits[r.material_id];
+                const options = { maximumFractionDigits: unitPrecisions[unit] ?? 4 };
+                return `${formatNumber(r.quantity_available, options) || '—'} / ${formatNumber(r.quantity_received, options) || '—'}`;
+            },
+        },
         { key: 'unit_of_measure', label: __('Unit'), className: 'text-om-muted' },
         { key: 'expiry_date', label: __('Expiry'), className: 'text-om-muted', render: (r) => (r.expiry_date ? r.expiry_date.slice(0, 10) : '—') },
         {

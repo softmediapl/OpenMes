@@ -156,7 +156,7 @@ function Field({ field, value, error, setData, data }) {
     const {
         name, label, type = 'text', required, placeholder, help, options,
         filterByField, deriveFromField, deriveValue, readOnly = false,
-        min, max, step,
+        min, max, step, inputMode,
     } = field;
     const set = (v) => setData(name, v);
 
@@ -177,6 +177,7 @@ function Field({ field, value, error, setData, data }) {
     }, [filterVal]);
 
     const derivedValue = deriveValue ? deriveValue(data) : undefined;
+    const resolve = (attribute) => (typeof attribute === 'function' ? attribute(data) : attribute);
     useEffect(() => {
         if (!deriveValue || derivedValue === undefined || derivedValue === value) return;
         set(derivedValue);
@@ -243,9 +244,10 @@ function Field({ field, value, error, setData, data }) {
                     onChange={(e) => set(e.target.value)}
                     placeholder={placeholder ? __(placeholder) : undefined}
                     readOnly={readOnly}
-                    min={min}
-                    max={max}
-                    step={step}
+                    min={resolve(min)}
+                    max={resolve(max)}
+                    step={resolve(step)}
+                    inputMode={resolve(inputMode)}
                     className={`${INPUT_CLASS} ${readOnly ? 'bg-om-panel text-om-muted cursor-not-allowed' : ''}`}
                 />
             )}

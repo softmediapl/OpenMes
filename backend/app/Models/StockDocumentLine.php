@@ -33,7 +33,7 @@ class StockDocumentLine extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:3',
+            'quantity' => 'decimal:4',
             'unit_price' => 'decimal:4',
             'sort_order' => 'integer',
         ];

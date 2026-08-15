@@ -2,10 +2,10 @@ import { Head, router, usePage } from '@inertiajs/react';
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable, { ActiveBadge } from '../../../components/ResourceTable';
 import { TRACKING_LABELS } from './fields';
-import { __ } from '../../../lib/i18n';
+import { __, formatNumber } from '../../../lib/i18n';
 
 export default function MaterialsIndex() {
-    const { counts = {}, materialTypeNames = {} } = usePage().props;
+    const { counts = {}, materialTypeNames = {}, unitPrecisions = {} } = usePage().props;
 
     const columns = [
         { key: 'code', label: __('Code'), className: 'font-mono text-om-muted' },
@@ -13,7 +13,14 @@ export default function MaterialsIndex() {
         { key: 'type', label: __('Type'), className: 'text-om-muted', render: (r) => materialTypeNames[r.material_type_id] ?? '—' },
         { key: 'unit_of_measure', label: __('UoM'), className: 'text-om-muted' },
         { key: 'tracking_type', label: __('Tracking'), className: 'text-om-muted', render: (r) => TRACKING_LABELS[r.tracking_type] ?? r.tracking_type ?? '—' },
-        { key: 'stock_quantity', label: __('Stock'), className: 'text-om-muted', render: (r) => (r.stock_quantity ?? '—') },
+        {
+            key: 'stock_quantity',
+            label: __('Stock'),
+            className: 'text-om-muted',
+            render: (r) => r.stock_quantity == null
+                ? '—'
+                : formatNumber(r.stock_quantity, { maximumFractionDigits: unitPrecisions[r.unit_of_measure] ?? 4 }),
+        },
         { key: 'bom', label: __('In BOMs'), render: (r) => counts[r.id] ?? 0 },
         { key: 'is_active', label: __('Status'), render: (r) => <ActiveBadge active={r.is_active} /> },
     ];

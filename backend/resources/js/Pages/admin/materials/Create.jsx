@@ -5,7 +5,7 @@ import ResourceForm from '../../../components/ResourceForm';
 import { materialFields } from './fields';
 
 export default function MaterialCreate() {
-    const { materialTypes = [], customFields = [] } = usePage().props;
+    const { materialTypes = [], unitsOfMeasure = [], customFields = [] } = usePage().props;
     return (
         <div className="max-w-7xl mx-auto">
             <Head title={__("New Material")} />
@@ -13,7 +13,7 @@ export default function MaterialCreate() {
             <ResourceForm
                 action="/admin/materials"
                 method="post"
-                fields={materialFields(materialTypes)}
+                fields={materialFields(materialTypes, unitsOfMeasure)}
                 customFields={customFields}
                 initial={{
                     code: '', name: '', material_type_id: '', unit_of_measure: 'pcs',

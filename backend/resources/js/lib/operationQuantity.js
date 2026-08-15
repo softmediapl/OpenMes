@@ -53,6 +53,17 @@ export function operationQuantityInput(quantityPrecision, unitOfMeasure) {
     };
 }
 
+export function quantityInputValue(value, precision = 4) {
+    if (value === null || value === undefined || String(value).trim() === '') return '';
+
+    const number = Number(value);
+    if (!Number.isFinite(number)) return String(value);
+
+    const normalizedPrecision = Math.max(0, Math.min(4, Number.isInteger(Number(precision)) ? Number(precision) : 4));
+    const fixed = number.toFixed(normalizedPrecision);
+    return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed;
+}
+
 export function operationQuantityBalance({ input, good, rework, scrap }) {
     const inputQuantity = Number(input);
     const goodQuantity = parseOperationQuantity(good);

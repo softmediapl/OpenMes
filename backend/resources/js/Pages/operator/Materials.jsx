@@ -97,7 +97,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                             </td>
                                             <td className="px-4 py-4">
                                                 {row.stocks.length ? row.stocks.map((stock) => (
-                                                    <div key={stock.id} className="mb-2 flex items-center justify-between gap-3 last:mb-0 text-xs text-om-muted">
+                                                    <div key={stock.id} className="mb-2 text-xs text-om-muted last:mb-0">
                                                         <div>
                                                             <span className="font-mono text-om-ink">{stock.material_lot?.lot_number ?? __('Bulk')}</span>
                                                             <span className="ml-2 font-mono">{quantity(stock.quantity, row.material.unit_of_measure)}</span>
@@ -105,9 +105,6 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                                                 <span className="ml-2">{__('Expiry')}: {dateValue(stock.material_lot.expiry_date)}</span>
                                                             )}
                                                         </div>
-                                                        <button type="button" onClick={() => setCountedStock(stock)} className="shrink-0 font-semibold text-om-accent hover:underline">
-                                                            {__('Reconcile count')}
-                                                        </button>
                                                     </div>
                                                 )) : <span className="text-xs text-om-faint">{__('No local stock')}</span>}
                                             </td>
@@ -131,24 +128,36 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-4 text-right">
-                                                {row.request ? (
-                                                    <button type="button" onClick={() => cancelRequest(row.request.id)} className="text-sm font-semibold text-om-blocked hover:underline">
-                                                        {__('Cancel request')}
-                                                    </button>
-                                                ) : row.policy ? (
-                                                    <button
-                                                        type="button"
-                                                        disabled={requestingPolicyId === row.policy.id}
-                                                        onClick={() => {
-                                                            setRequestingPolicyId(row.policy.id);
-                                                            requestRefill(row, () => setRequestingPolicyId(null));
-                                                        }}
-                                                        className="rounded-om-sm bg-om-ink px-3 py-2 text-sm font-semibold text-om-on-ink hover:opacity-90 disabled:opacity-50"
-                                                    >
-                                                        {requestingPolicyId === row.policy.id ? '…' : __('Request refill')}
-                                                    </button>
-                                                ) : <span className="text-xs text-om-faint">—</span>}
+                                            <td className="px-4 py-4">
+                                                <div className="flex min-w-36 flex-col items-stretch gap-2">
+                                                    {row.stocks.map((stock) => (
+                                                        <button
+                                                            key={stock.id}
+                                                            type="button"
+                                                            onClick={() => setCountedStock(stock)}
+                                                            className="rounded-om-sm border border-om-line bg-om-card px-3 py-2 text-sm font-semibold text-om-ink hover:bg-om-panel"
+                                                        >
+                                                            {__('Reconcile count')}
+                                                        </button>
+                                                    ))}
+                                                    {row.request ? (
+                                                        <button type="button" onClick={() => cancelRequest(row.request.id)} className="rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked hover:border-om-blocked/50">
+                                                            {__('Cancel request')}
+                                                        </button>
+                                                    ) : row.policy ? (
+                                                        <button
+                                                            type="button"
+                                                            disabled={requestingPolicyId === row.policy.id}
+                                                            onClick={() => {
+                                                                setRequestingPolicyId(row.policy.id);
+                                                                requestRefill(row, () => setRequestingPolicyId(null));
+                                                            }}
+                                                            className="rounded-om-sm bg-om-ink px-3 py-2 text-sm font-semibold text-om-on-ink hover:opacity-90 disabled:opacity-50"
+                                                        >
+                                                            {requestingPolicyId === row.policy.id ? '…' : __('Request refill')}
+                                                        </button>
+                                                    ) : !row.stocks.length && <span className="text-right text-xs text-om-faint">—</span>}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

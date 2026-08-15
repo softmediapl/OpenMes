@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
+import { Dropdown, IconButton } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import { __, formatDateTime, formatNumber } from '../../../lib/i18n';
 import {
@@ -86,8 +87,11 @@ function FormActions({ processing, onClose, submitLabel }) {
     );
 }
 
+const QuantityPrecisionContext = createContext({});
+
 function Quantity({ value, unit }) {
-    return <span className="font-mono tabular-nums">{formatNumber(asNumber(value), { maximumFractionDigits: 4 })} {unit || ''}</span>;
+    const unitPrecisions = useContext(QuantityPrecisionContext);
+    return <span className="font-mono tabular-nums">{formatNumber(asNumber(value), { maximumFractionDigits: unitPrecisions[unit] ?? 4 })} {unit || ''}</span>;
 }
 
 function StatusBadge({ status }) {
@@ -105,6 +109,32 @@ function EmptyRow({ columns, text }) {
         </tr>
     );
 }
+
+function RowAction({ label, path, onClick, variant = 'default', disabled = false }) {
+    return (
+        <IconButton
+            variant={variant}
+            onClick={onClick}
+            disabled={disabled}
+            title={__(label)}
+            aria-label={__(label)}
+            className={disabled ? 'cursor-not-allowed opacity-40' : ''}
+        >
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={path} />
+            </svg>
+        </IconButton>
+    );
+}
+
+const ACTION_ICONS = {
+    assign: 'M18 9v6m3-3h-6m-2 7a6 6 0 00-12 0v1h12v-1zM7 11a4 4 0 100-8 4 4 0 000 8z',
+    deliver: 'M9 17H5a2 2 0 01-2-2V5a2 2 0 012-2h10a2 2 0 012 2v10a2 2 0 01-2 2h-4m0 0l3-3m-3 3l3 3',
+    cancel: 'M6 18L18 6M6 6l12 12',
+    return: 'M3 10h11a4 4 0 010 8h-1m-10-8l4-4m-4 4l4 4',
+    edit: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+    delete: 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16',
+};
 
 function IssueModal({ workstations, materials, warehouses, warehouseStocks, onClose }) {
     const form = useForm({
@@ -413,10 +443,11 @@ function CancelModal({ request, onClose }) {
 export default function WorkstationMaterialsIndex() {
     const {
         stocks = [], policies = [], replenishmentRequests = [], workstations = [], materials = [],
-        warehouses = [], warehouseStocks = [], users = [],
+        warehouses = [], warehouseStocks = [], users = [], unitPrecisions = {},
     } = usePage().props;
     const [tab, setTab] = useState('stock');
     const [search, setSearch] = useState('');
+    const [workstationFilter, setWorkstationFilter] = useState('');
     const [modal, setModal] = useState(null);
 
     const policyByPair = useMemo(() => Object.fromEntries(policies.map((policy) => [`${policy.workstation_id}:${policy.material_id}`, policy])), [policies]);
@@ -430,9 +461,14 @@ export default function WorkstationMaterialsIndex() {
     }, [stocks]);
     const query = search.trim().toLowerCase();
     const contains = (...values) => !query || values.some((value) => String(value ?? '').toLowerCase().includes(query));
-    const visibleStocks = stocks.filter((stock) => contains(stock.workstation?.code, stock.workstation?.name, stock.material?.code, stock.material?.name, stock.material_lot?.lot_number));
-    const visibleRequests = replenishmentRequests.filter((request) => contains(request.workstation?.code, request.workstation?.name, request.material?.code, request.material?.name, request.status, request.assigned_to?.name));
-    const visiblePolicies = policies.filter((policy) => contains(policy.workstation?.code, policy.workstation?.name, policy.material?.code, policy.material?.name, policy.source_warehouse?.code));
+    const matchesWorkstation = (workstation) => !workstationFilter
+        || String(workstation?.id) === String(workstationFilter);
+    const visibleStocks = stocks.filter((stock) => matchesWorkstation(stock.workstation)
+        && contains(stock.workstation?.code, stock.workstation?.name, stock.material?.code, stock.material?.name, stock.material_lot?.lot_number));
+    const visibleRequests = replenishmentRequests.filter((request) => matchesWorkstation(request.workstation)
+        && contains(request.workstation?.code, request.workstation?.name, request.material?.code, request.material?.name, request.status, request.assigned_to?.name));
+    const visiblePolicies = policies.filter((policy) => matchesWorkstation(policy.workstation)
+        && contains(policy.workstation?.code, policy.workstation?.name, policy.material?.code, policy.material?.name, policy.source_warehouse?.code));
     const closeModal = () => setModal(null);
 
     function deletePolicy(policy) {
@@ -442,6 +478,7 @@ export default function WorkstationMaterialsIndex() {
     }
 
     return (
+        <QuantityPrecisionContext.Provider value={unitPrecisions}>
         <>
             <Head title={__('Workstation Materials')} />
             <div className="mx-auto max-w-[1500px] px-6 py-6">
@@ -471,13 +508,30 @@ export default function WorkstationMaterialsIndex() {
                             </button>
                         ))}
                     </div>
-                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={__('Search...')} className="mb-2 w-72 max-w-full rounded-md border border-om-line bg-om-card px-3 py-2 text-sm" />
+                    <div className="mb-2 flex flex-wrap items-center justify-end gap-2">
+                        <Dropdown
+                            searchable
+                            value={workstationFilter}
+                            onChange={setWorkstationFilter}
+                            options={[
+                                { value: '', label: __('All workstations') },
+                                ...workstations.map((workstation) => ({
+                                    value: String(workstation.id),
+                                    label: `${workstation.code} — ${workstation.name}`,
+                                })),
+                            ]}
+                            placeholder={__('All workstations')}
+                            aria-label={__('Workstation')}
+                            className="w-72 max-w-full"
+                        />
+                        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={__('Search...')} aria-label={__('Search...')} className="w-72 max-w-full rounded-md border border-om-line bg-om-card px-3 py-2 text-sm" />
+                    </div>
                 </div>
 
                 {tab === 'stock' && (
                     <div className="mt-4 overflow-x-auto rounded-om-sm border border-om-line bg-om-card">
-                        <table className="w-full min-w-[900px] text-left text-sm">
-                            <thead className="bg-om-panel text-xs uppercase text-om-muted"><tr>
+                        <table className="w-full min-w-[900px] text-left text-[13.5px]">
+                            <thead className="bg-om-panel font-mono text-[9px] uppercase tracking-[0.1em] text-om-muted"><tr>
                                 <th className="px-4 py-3">{__('Workstation')}</th><th className="px-4 py-3">{__('Material')}</th><th className="px-4 py-3">{__('Lot')}</th>
                                 <th className="px-4 py-3 text-right">{__('On hand')}</th><th className="px-4 py-3 text-right">{__('Reserved')}</th><th className="px-4 py-3 text-right">{__('Available')}</th>
                                 <th className="px-4 py-3">{__('Level')}</th><th className="px-4 py-3 text-right">{__('Actions')}</th>
@@ -502,7 +556,9 @@ export default function WorkstationMaterialsIndex() {
                                             {level === 'inactive' && <span className="rounded bg-om-chip px-2 py-1 text-xs text-om-muted">{__('Policy inactive')}</span>}
                                             {level === 'unmanaged' && <span className="rounded bg-om-chip px-2 py-1 text-xs text-om-muted">{__('No policy')}</span>}
                                         </td>
-                                        <td className="px-4 py-3 text-right"><button type="button" disabled={availableQuantity(stock) <= 0} onClick={() => setModal({ type: 'return', record: stock })} className="text-sm font-semibold text-om-accent disabled:text-om-faint">{__('Return')}</button></td>
+                                        <td className="px-4 py-3"><div className="flex justify-end">
+                                            <RowAction label="Return" path={ACTION_ICONS.return} disabled={availableQuantity(stock) <= 0} onClick={() => setModal({ type: 'return', record: stock })} />
+                                        </div></td>
                                     </tr>;
                                 })}
                             </tbody>
@@ -512,8 +568,8 @@ export default function WorkstationMaterialsIndex() {
 
                 {tab === 'replenishments' && (
                     <div className="mt-4 overflow-x-auto rounded-om-sm border border-om-line bg-om-card">
-                        <table className="w-full min-w-[1100px] text-left text-sm">
-                            <thead className="bg-om-panel text-xs uppercase text-om-muted"><tr>
+                        <table className="w-full min-w-[1100px] text-left text-[13.5px]">
+                            <thead className="bg-om-panel font-mono text-[9px] uppercase tracking-[0.1em] text-om-muted"><tr>
                                 <th className="px-4 py-3">{__('Status')}</th><th className="px-4 py-3">{__('Workstation')}</th><th className="px-4 py-3">{__('Material')}</th><th className="px-4 py-3">{__('Source')}</th>
                                 <th className="px-4 py-3 text-right">{__('Requested')}</th><th className="px-4 py-3 text-right">{__('Delivered')}</th><th className="px-4 py-3 text-right">{__('Remaining')}</th>
                                 <th className="px-4 py-3">{__('Assignee')}</th><th className="px-4 py-3">{__('Requested at')}</th><th className="px-4 py-3 text-right">{__('Actions')}</th>
@@ -532,10 +588,10 @@ export default function WorkstationMaterialsIndex() {
                                         <td className="px-4 py-3 text-right font-semibold"><Quantity value={remainingQuantity(request)} unit={request.unit_of_measure} /></td>
                                         <td className="px-4 py-3">{request.assigned_to?.name ?? '—'}</td>
                                         <td className="px-4 py-3 text-xs text-om-muted">{formatDateTime(request.requested_at)}</td>
-                                        <td className="px-4 py-3"><div className="flex justify-end gap-3">
-                                            {open && <button type="button" onClick={() => setModal({ type: 'assign', record: request })} className="font-semibold text-om-accent">{__('Assign')}</button>}
-                                            {open && remainingQuantity(request) > 0 && <button type="button" onClick={() => setModal({ type: 'deliver', record: request })} className="font-semibold text-om-running">{__('Deliver')}</button>}
-                                            {open && <button type="button" onClick={() => setModal({ type: 'cancel', record: request })} className="font-semibold text-om-blocked">{__('Cancel')}</button>}
+                                        <td className="px-4 py-3"><div className="flex justify-end gap-2">
+                                            {open && <RowAction label="Assign" path={ACTION_ICONS.assign} onClick={() => setModal({ type: 'assign', record: request })} />}
+                                            {open && remainingQuantity(request) > 0 && <RowAction label="Deliver" path={ACTION_ICONS.deliver} variant="primary" onClick={() => setModal({ type: 'deliver', record: request })} />}
+                                            {open && <RowAction label="Cancel" path={ACTION_ICONS.cancel} variant="danger" onClick={() => setModal({ type: 'cancel', record: request })} />}
                                         </div></td>
                                     </tr>;
                                 })}
@@ -548,8 +604,8 @@ export default function WorkstationMaterialsIndex() {
                     <>
                         <div className="mt-4 flex justify-end"><button type="button" onClick={() => setModal({ type: 'policy' })} className={primaryButton}>{__('New material policy')}</button></div>
                         <div className="mt-3 overflow-x-auto rounded-om-sm border border-om-line bg-om-card">
-                            <table className="w-full min-w-[1100px] text-left text-sm">
-                                <thead className="bg-om-panel text-xs uppercase text-om-muted"><tr>
+                            <table className="w-full min-w-[1100px] text-left text-[13.5px]">
+                                <thead className="bg-om-panel font-mono text-[9px] uppercase tracking-[0.1em] text-om-muted"><tr>
                                     <th className="px-4 py-3">{__('Workstation')}</th><th className="px-4 py-3">{__('Material')}</th><th className="px-4 py-3">{__('Source')}</th>
                                     <th className="px-4 py-3 text-right">{__('Reorder point')}</th><th className="px-4 py-3 text-right">{__('Target')}</th><th className="px-4 py-3 text-right">{__('Issue increment')}</th>
                                     <th className="px-4 py-3">{__('Mode')}</th><th className="px-4 py-3">{__('Assignee')}</th><th className="px-4 py-3">{__('Status')}</th><th className="px-4 py-3 text-right">{__('Actions')}</th>
@@ -566,7 +622,10 @@ export default function WorkstationMaterialsIndex() {
                                         <td className="px-4 py-3">{policy.replenishment_mode === 'assigned' ? __('Assigned') : __('Self-service')}</td>
                                         <td className="px-4 py-3">{policy.default_assignee?.name ?? '—'}</td>
                                         <td className="px-4 py-3">{policy.is_active ? __('Active') : __('Inactive')}</td>
-                                        <td className="px-4 py-3"><div className="flex justify-end gap-3"><button type="button" onClick={() => setModal({ type: 'policy', record: policy })} className="font-semibold text-om-accent">{__('Edit')}</button><button type="button" onClick={() => deletePolicy(policy)} className="font-semibold text-om-blocked">{__('Delete')}</button></div></td>
+                                        <td className="px-4 py-3"><div className="flex justify-end gap-2">
+                                            <RowAction label="Edit" path={ACTION_ICONS.edit} onClick={() => setModal({ type: 'policy', record: policy })} />
+                                            <RowAction label="Delete" path={ACTION_ICONS.delete} variant="danger" onClick={() => deletePolicy(policy)} />
+                                        </div></td>
                                     </tr>)}
                                 </tbody>
                             </table>
@@ -583,6 +642,7 @@ export default function WorkstationMaterialsIndex() {
             {modal?.type === 'deliver' && <DeliverModal request={modal.record} materials={materials} warehouseStocks={warehouseStocks} onClose={closeModal} />}
             {modal?.type === 'cancel' && <CancelModal request={modal.record} onClose={closeModal} />}
         </>
+        </QuantityPrecisionContext.Provider>
     );
 }
 

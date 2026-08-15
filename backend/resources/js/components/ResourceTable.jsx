@@ -68,6 +68,7 @@ function LiveClockProvider({ active, children }) {
  *                 className overrides the variant when you need a one-off style.
  *   emptyText   — shown when no rows
  *   pageSize    — rows per page (default 12)
+ *   transformRows — optional rows → rows projection before filtering/rendering
  *   enableSelection / bulkActions / selectionLabel — opt-in row selection toolbar
  *   fullWidth   — drop the default max-w-7xl cap and span the content area.
  *                 Opt-in: lists stay 7xl-capped unless a page has enough columns
@@ -157,6 +158,7 @@ export default function ResourceTable({
     getKey = (row) => row.id,
     actions,
     emptyText = 'Nothing here yet.',
+    transformRows,
     filterFn,
     subtitle,
     pageSize = 50,
@@ -178,7 +180,8 @@ export default function ResourceTable({
 
     // Optional client-side filter (e.g. a dashboard KPI deep-link like
     // ?status=IN_PROGRESS) — applied over the live rows so it stays reactive.
-    const visibleRows = filterFn ? (rows ?? []).filter(filterFn) : (rows ?? []);
+    const transformedRows = transformRows ? transformRows(rows ?? []) : (rows ?? []);
+    const visibleRows = filterFn ? transformedRows.filter(filterFn) : transformedRows;
 
     // Map the declarative column config → TanStack column defs. Column ids stay
     // stable (= c.key) so sort/page/filter state survives live data re-renders.
@@ -193,7 +196,7 @@ export default function ResourceTable({
         const defs = columns.map((c) => {
             const def = {
                 id: c.key,
-                accessorFn: (row) => row[c.key],
+                accessorFn: (row) => c.searchAccessor ? c.searchAccessor(row) : row[c.key],
                 header: __(c.label),
                 enableSorting: c.sortable !== false,
                 cell: ({ row }) => {

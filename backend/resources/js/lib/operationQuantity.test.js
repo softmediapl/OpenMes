@@ -5,6 +5,7 @@ import {
     operationQuantityInput,
     operationScrapBreakdownValid,
     parseOperationQuantity,
+    quantityInputValue,
 } from './operationQuantity';
 
 describe('operation quantity balance', () => {
@@ -89,4 +90,10 @@ describe('operation quantity balance', () => {
         (precision, step, inputMode) => expect(operationQuantityInput(precision, 'pcs'))
             .toEqual({ precision, step, inputMode }),
     );
+
+    it('removes storage padding without removing whole-number zeroes', () => {
+        expect(quantityInputValue('45.0000', 4)).toBe('45');
+        expect(quantityInputValue('12000.0000', 0)).toBe('12000');
+        expect(quantityInputValue('3.9372', 4)).toBe('3.9372');
+    });
 });

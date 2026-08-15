@@ -7,6 +7,7 @@ use App\Http\Requests\Web\Admin\StoreStockDocumentRequest;
 use App\Models\Material;
 use App\Models\ProductType;
 use App\Models\StockDocument;
+use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
 use App\Models\WorkOrder;
 use App\Services\Warehouse\StockDocumentService;
@@ -41,12 +42,20 @@ class StockDocumentController extends Controller
 
     public function create()
     {
+        $unitPrecisions = UnitOfMeasure::pluck('quantity_precision', 'code');
+        $materials = Material::where('is_active', true)->orderBy('code')->get([
+            'id', 'code', 'name', 'unit_of_measure', 'tracking_type', 'unit_price', 'price_currency',
+        ])->each(fn (Material $material) => $material->setAttribute(
+            'quantity_precision',
+            (int) ($unitPrecisions[$material->unit_of_measure] ?? UnitOfMeasure::inferredPrecision($material->unit_of_measure)),
+        ));
+
         return Inertia::render('admin/stock-documents/Create', [
             'warehouses' => Warehouse::active()->orderBy('code')->get(['id', 'code', 'name', 'kind', 'is_default']),
-            'materials' => Material::where('is_active', true)->orderBy('code')->get([
-                'id', 'code', 'name', 'unit_of_measure', 'tracking_type', 'unit_price', 'price_currency',
-            ]),
-            'productTypes' => ProductType::where('is_active', true)->orderBy('code')->get(['id', 'code', 'name', 'unit_of_measure']),
+            'materials' => $materials,
+            'productTypes' => ProductType::where('is_active', true)->orderBy('code')
+                ->get(['id', 'code', 'name', 'unit_of_measure'])
+                ->each(fn (ProductType $productType) => $productType->append('quantity_precision')),
             'types' => StockDocument::TYPES,
         ]);
     }
@@ -103,6 +112,7 @@ class StockDocumentController extends Controller
                     'notes' => $line->notes,
                 ]),
             ],
+            'unitPrecisions' => UnitOfMeasure::pluck('quantity_precision', 'code'),
         ]);
     }
 

@@ -7,6 +7,7 @@ use App\Http\Requests\Web\Admin\StoreMaterialRequest;
 use App\Http\Requests\Web\Admin\UpdateMaterialRequest;
 use App\Models\Material;
 use App\Models\MaterialType;
+use App\Models\UnitOfMeasure;
 use App\Services\CustomFieldService;
 use Inertia\Inertia;
 
@@ -21,6 +22,7 @@ class MaterialManagementController extends Controller
         return Inertia::render('admin/materials/Index', [
             'counts' => $counts,
             'materialTypeNames' => MaterialType::pluck('name', 'id'),
+            'unitPrecisions' => UnitOfMeasure::pluck('quantity_precision', 'code'),
         ]);
     }
 
@@ -28,6 +30,9 @@ class MaterialManagementController extends Controller
     {
         return Inertia::render('admin/materials/Create', [
             'materialTypes' => MaterialType::orderBy('name')->get(['id', 'name']),
+            'unitsOfMeasure' => UnitOfMeasure::where('is_active', true)->orderBy('code')->get([
+                'code', 'name', 'symbol', 'quantity_precision',
+            ]),
             'customFields' => $customFields->clientConfig('material'),
         ]);
     }
@@ -142,6 +147,9 @@ class MaterialManagementController extends Controller
                 'custom_fields'
             ),
             'materialTypes' => MaterialType::orderBy('name')->get(['id', 'name']),
+            'unitsOfMeasure' => UnitOfMeasure::where('is_active', true)->orderBy('code')->get([
+                'code', 'name', 'symbol', 'quantity_precision',
+            ]),
             'customFields' => $customFields->clientConfig('material'),
         ]);
     }

@@ -2,7 +2,7 @@ import { Head, Link, router } from '@inertiajs/react';
 import { Button, StatusPill } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
 import { documentTypeLabels } from './types';
-import { __, formatDateTime } from '../../../lib/i18n';
+import { __, formatDateTime, formatNumber } from '../../../lib/i18n';
 
 const STATUS_PILL = { draft: 'pending', posted: 'done', cancelled: 'blocked' };
 
@@ -20,7 +20,7 @@ function Field({ label, children }) {
  * Posting and cancelling go through the server (StockDocumentService owns the
  * balance and ledger effects), so this page never mutates stock itself.
  */
-export default function StockDocumentShow({ document: doc }) {
+export default function StockDocumentShow({ document: doc, unitPrecisions = {} }) {
     const sign = doc.direction === 'in' ? '+' : '−';
     const typeLabels = documentTypeLabels();
     const dt = (value) => (value ? formatDateTime(value) : null);
@@ -119,7 +119,7 @@ export default function StockDocumentShow({ document: doc }) {
                                     <td className="px-5 py-2.5 font-mono text-om-muted">{line.lot_number ?? '—'}</td>
                                     <td className="px-5 py-2.5 text-right text-om-ink">
                                         {sign}
-                                        {Number(line.quantity).toLocaleString()} {line.unit_of_measure ?? ''}
+                                        {formatNumber(line.quantity, { maximumFractionDigits: unitPrecisions[line.unit_of_measure] ?? 4 })} {line.unit_of_measure ?? ''}
                                     </td>
                                     <td className="px-5 py-2.5 text-right font-mono text-om-muted">
                                         {line.unit_price == null

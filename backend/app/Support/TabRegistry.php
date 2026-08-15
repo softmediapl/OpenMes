@@ -54,6 +54,8 @@ class TabRegistry
         // Warehousing (#212) — render under the Production nav group.
         'warehouse' => ['label' => 'Warehouses', 'prefixes' => [
             '/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents',
+            '/admin/workstation-materials', '/admin/workstation-material-policies',
+            '/admin/material-replenishments',
         ]],
         // Customer/supplier companies (render under the Production nav group).
         'companies' => ['label' => 'Companies', 'prefixes' => ['/admin/companies']],

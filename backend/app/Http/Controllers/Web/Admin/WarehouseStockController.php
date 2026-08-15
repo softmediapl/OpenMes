@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\ProductType;
+use App\Models\UnitOfMeasure;
 use App\Models\Warehouse;
 use Inertia\Inertia;
 
@@ -28,6 +29,7 @@ class WarehouseStockController extends Controller
             // Only lots that actually carry a balance somewhere — the full lot
             // table can be large and the overview never shows the rest.
             'lots' => MaterialLot::whereHas('warehouseStocks')->get(['id', 'lot_number'])->keyBy('id')->map->lot_number,
+            'unitPrecisions' => UnitOfMeasure::pluck('quantity_precision', 'code'),
         ]);
     }
 }

@@ -32,7 +32,7 @@ class WarehouseStock extends Model
     protected function casts(): array
     {
         return [
-            'quantity' => 'decimal:3',
+            'quantity' => 'decimal:4',
             'erp_synced_at' => 'datetime',
         ];
     }

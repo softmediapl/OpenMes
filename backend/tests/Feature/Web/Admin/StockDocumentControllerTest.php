@@ -117,6 +117,34 @@ class StockDocumentControllerTest extends TestCase
             ->assertSessionHasErrors('lines.0.quantity');
     }
 
+    public function test_document_derives_unit_and_precision_from_the_material(): void
+    {
+        $warehouse = Warehouse::factory()->rawMaterial()->create();
+        $material = Material::factory()->create(['unit_of_measure' => 'pcs']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.stock-documents.store'), [
+                'type' => StockDocument::TYPE_MATERIAL_ISSUE,
+                'warehouse_id' => $warehouse->id,
+                'lines' => [[
+                    'material_id' => $material->id,
+                    'quantity' => 2,
+                    'unit_of_measure' => 'kg',
+                ]],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('pcs', StockDocument::firstOrFail()->lines()->firstOrFail()->unit_of_measure);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.stock-documents.store'), [
+                'type' => StockDocument::TYPE_MATERIAL_ISSUE,
+                'warehouse_id' => $warehouse->id,
+                'lines' => [['material_id' => $material->id, 'quantity' => 1.5]],
+            ])
+            ->assertSessionHasErrors('lines.0.quantity');
+    }
+
     public function test_admin_can_post_and_then_cancel_a_document(): void
     {
         $warehouse = Warehouse::factory()->rawMaterial()->create();

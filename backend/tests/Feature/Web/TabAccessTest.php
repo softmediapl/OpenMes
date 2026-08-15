@@ -63,6 +63,13 @@ class TabAccessTest extends TestCase
         $this->actingAs($this->supervisor)->get('/admin/priority-rules')->assertOk();
     }
 
+    public function test_workstation_material_routes_belong_to_the_warehouse_tab(): void
+    {
+        $this->assertSame('warehouse', TabRegistry::tabForPath('/admin/workstation-materials'));
+        $this->assertSame('warehouse', TabRegistry::tabForPath('/admin/workstation-material-policies'));
+        $this->assertSame('warehouse', TabRegistry::tabForPath('/admin/material-replenishments'));
+    }
+
     public function test_granting_a_tab_lets_the_role_in(): void
     {
         // hr is not a Supervisor default → granting it opens HR pages.

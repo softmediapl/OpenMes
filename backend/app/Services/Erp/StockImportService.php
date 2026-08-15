@@ -55,7 +55,7 @@ class StockImportService
                 return $this->error('material_code', __('Give exactly one of material_code or product_type_code'));
             }
 
-            $quantity = round((float) ($row['quantity'] ?? 0), 3);
+            $quantity = round((float) ($row['quantity'] ?? 0), 4);
 
             if ($quantity < 0) {
                 return $this->error('quantity', __('Quantity cannot be negative'));

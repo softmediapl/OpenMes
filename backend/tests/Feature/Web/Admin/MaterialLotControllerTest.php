@@ -134,6 +134,18 @@ class MaterialLotControllerTest extends TestCase
             ->assertSessionHasErrors('status');
     }
 
+    public function test_store_rejects_fractional_quantity_for_whole_unit_material(): void
+    {
+        $material = Material::factory()->create(['unit_of_measure' => 'pcs']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.material-lots.store'), $this->validPayload([
+                'material_id' => $material->id,
+                'quantity_received' => 1.5,
+            ]))
+            ->assertSessionHasErrors('quantity_received');
+    }
+
     public function test_store_rejects_duplicate_lot_number_within_same_tenant(): void
     {
         $material = Material::factory()->create();

@@ -17,6 +17,14 @@ export function materialUnitFor(materials, materialId) {
     return materials.find((material) => String(material.id) === String(materialId))?.unit_of_measure ?? '';
 }
 
+export function materialPrecisionFor(materials, materialId) {
+    return materials.find((material) => String(material.id) === String(materialId))?.quantity_precision ?? 4;
+}
+
+function quantityStep(materials, data) {
+    return 10 ** -materialPrecisionFor(materials, data.material_id);
+}
+
 export function materialLotFields(materials, sources, statuses) {
     return [
         { name: 'lot_number', label: __('Lot Number'), required: true, placeholder: __('e.g. ACME-STEEL-2026-W24-001'), help: __('Required. A unique identifier for this lot/batch.') },
@@ -39,8 +47,17 @@ export function materialLotFields(materials, sources, statuses) {
                 ...sources.map((s) => ({ value: String(s.id), label: s.external_name })),
             ],
         },
-        { name: 'quantity_received', label: __('Qty Received'), type: 'number', required: true },
-        { name: 'quantity_available', label: __('Qty Available'), type: 'number', help: __('Defaults to the received quantity if left blank.') },
+        {
+            name: 'quantity_received', label: __('Qty Received'), type: 'number', required: true,
+            min: 0, step: (data) => quantityStep(materials, data),
+            inputMode: (data) => materialPrecisionFor(materials, data.material_id) === 0 ? 'numeric' : 'decimal',
+        },
+        {
+            name: 'quantity_available', label: __('Qty Available'), type: 'number',
+            min: 0, step: (data) => quantityStep(materials, data),
+            inputMode: (data) => materialPrecisionFor(materials, data.material_id) === 0 ? 'numeric' : 'decimal',
+            help: __('Defaults to the received quantity if left blank.'),
+        },
         {
             name: 'unit_of_measure',
             label: __('Unit'),

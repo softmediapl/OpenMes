@@ -43,7 +43,7 @@ class MaterialStockReconciler
                 ->whereNull('material_lot_id')
                 ->sum('quantity'), 3);
 
-            $delta = round($total - (float) $material->stock_quantity, 3);
+            $delta = round($total - (float) $material->stock_quantity, 4);
 
             if (abs($delta) < 0.001) {
                 $material->update(['last_stock_sync_at' => now()]);

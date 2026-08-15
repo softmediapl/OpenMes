@@ -14,7 +14,7 @@ const LOT_PICKING_STRATEGIES = [
     { value: 'manual', label: __('Manual') },
 ];
 
-export function materialFields(materialTypes) {
+export function materialFields(materialTypes, unitsOfMeasure = []) {
     return [
         { name: 'code', label: __('Code'), required: true },
         { name: 'name', label: __('Name'), required: true },
@@ -28,7 +28,17 @@ export function materialFields(materialTypes) {
                 ...materialTypes.map((t) => ({ value: String(t.id), label: t.name })),
             ],
         },
-        { name: 'unit_of_measure', label: __('Unit of Measure'), placeholder: __('pcs'), help: __('e.g. pcs, kg, l, m. Optional.') },
+        {
+            name: 'unit_of_measure',
+            label: __('Unit of Measure'),
+            type: 'select',
+            required: true,
+            options: unitsOfMeasure.map((unit) => ({
+                value: unit.code,
+                label: `${unit.symbol || unit.code} — ${unit.name}`,
+            })),
+            help: __('Quantity precision is defined by the selected unit.'),
+        },
         { name: 'tracking_type', label: __('Tracking'), type: 'select', options: TRACKING, help: __('Batch = grouped lots, Serial = individual items, None = untracked.') },
         { name: 'lot_picking_strategy', label: __('Lot picking strategy'), type: 'select', options: LOT_PICKING_STRATEGIES, help: __('Overrides the system lot-picking strategy for this material.') },
         { name: 'default_scrap_percentage', label: __('Default Scrap %'), type: 'number', help: __('Pre-fills the scrap % on BOM lines using this material; can be overridden.') },

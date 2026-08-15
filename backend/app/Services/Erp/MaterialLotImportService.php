@@ -219,7 +219,7 @@ class MaterialLotImportService
                         'product_type_id' => null,
                     ],
                     [
-                        'quantity' => round((float) ($totals[$key]->total ?? 0), 3),
+                        'quantity' => round((float) ($totals[$key]->total ?? 0), 4),
                         'erp_synced_at' => now(),
                     ],
                 );

@@ -8,6 +8,7 @@ use App\Http\Requests\Web\Admin\ReturnWorkstationMaterialRequest;
 use App\Models\Material;
 use App\Models\MaterialLot;
 use App\Models\MaterialReplenishmentRequest;
+use App\Models\UnitOfMeasure;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
@@ -69,6 +70,7 @@ class WorkstationMaterialController extends Controller
                 ->orderBy('material_lot_id')
                 ->get(),
             'users' => User::query()->orderBy('name')->get(['id', 'name', 'email']),
+            'unitPrecisions' => UnitOfMeasure::pluck('quantity_precision', 'code'),
         ]);
     }
 
