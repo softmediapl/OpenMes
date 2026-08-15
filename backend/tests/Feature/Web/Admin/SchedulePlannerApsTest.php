@@ -51,6 +51,7 @@ class SchedulePlannerApsTest extends TestCase
 
         $workOrder->refresh();
         $this->assertSame('2026-08-17 06:00', $workOrder->planned_start_at->format('Y-m-d H:i'));
+        $this->assertNotNull($workOrder->current_schedule_baseline_id);
         $this->assertCount(1, $workOrder->operationPlans);
         $this->assertCount(1, $workOrder->operationPlans->first()->workerAssignments);
         $change = ScheduleChangeLog::query()->where('work_order_id', $workOrder->id)->latest('id')->firstOrFail();
@@ -61,6 +62,8 @@ class SchedulePlannerApsTest extends TestCase
 
         $workOrder->refresh();
         $this->assertNull($workOrder->planned_start_at);
+        $this->assertNull($workOrder->current_schedule_baseline_id);
+        $this->assertSame(1, $workOrder->scheduleBaselines()->count());
         $this->assertCount(0, $workOrder->operationPlans);
     }
 

@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Worker;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderOperationPlan;
+use App\Models\WorkOrderScheduleBaseline;
 use App\Models\Workstation;
 use App\Services\Schedule\FiniteCapacityScheduler;
 use App\Services\Schedule\FiniteSchedulePlanService;
@@ -56,7 +57,52 @@ class FiniteSchedulePlanServiceTest extends TestCase
             'reserved_start_at' => '2026-08-17 06:00:00',
             'reserved_end_at' => '2026-08-17 07:00:00',
         ]);
+        $baseline = WorkOrderScheduleBaseline::query()->sole();
+        $this->assertSame($baseline->id, $workOrder->current_schedule_baseline_id);
+        $this->assertSame(1, $baseline->version);
+        $this->assertSame(60, $baseline->total_operation_minutes);
+        $this->assertSame(60, $baseline->calendar_lead_minutes);
+        $this->assertSame($deadline, $baseline->customer_deadline_at->toIso8601String());
+        $this->assertSame($preview->fingerprint(), $baseline->proposal_fingerprint);
+        $this->assertSame(WorkOrderScheduleBaseline::SOURCE_APS, $baseline->source);
+        $this->assertSame($user->id, $baseline->approved_by_id);
+        $this->assertDatabaseHas('work_order_schedule_baseline_segments', [
+            'schedule_baseline_id' => $baseline->id,
+            'step_number' => 1,
+            'segment_number' => 1,
+            'workstation_id' => $station->id,
+            'duration_minutes' => 60,
+        ]);
         Event::assertDispatched(WorkOrderScheduled::class);
+    }
+
+    public function test_replanning_creates_a_new_immutable_baseline_version(): void
+    {
+        [$line, , , $workOrder] = $this->fixture();
+        $scheduler = app(FiniteCapacityScheduler::class);
+        $service = app(FiniteSchedulePlanService::class);
+        $user = User::factory()->create();
+        $firstStart = CarbonImmutable::parse('2026-08-17 06:00');
+        $firstPreview = $scheduler->propose($workOrder, $firstStart, $line->id);
+
+        $service->apply($workOrder, $firstStart, $line->id, $user->id, $firstPreview->fingerprint());
+        $firstBaseline = $workOrder->fresh()->currentScheduleBaseline;
+        $firstSnapshot = $firstBaseline->getAttributes();
+
+        $secondStart = CarbonImmutable::parse('2026-08-18 06:00');
+        $secondPreview = $scheduler->propose($workOrder->fresh(), $secondStart, $line->id);
+        $service->apply($workOrder->fresh(), $secondStart, $line->id, $user->id, $secondPreview->fingerprint());
+
+        $workOrder->refresh();
+        $secondBaseline = $workOrder->currentScheduleBaseline;
+        $this->assertSame(2, $workOrder->scheduleBaselines()->count());
+        $this->assertSame(1, $firstBaseline->version);
+        $this->assertSame(2, $secondBaseline->version);
+        $this->assertNotSame($firstBaseline->id, $secondBaseline->id);
+        $this->assertSame('2026-08-18 06:00', $secondBaseline->planned_start_at->format('Y-m-d H:i'));
+        $this->assertSame($firstSnapshot, $firstBaseline->fresh()->getAttributes());
+        $this->assertSame(1, $firstBaseline->segments()->count());
+        $this->assertSame(1, $secondBaseline->segments()->count());
     }
 
     public function test_it_rejects_a_stale_proposal_after_resource_plan_changes(): void

@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\DB;
 
 final class FiniteSchedulePlanService
 {
-    public function __construct(private readonly FiniteCapacityScheduler $scheduler) {}
+    public function __construct(
+        private readonly FiniteCapacityScheduler $scheduler,
+        private readonly ScheduleBaselineService $baselines,
+    ) {}
 
     public function apply(
         WorkOrder $workOrder,
@@ -92,6 +95,7 @@ final class FiniteSchedulePlanService
                 'planned_start_at' => $proposal->startsAt,
                 'planned_end_at' => $proposal->endsAt,
             ]);
+            $this->baselines->recordAps($lockedWorkOrder, $proposal, $scheduledById);
             $changes = $lockedWorkOrder->getChanges();
 
             return $proposal;

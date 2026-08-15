@@ -463,6 +463,10 @@ class SchedulePlannerController extends Controller
             $data['planned_end_at'] = $request->input('planned_end_at') ?: null;
         }
 
+        if (array_intersect(array_keys($data), ['line_id', 'planned_start_at', 'planned_end_at']) !== []) {
+            $data['current_schedule_baseline_id'] = null;
+        }
+
         // Conflict detection: if both timestamps are being set and a line is
         // assigned, refuse the update when another active WO on the same line
         // overlaps the proposed window — unless the caller explicitly forces.
@@ -611,6 +615,7 @@ class SchedulePlannerController extends Controller
             $workOrder->update([
                 'planned_start_at' => $validated['planned_start_at'],
                 'planned_end_at' => $validated['planned_end_at'],
+                'current_schedule_baseline_id' => null,
             ]);
             $workOrder->operationPlans()->delete();
             $this->logChange($workOrder, $snapshotBefore);
@@ -630,7 +635,11 @@ class SchedulePlannerController extends Controller
 
         // Allow null to clear span (legacy shift-level behaviour)
         if ($request->input('end_date') === null && $request->input('end_shift_number') === null) {
-            $workOrder->update(['end_date' => null, 'end_shift_number' => null]);
+            $workOrder->update([
+                'end_date' => null,
+                'end_shift_number' => null,
+                'current_schedule_baseline_id' => null,
+            ]);
         } else {
             $request->validate([
                 'end_date' => 'required|date|after_or_equal:'.($workOrder->due_date?->format('Y-m-d') ?? 'today'),
@@ -639,6 +648,7 @@ class SchedulePlannerController extends Controller
             $workOrder->update([
                 'end_date' => $request->input('end_date'),
                 'end_shift_number' => $request->input('end_shift_number'),
+                'current_schedule_baseline_id' => null,
             ]);
         }
         $workOrder->operationPlans()->delete();
@@ -762,6 +772,7 @@ class SchedulePlannerController extends Controller
             'end_shift_number' => $s['end_shift_number'] ?? null,
             'planned_start_at' => $s['planned_start_at'] ?? null,
             'planned_end_at' => $s['planned_end_at'] ?? null,
+            'current_schedule_baseline_id' => $s['current_schedule_baseline_id'] ?? null,
         ]);
         $workOrder->extraPlacements()->delete();
         foreach ($s['placements'] ?? [] as $p) {
@@ -807,6 +818,7 @@ class SchedulePlannerController extends Controller
             'end_shift_number' => $workOrder->end_shift_number,
             'planned_start_at' => $workOrder->planned_start_at?->toIso8601String(),
             'planned_end_at' => $workOrder->planned_end_at?->toIso8601String(),
+            'current_schedule_baseline_id' => $workOrder->current_schedule_baseline_id,
             'placements' => $workOrder->extraPlacements()->get()->map(fn ($p) => [
                 'line_id' => $p->line_id,
                 'due_date' => $p->due_date->format('Y-m-d'),

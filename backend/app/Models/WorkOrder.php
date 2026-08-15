@@ -140,6 +140,7 @@ class WorkOrder extends Model
         'end_shift_number',
         'planned_start_at',
         'planned_end_at',
+        'current_schedule_baseline_id',
         'month_number',
         'production_year',
         'description',
@@ -427,6 +428,18 @@ class WorkOrder extends Model
         return $this->hasMany(WorkOrderOperationPlan::class)
             ->orderBy('step_number')
             ->orderBy('segment_number');
+    }
+
+    /** All approved schedule snapshots, retained for plan-versus-actual analysis. */
+    public function scheduleBaselines(): HasMany
+    {
+        return $this->hasMany(WorkOrderScheduleBaseline::class)->orderBy('version');
+    }
+
+    /** The schedule baseline currently approved for execution. */
+    public function currentScheduleBaseline(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrderScheduleBaseline::class, 'current_schedule_baseline_id');
     }
 
     /**
