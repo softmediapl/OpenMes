@@ -182,6 +182,25 @@ class TemplateStep extends Model
     }
 
     /**
+     * Resolve the ISA-95 personnel skills required to execute this step.
+     *
+     * Skill requirements currently belong to the reusable process segment.
+     * Returning normalized integer IDs here keeps snapshot creation independent
+     * from the storage representation used by ProcessSegment.
+     *
+     * @return list<int>
+     */
+    public function effectiveRequiredSkillIds(): array
+    {
+        return collect($this->processSegment?->required_skill_ids ?? [])
+            ->filter(fn ($skillId) => is_numeric($skillId))
+            ->map(fn ($skillId) => (int) $skillId)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Resolve the effective ISA-95 Equipment Class — the step's own value wins;
      * otherwise fall back to the linked Process Segment's workstation type (#52).
      */

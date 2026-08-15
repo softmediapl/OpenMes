@@ -95,6 +95,7 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('instruction', $step);
         $this->assertArrayHasKey('estimated_duration_minutes', $step);
         $this->assertArrayHasKey('required_operators', $step);
+        $this->assertArrayHasKey('required_skill_ids', $step);
         $this->assertArrayHasKey('workstation_id', $step);
         // ISA-95 additions (#52).
         $this->assertArrayHasKey('workstation_type_id', $step);
@@ -186,6 +187,24 @@ class SnapshotServiceTest extends TestCase
         $snapshot = $this->service->createSnapshot($template->fresh());
 
         $this->assertSame(3, $snapshot['steps'][0]['required_operators']);
+    }
+
+    public function test_snapshot_step_carries_normalized_process_segment_skills(): void
+    {
+        $firstSkill = \App\Models\Skill::factory()->create();
+        $secondSkill = \App\Models\Skill::factory()->create();
+        $segment = \App\Models\ProcessSegment::factory()->create([
+            'required_skill_ids' => [$firstSkill->id, (string) $secondSkill->id, $firstSkill->id],
+        ]);
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update(['process_segment_id' => $segment->id]);
+
+        $snapshot = $this->service->createSnapshot($template->fresh());
+
+        $this->assertSame(
+            [$firstSkill->id, $secondSkill->id],
+            $snapshot['steps'][0]['required_skill_ids'],
+        );
     }
 
     public function test_snapshot_step_count_matches_template_steps(): void
