@@ -14,6 +14,7 @@ import { customFieldInitial, customFieldProps, submitForm } from '../../lib/cust
 import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationQuantityBalance } from '../../lib/operationQuantity';
+import { operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
 
@@ -1392,9 +1393,6 @@ function PalletizationSummary({ step }) {
  * operator-confirmed actuals introduced by #52.
  */
 function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationHold = false, onClose }) {
-    const startedAt = step.started_at ? new Date(step.started_at).getTime() : null;
-    const initialElapsed = startedAt ? Math.max(0, Math.round((Date.now() - startedAt) / 60000)) : 0;
-    const initialSetup = step.setup_time_minutes != null ? Number(step.setup_time_minutes) : 0;
     const inputQuantity = Number(step.input_quantity ?? 0);
     const reportsQuantity = !!step.quantity_reporting_required;
     const applicableScrapReasons = scrapReasons.filter((reason) => {
@@ -1404,12 +1402,13 @@ function CompleteOperationModal({ step, scrapReasons = [], canOverrideOperationH
     const isFixedHold = step.execution_mode === 'fixed_hold';
     const reportsTime = isFixedHold || step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
     const [clock, setClock] = useState(Date.now());
+    const actualTimeDefaults = operationActualTimeDefaults(step, clock);
     const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
     const earlyRelease = remainingHoldSeconds > 0;
     const form = useForm({
-        actual_elapsed_minutes: reportsTime ? String(initialElapsed) : '',
-        actual_setup_minutes: reportsTime && step.setup_time_minutes != null ? String(initialSetup) : '',
-        actual_run_minutes: reportsTime ? String(Math.max(0, initialElapsed - initialSetup)) : '',
+        actual_elapsed_minutes: reportsTime ? String(actualTimeDefaults.elapsed) : '',
+        actual_setup_minutes: reportsTime && step.setup_time_minutes != null ? String(actualTimeDefaults.setup) : '',
+        actual_run_minutes: reportsTime ? String(actualTimeDefaults.run) : '',
         good_quantity: reportsQuantity ? String(inputQuantity) : '',
         rework_quantity: reportsQuantity ? '0' : '',
         scrap_quantity: reportsQuantity ? '0' : '',
