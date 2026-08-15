@@ -70,6 +70,13 @@ class IssueTypesSeeder extends Seeder
                 'is_active' => true,
             ],
             [
+                'code' => 'SCHEDULE_RISK',
+                'name' => 'Schedule Forecast Risk',
+                'severity' => 'HIGH',
+                'is_blocking' => false,
+                'is_active' => true,
+            ],
+            [
                 'code' => 'INBOUND_QC_FAIL',
                 'name' => 'Inbound Quality — Inspection Failed',
                 'severity' => 'HIGH',

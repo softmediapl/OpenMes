@@ -29,6 +29,8 @@ class Issue extends Model
 
     public const SOURCE_CUSTOMER_COMPLAINT = 'customer_complaint';
 
+    public const SOURCE_SCHEDULE_FORECAST = 'schedule_forecast';
+
     // Non-conformance responsibility source (#11) — who is responsible for the
     // non-conformance. Distinct from `source` (where it originated).
     public const NC_SOURCE_INTERNAL = 'internal';

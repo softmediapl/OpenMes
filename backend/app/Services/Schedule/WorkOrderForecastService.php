@@ -27,7 +27,10 @@ final class WorkOrderForecastService
 {
     private const HORIZON_DAYS = 366;
 
-    public function __construct(private readonly ForecastOperationProjector $projector) {}
+    public function __construct(
+        private readonly ForecastOperationProjector $projector,
+        private readonly ScheduleRiskAlertService $riskAlerts,
+    ) {}
 
     public function refresh(
         WorkOrder $workOrder,
@@ -35,7 +38,7 @@ final class WorkOrderForecastService
     ): ?WorkOrderForecast {
         $at = CarbonImmutable::instance($calculatedAt ?? now())->setTimezone(config('app.timezone'));
 
-        return DB::transaction(function () use ($workOrder, $at): ?WorkOrderForecast {
+        $forecast = DB::transaction(function () use ($workOrder, $at): ?WorkOrderForecast {
             $locked = WorkOrder::query()->lockForUpdate()->findOrFail($workOrder->id);
             $locked->load([
                 'currentScheduleBaseline.segments',
@@ -85,6 +88,12 @@ final class WorkOrderForecastService
 
             return $forecast->fresh('segments');
         });
+
+        if ($forecast !== null) {
+            $this->riskAlerts->sync($forecast);
+        }
+
+        return $forecast;
     }
 
     /**
