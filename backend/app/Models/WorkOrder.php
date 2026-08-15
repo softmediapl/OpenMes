@@ -141,6 +141,7 @@ class WorkOrder extends Model
         'planned_start_at',
         'planned_end_at',
         'current_schedule_baseline_id',
+        'current_forecast_id',
         'month_number',
         'production_year',
         'description',
@@ -440,6 +441,18 @@ class WorkOrder extends Model
     public function currentScheduleBaseline(): BelongsTo
     {
         return $this->belongsTo(WorkOrderScheduleBaseline::class, 'current_schedule_baseline_id');
+    }
+
+    /** Historical completion projections used for drift analysis. */
+    public function forecasts(): HasMany
+    {
+        return $this->hasMany(WorkOrderForecast::class)->orderBy('sequence');
+    }
+
+    /** The latest projection calculated from the approved baseline and execution state. */
+    public function currentForecast(): BelongsTo
+    {
+        return $this->belongsTo(WorkOrderForecast::class, 'current_forecast_id');
     }
 
     /**
