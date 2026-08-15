@@ -14,7 +14,7 @@ class StockDocumentFactory extends Factory
     public function definition(): array
     {
         return [
-            'document_no' => 'MI/2026/'.$this->faker->unique()->numberBetween(1000, 999999),
+            'document_no' => 'RW/2026/'.$this->faker->unique()->numberBetween(1000, 999999),
             'type' => StockDocument::TYPE_MATERIAL_ISSUE,
             'status' => StockDocument::STATUS_DRAFT,
             'warehouse_id' => Warehouse::factory()->rawMaterial(),
@@ -32,7 +32,7 @@ class StockDocumentFactory extends Factory
     public function productReceipt(): static
     {
         return $this->state([
-            'document_no' => 'PR/2026/'.$this->faker->unique()->numberBetween(1000, 999999),
+            'document_no' => 'PW/2026/'.$this->faker->unique()->numberBetween(1000, 999999),
             'type' => StockDocument::TYPE_PRODUCT_RECEIPT,
             'warehouse_id' => Warehouse::factory()->finishedGoods(),
         ]);

@@ -210,10 +210,10 @@ class StockDocumentService
     public function nextDocumentNumber(string $type): string
     {
         $prefix = match ($type) {
-            StockDocument::TYPE_MATERIAL_ISSUE => 'MI',
-            StockDocument::TYPE_MATERIAL_RECEIPT => 'MR',
-            StockDocument::TYPE_PRODUCT_RECEIPT => 'PR',
-            StockDocument::TYPE_PRODUCT_ISSUE => 'PI',
+            StockDocument::TYPE_MATERIAL_ISSUE => 'RW',
+            StockDocument::TYPE_MATERIAL_RECEIPT => 'PZ',
+            StockDocument::TYPE_PRODUCT_RECEIPT => 'PW',
+            StockDocument::TYPE_PRODUCT_ISSUE => 'WZ',
             default => 'SD',
         };
 

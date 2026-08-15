@@ -414,20 +414,31 @@ class StockDocumentServiceTest extends TestCase
     public function test_document_numbers_are_sequential_per_type_and_year(): void
     {
         $this->rawWarehouse();
+        Warehouse::factory()->finishedGoods()->isDefault()->create();
         $material = Material::factory()->create();
-
-        $first = $this->service->createDraft([
-            'type' => StockDocument::TYPE_MATERIAL_ISSUE,
-            'lines' => [['material_id' => $material->id, 'quantity' => 1]],
-        ]);
-        $second = $this->service->createDraft([
-            'type' => StockDocument::TYPE_MATERIAL_ISSUE,
-            'lines' => [['material_id' => $material->id, 'quantity' => 1]],
-        ]);
+        $product = ProductType::factory()->create();
 
         $year = now()->year;
-        $this->assertSame("MI/{$year}/0001", $first->document_no);
-        $this->assertSame("MI/{$year}/0002", $second->document_no);
+        $cases = [
+            StockDocument::TYPE_MATERIAL_ISSUE => ['RW', 'material_id', $material->id],
+            StockDocument::TYPE_MATERIAL_RECEIPT => ['PZ', 'material_id', $material->id],
+            StockDocument::TYPE_PRODUCT_RECEIPT => ['PW', 'product_type_id', $product->id],
+            StockDocument::TYPE_PRODUCT_ISSUE => ['WZ', 'product_type_id', $product->id],
+        ];
+
+        foreach ($cases as $type => [$prefix, $itemKey, $itemId]) {
+            $first = $this->service->createDraft([
+                'type' => $type,
+                'lines' => [[$itemKey => $itemId, 'quantity' => 1]],
+            ]);
+            $second = $this->service->createDraft([
+                'type' => $type,
+                'lines' => [[$itemKey => $itemId, 'quantity' => 1]],
+            ]);
+
+            $this->assertSame("{$prefix}/{$year}/0001", $first->document_no);
+            $this->assertSame("{$prefix}/{$year}/0002", $second->document_no);
+        }
     }
 
     public function test_a_product_line_on_a_material_document_is_dropped(): void
@@ -515,7 +526,7 @@ class StockDocumentServiceTest extends TestCase
         // Squat on the number the next create would generate.
         $year = now()->year;
         StockDocument::factory()->create([
-            'document_no' => "MI/{$year}/0001",
+            'document_no' => "RW/{$year}/0001",
             'type' => StockDocument::TYPE_MATERIAL_ISSUE,
             'warehouse_id' => $warehouse->id,
         ]);
@@ -526,7 +537,7 @@ class StockDocumentServiceTest extends TestCase
             'lines' => [['material_id' => $material->id, 'quantity' => 1]],
         ]);
 
-        $this->assertSame("MI/{$year}/0002", $document->document_no);
+        $this->assertSame("RW/{$year}/0002", $document->document_no);
     }
 
     public function test_a_balance_row_must_name_exactly_one_item(): void
