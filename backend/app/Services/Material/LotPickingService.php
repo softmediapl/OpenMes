@@ -42,7 +42,7 @@ class LotPickingService
         ?string $strategy = null,
         ?Workstation $workstation = null,
     ): array {
-        $strategy = $strategy ?? $this->defaultStrategy();
+        $strategy = $strategy ?? $this->strategyFor($material);
 
         if ($workstation) {
             return $this->pickStationLotsForAllocation($allocation, $material, $requiredQty, $strategy, $workstation);
@@ -103,7 +103,7 @@ class LotPickingService
             return [];
         }
 
-        $strategy = $this->defaultStrategy();
+        $strategy = $this->strategyFor($material);
         if ($strategy === AllocationLotPick::STRATEGY_MANUAL) {
             throw new \DomainException(__('Additional lot picks must be selected manually.'));
         }
@@ -253,7 +253,7 @@ class LotPickingService
         ?string $strategy = null,
         ?Workstation $workstation = null,
     ): array {
-        $strategy = $strategy ?? $this->defaultStrategy();
+        $strategy = $strategy ?? $this->strategyFor($material);
 
         if ($workstation) {
             return $this->proposeStationPicks($material, $requiredQty, $strategy, $workstation);
@@ -410,6 +410,18 @@ class LotPickingService
         } catch (\Throwable) {
             return 'fefo';
         }
+    }
+
+    public function strategyFor(Material $material): string
+    {
+        return in_array($material->lot_picking_strategy, [
+            AllocationLotPick::STRATEGY_FEFO,
+            AllocationLotPick::STRATEGY_FIFO,
+            AllocationLotPick::STRATEGY_LIFO,
+            AllocationLotPick::STRATEGY_MANUAL,
+        ], true)
+            ? $material->lot_picking_strategy
+            : $this->defaultStrategy();
     }
 
     /** @return array<int, AllocationLotPick> */

@@ -5252,6 +5252,7 @@
     "Legacy setting": "Legacy setting",
     "LIFO - newest receipt first": "LIFO - newest receipt first",
     "Lot picking strategy": "Lot picking strategy",
+    "Overrides the system lot-picking strategy for this material.": "Overrides the system lot-picking strategy for this material.",
     "Managed in": "Managed in",
     "Manual selection": "Manual selection",
     "Minimum completed-order counts required for automatic customer promotion. Values must increase from Silver to VIP.": "Minimum completed-order counts required for automatic customer promotion. Values must increase from Silver to VIP.",

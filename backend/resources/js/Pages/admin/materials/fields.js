@@ -6,6 +6,14 @@ const TRACKING = [
     { value: 'serial', label: __('Serial') },
 ];
 
+const LOT_PICKING_STRATEGIES = [
+    { value: '', label: __('Use system default') },
+    { value: 'fefo', label: 'FEFO' },
+    { value: 'fifo', label: 'FIFO' },
+    { value: 'lifo', label: 'LIFO' },
+    { value: 'manual', label: __('Manual') },
+];
+
 export function materialFields(materialTypes) {
     return [
         { name: 'code', label: __('Code'), required: true },
@@ -22,6 +30,7 @@ export function materialFields(materialTypes) {
         },
         { name: 'unit_of_measure', label: __('Unit of Measure'), placeholder: __('pcs'), help: __('e.g. pcs, kg, l, m. Optional.') },
         { name: 'tracking_type', label: __('Tracking'), type: 'select', options: TRACKING, help: __('Batch = grouped lots, Serial = individual items, None = untracked.') },
+        { name: 'lot_picking_strategy', label: __('Lot picking strategy'), type: 'select', options: LOT_PICKING_STRATEGIES, help: __('Overrides the system lot-picking strategy for this material.') },
         { name: 'default_scrap_percentage', label: __('Default Scrap %'), type: 'number', help: __('Pre-fills the scrap % on BOM lines using this material; can be overridden.') },
         { name: 'description', label: __('Description'), type: 'textarea' },
         { name: 'external_code', label: __('External Code'), help: __('Only for ERP/integration sync — leave blank otherwise.') },

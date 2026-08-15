@@ -21,6 +21,7 @@ export default function MaterialEdit() {
                     material_type_id: material.material_type_id != null ? String(material.material_type_id) : '',
                     unit_of_measure: material.unit_of_measure ?? '',
                     tracking_type: material.tracking_type ?? 'none',
+                    lot_picking_strategy: material.lot_picking_strategy ?? '',
                     default_scrap_percentage: material.default_scrap_percentage ?? '',
                     description: material.description ?? '',
                     external_code: material.external_code ?? '',

@@ -105,6 +105,39 @@ class LotPickingServiceTest extends TestCase
         $this->assertEqualsWithDelta(10.0, (float) $picks[1]->picked_qty, 0.0001);
     }
 
+    public function test_material_strategy_overrides_the_system_default(): void
+    {
+        DB::table('system_settings')->updateOrInsert(
+            ['key' => 'lot_picking_strategy'],
+            ['value' => json_encode('fefo')],
+        );
+        $this->material->update(['lot_picking_strategy' => AllocationLotPick::STRATEGY_FIFO]);
+
+        $newer = $this->makeLot('LOT-NEW', 60, expiry: '2026-01-01', received: now()->subDay()->toIso8601String());
+        $older = $this->makeLot('LOT-OLD', 60, expiry: '2027-01-01', received: now()->subDays(10)->toIso8601String());
+
+        $picks = $this->svc->pickForAllocation($this->allocation, $this->material, 50);
+
+        $this->assertSame($older->id, $picks[0]->material_lot_id);
+        $this->assertEqualsWithDelta(60.0, (float) $newer->fresh()->quantity_available, 0.0001);
+    }
+
+    public function test_material_without_override_uses_the_system_default(): void
+    {
+        DB::table('system_settings')->updateOrInsert(
+            ['key' => 'lot_picking_strategy'],
+            ['value' => json_encode('lifo')],
+        );
+
+        $older = $this->makeLot('LOT-OLD', 60, received: now()->subDays(10)->toIso8601String());
+        $newer = $this->makeLot('LOT-NEW', 60, received: now()->subDay()->toIso8601String());
+
+        $picks = $this->svc->pickForAllocation($this->allocation, $this->material, 50);
+
+        $this->assertSame($newer->id, $picks[0]->material_lot_id);
+        $this->assertEqualsWithDelta(60.0, (float) $older->fresh()->quantity_available, 0.0001);
+    }
+
     public function test_depletes_lot_when_fully_picked(): void
     {
         $lot = $this->makeLot('LOT-A', 100);

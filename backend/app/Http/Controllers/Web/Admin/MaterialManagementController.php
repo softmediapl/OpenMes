@@ -94,6 +94,7 @@ class MaterialManagementController extends Controller
                 'is_active'                => $material->is_active,
                 'unit_of_measure'          => $material->unit_of_measure,
                 'tracking_type'            => $material->tracking_type,
+                'lot_picking_strategy'      => $material->lot_picking_strategy,
                 'default_scrap_percentage' => $material->default_scrap_percentage,
                 'stock_quantity'           => $material->stock_quantity,
                 'reserved_quantity'        => $material->reserved_quantity ?? 0,
@@ -133,7 +134,7 @@ class MaterialManagementController extends Controller
         return Inertia::render('admin/materials/Edit', [
             'material' => $material->only(
                 'id', 'code', 'name', 'description', 'material_type_id', 'unit_of_measure',
-                'tracking_type', 'default_scrap_percentage', 'external_code', 'external_system', 'is_active',
+                'tracking_type', 'lot_picking_strategy', 'default_scrap_percentage', 'external_code', 'external_system', 'is_active',
                 'custom_fields'
             ),
             'materialTypes' => MaterialType::orderBy('name')->get(['id', 'name']),

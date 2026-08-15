@@ -20,6 +20,7 @@ class StoreMaterialRequest extends FormRequest
             'material_type_id' => ['nullable', 'exists:material_types,id'],
             'unit_of_measure' => ['nullable', 'string', 'max:20'],
             'tracking_type' => ['nullable', 'string', 'in:none,batch,serial'],
+            'lot_picking_strategy' => ['nullable', 'string', 'in:fefo,fifo,lifo,manual'],
             // Make-or-buy: a manufactured material is a subassembly that BOM
             // explosion descends into via its producing template.
             'is_manufactured' => ['nullable', 'boolean'],

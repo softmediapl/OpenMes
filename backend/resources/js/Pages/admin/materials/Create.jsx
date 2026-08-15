@@ -17,7 +17,7 @@ export default function MaterialCreate() {
                 customFields={customFields}
                 initial={{
                     code: '', name: '', material_type_id: '', unit_of_measure: 'pcs',
-                    tracking_type: 'none', default_scrap_percentage: '', description: '',
+                    tracking_type: 'none', lot_picking_strategy: '', default_scrap_percentage: '', description: '',
                     external_code: '', external_system: '', is_active: true, custom_fields: {},
                 }}
                 submitLabel="Create"

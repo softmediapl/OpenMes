@@ -25,6 +25,7 @@ class Material extends Model
         'material_type_id',
         'unit_of_measure',
         'tracking_type',
+        'lot_picking_strategy',
         'is_manufactured',
         'producing_process_template_id',
         'default_scrap_percentage',
