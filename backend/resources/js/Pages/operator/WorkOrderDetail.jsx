@@ -866,6 +866,8 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                         ? holdRemainingSeconds(step.hold_release_at, clock)
                         : 0;
                     const holdIsActive = remainingHoldSeconds > 0;
+                    const qualityGate = step.quality_gate_status;
+                    const qualityBlocked = !!qualityGate?.required && !qualityGate.fulfilled;
                     return (
                         <div key={step.id} className="bg-om-panel border border-om-line2 rounded-om-sm">
                         <div className="flex items-center gap-3 p-3">
@@ -933,7 +935,7 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                             {step.status === 'IN_PROGRESS' && (
                                 <Button
                                     variant="primary"
-                                    disabled={isInflight || isDocBlocked || needsConfirm || (holdIsActive && !canOverrideOperationHold)}
+                                    disabled={isInflight || isDocBlocked || needsConfirm || qualityBlocked || (holdIsActive && !canOverrideOperationHold)}
                                     onClick={() => (
                                         step.quantity_reporting_required
                                             || step.setup_time_minutes != null
@@ -943,7 +945,9 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                                             : handleStepAction(step, 'complete')
                                     )}
                                     title={
-                                        isDocBlocked
+                                        qualityBlocked
+                                            ? __('Complete the required quality gate before completing this step.')
+                                            : isDocBlocked
                                             ? __('Validate the mandatory document(s) before completing this step.')
                                             : needsConfirm
                                               ? __('Confirm you have read the instructions before completing this step.')
@@ -984,6 +988,10 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
 
                         {(step.quantity_reporting_required || step.quantity_reported_at) && (
                             <OperationQuantitySummary step={step} />
+                        )}
+
+                        {qualityGate?.required && (
+                            <OperationQualityGate step={step} status={qualityGate} />
                         )}
 
                         {(step.transport_unit_loads?.length > 0) && (
@@ -1058,6 +1066,239 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                 />
             )}
         </div>
+    );
+}
+
+function buildOperationQualitySamples(specification) {
+    const parameters = specification?.parameters?.length
+        ? specification.parameters
+        : [{ name: 'Result', type: 'pass_fail' }];
+    const sampleCount = Math.max(1, Number(specification?.samples_per_check ?? 1));
+
+    return Array.from({ length: sampleCount }, (_, sampleIndex) => (
+        parameters.map((parameter) => ({
+            sample_number: sampleIndex + 1,
+            parameter_name: parameter.name,
+            parameter_type: parameter.type === 'measurement' ? 'measurement' : 'pass_fail',
+            value_numeric: '',
+            is_passed: '',
+        }))
+    )).flat();
+}
+
+function OperationQualityGate({ step, status }) {
+    const specification = status.specification ?? {};
+    const initialSamples = useMemo(
+        () => buildOperationQualitySamples(specification),
+        [step.id, status.passing_checks]
+    );
+    const form = useForm({
+        production_quantity: step.input_quantity ?? '',
+        notes: '',
+        samples: initialSamples,
+    });
+    const canRecord = step.status === 'IN_PROGRESS' && status.remaining_checks > 0;
+
+    const updateSample = (index, field, value) => {
+        form.setData('samples', form.data.samples.map((sample, sampleIndex) => (
+            sampleIndex === index ? { ...sample, [field]: value } : sample
+        )));
+    };
+
+    const parameterFor = (sample) => (specification.parameters ?? []).find(
+        (parameter) => parameter.name === sample.parameter_name
+    ) ?? {};
+
+    const submit = (event) => {
+        event.preventDefault();
+        form.transform((payload) => ({
+            production_quantity: payload.production_quantity === '' ? null : Number(payload.production_quantity),
+            notes: payload.notes || null,
+            samples: payload.samples.map((sample) => {
+                const parameter = parameterFor(sample);
+                const hasLimits = parameter.min != null || parameter.max != null;
+
+                if (sample.parameter_type === 'measurement') {
+                    return {
+                        sample_number: sample.sample_number,
+                        parameter_name: sample.parameter_name,
+                        parameter_type: sample.parameter_type,
+                        value_numeric: Number(sample.value_numeric),
+                        ...(!hasLimits ? { is_passed: sample.is_passed === '1' } : {}),
+                    };
+                }
+
+                return {
+                    sample_number: sample.sample_number,
+                    parameter_name: sample.parameter_name,
+                    parameter_type: sample.parameter_type,
+                    value_boolean: sample.is_passed === '1',
+                    is_passed: sample.is_passed === '1',
+                };
+            }),
+        }));
+        form.post(`/operator/batch-step/${step.id}/quality-check`, {
+            preserveScroll: true,
+            onSuccess: () => form.reset(),
+        });
+    };
+
+    const inputComplete = form.data.samples.every((sample) => (
+        sample.parameter_type === 'measurement'
+            ? sample.value_numeric !== '' && Number.isFinite(Number(sample.value_numeric))
+                && ((parameterFor(sample).min != null || parameterFor(sample).max != null) || sample.is_passed !== '')
+            : sample.is_passed !== ''
+    ));
+
+    return (
+        <section className="border-t border-om-line2 px-3 py-3" aria-label={__('Operation quality gate')}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <span className="block text-xs font-semibold text-om-ink">
+                        {__('Operation quality gate')}: {specification.name}
+                    </span>
+                    <span className="text-[11px] text-om-muted">
+                        {status.fulfilled
+                            ? __('Required quality checks completed.')
+                            : __(':count passing quality check(s) remaining.', { count: status.remaining_checks })}
+                    </span>
+                </div>
+                <StatusPill
+                    status={status.fulfilled ? 'done' : status.has_open_blocking_failure ? 'blocked' : 'pending'}
+                    label={status.fulfilled ? __('Passed') : status.has_open_blocking_failure ? __('Blocked') : __('Required')}
+                />
+            </div>
+
+            {status.has_open_blocking_failure && (
+                <p className="mt-2 text-[12px] text-om-blocked">
+                    {__('A blocking quality non-conformance must be resolved before this operation can be completed.')}
+                </p>
+            )}
+
+            {canRecord && (
+                <form onSubmit={submit} className="mt-3 border-t border-om-line2 pt-3">
+                    <div className="space-y-3">
+                        {Array.from({ length: Math.max(1, Number(specification.samples_per_check ?? 1)) }, (_, index) => {
+                            const sampleNumber = index + 1;
+                            const samples = form.data.samples.filter((sample) => sample.sample_number === sampleNumber);
+
+                            return (
+                                <fieldset key={sampleNumber}>
+                                    <legend className={`${sectionLabelCls} mb-2`}>
+                                        {__('Sample :number', { number: sampleNumber })}
+                                    </legend>
+                                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                        {samples.map((sample) => {
+                                            const sampleIndex = form.data.samples.indexOf(sample);
+                                            const parameter = parameterFor(sample);
+                                            const hasLimits = parameter.min != null || parameter.max != null;
+                                            const range = [parameter.min, parameter.max].map((value) => value ?? '—').join(' – ');
+
+                                            return (
+                                                <label key={`${sampleNumber}:${sample.parameter_name}`} className="block">
+                                                    <span className={fieldLabelCls}>
+                                                        {sample.parameter_name}{parameter.unit ? ` (${parameter.unit})` : ''}
+                                                    </span>
+                                                    {sample.parameter_type === 'measurement' ? (
+                                                        <div className="flex gap-2">
+                                                            <input
+                                                                type="number"
+                                                                step="any"
+                                                                value={sample.value_numeric}
+                                                                onChange={(event) => updateSample(sampleIndex, 'value_numeric', event.target.value)}
+                                                                className={inputCls}
+                                                                required
+                                                            />
+                                                            {!hasLimits && (
+                                                                <select
+                                                                    value={sample.is_passed}
+                                                                    onChange={(event) => updateSample(sampleIndex, 'is_passed', event.target.value)}
+                                                                    className={`${inputCls} max-w-36`}
+                                                                    required
+                                                                >
+                                                                    <option value="">—</option>
+                                                                    <option value="1">{__('Pass')}</option>
+                                                                    <option value="0">{__('Fail')}</option>
+                                                                </select>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <select
+                                                            value={sample.is_passed}
+                                                            onChange={(event) => updateSample(sampleIndex, 'is_passed', event.target.value)}
+                                                            className={inputCls}
+                                                            required
+                                                        >
+                                                            <option value="">—</option>
+                                                            <option value="1">{__('Pass')}</option>
+                                                            <option value="0">{__('Fail')}</option>
+                                                        </select>
+                                                    )}
+                                                    {sample.parameter_type === 'measurement' && hasLimits && (
+                                                        <span className="mt-1 block text-[10px] text-om-faint">
+                                                            {__('Allowed range')}: {range} {parameter.unit ?? ''}
+                                                        </span>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                </fieldset>
+                            );
+                        })}
+                    </div>
+
+                    <div className="mt-3 grid gap-2 md:grid-cols-[minmax(0,180px)_1fr_auto] md:items-end">
+                        <label>
+                            <span className={fieldLabelCls}>{__('Production quantity checked')}</span>
+                            <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={form.data.production_quantity}
+                                onChange={(event) => form.setData('production_quantity', event.target.value)}
+                                className={inputCls}
+                            />
+                        </label>
+                        <label>
+                            <span className={fieldLabelCls}>{__('Notes (optional)')}</span>
+                            <input
+                                type="text"
+                                maxLength={2000}
+                                value={form.data.notes}
+                                onChange={(event) => form.setData('notes', event.target.value)}
+                                className={inputCls}
+                            />
+                        </label>
+                        <Button type="submit" variant="accent" disabled={form.processing || !inputComplete}>
+                            {form.processing ? '…' : __('Record quality check')}
+                        </Button>
+                    </div>
+                    {(form.errors.quality_gate || form.errors.samples) && (
+                        <p className={errorCls}>{form.errors.quality_gate || form.errors.samples}</p>
+                    )}
+                </form>
+            )}
+
+            {step.status !== 'IN_PROGRESS' && !status.fulfilled && (
+                <p className="mt-2 text-[11px] text-om-muted">
+                    {__('Start the operation before recording quality results.')}
+                </p>
+            )}
+
+            {status.checks?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-om-line2 pt-3">
+                    {status.checks.map((check) => (
+                        <span
+                            key={check.id}
+                            className={`rounded-om-sm border px-2.5 py-1.5 text-[11px] ${check.all_passed ? 'border-om-done/30 bg-om-done-bg text-om-done' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}
+                        >
+                            #{check.id} · {check.all_passed ? __('Passed') : __('Failed')} · {check.checked_by?.name ?? '—'} · {formatDateTime(check.checked_at)}
+                        </span>
+                    ))}
+                </div>
+            )}
+        </section>
     );
 }
 

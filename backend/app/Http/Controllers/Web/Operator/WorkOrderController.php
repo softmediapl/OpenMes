@@ -13,6 +13,7 @@ use App\Models\TemplateStepMedia;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Operator\WorkstationContext;
+use App\Services\Quality\OperationQualityService;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class WorkOrderController extends Controller
     public function __construct(
         protected WorkOrderService $workOrderService,
         protected WorkstationContext $workstationContext,
+        protected OperationQualityService $operationQualityService,
     ) {}
 
     /**
@@ -267,6 +269,9 @@ class WorkOrderController extends Controller
             'batches.steps.checklistCompletions.checkedBy',
             'batches.steps.transportUnitType',
             'batches.steps.transportUnitLoads.transportUnit.type',
+            'batches.steps.qualityChecks.samples',
+            'batches.steps.qualityChecks.checkedBy',
+            'batches.steps.qualityChecks.issue.issueType',
             'batches.workstation',
             'batches.processConfirmations.confirmedBy',
             'batches.qualityChecks.samples',
@@ -303,6 +308,10 @@ class WorkOrderController extends Controller
                 ->values();
             $workOrder->setRelation('batches', $visibleBatches);
         }
+
+        $workOrder->batches->flatMap->steps->each(function (BatchStep $step) {
+            $step->setAttribute('quality_gate_status', $this->operationQualityService->status($step));
+        });
 
         $workstations = $workstationLocked
             ? collect([$lockedWorkstation])

@@ -266,6 +266,7 @@ Route::middleware('auth')->group(function () {
         // OperatorBatchController::startStep/completeStep delegating to BatchService).
         Route::get('/batch-step/{batchStep}/pick-preview', [OperatorBatchController::class, 'pickPreview'])->name('batch-step.pick-preview');
         Route::post('/batch-step/{batchStep}/start', [OperatorBatchController::class, 'startStep'])->name('batch-step.start');
+        Route::post('/batch-step/{batchStep}/quality-check', [OperatorBatchController::class, 'qualityCheckStep'])->name('batch-step.quality-check');
         Route::post('/batch-step/{batchStep}/complete', [OperatorBatchController::class, 'completeStep'])->name('batch-step.complete');
         Route::post('/batch-step/{batchStep}/skip', [OperatorBatchController::class, 'skipStep'])->name('batch-step.skip');
         Route::post('/batch-step/{batchStep}/choose-variant', [OperatorBatchController::class, 'chooseVariant'])->name('batch-step.choose-variant');

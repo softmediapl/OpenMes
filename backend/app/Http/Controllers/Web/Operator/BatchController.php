@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Web\Operator;
 use App\Exceptions\InsufficientStockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Operator\CompleteBatchStepRequest;
+use App\Http\Requests\Operator\PerformOperationQualityCheckRequest;
 use App\Http\Requests\Operator\StartStepRequest;
 use App\Http\Requests\Web\Operator\StoreBatchRequest;
 use App\Models\Batch;
@@ -20,6 +21,7 @@ use App\Services\Operator\WorkstationContext;
 use App\Services\Production\PackagingChecklistService;
 use App\Services\Production\ProcessConfirmationService;
 use App\Services\Production\QualityCheckService;
+use App\Services\Quality\OperationQualityService;
 use App\Services\WorkOrder\BatchService;
 use App\Services\WorkOrder\WorkOrderService;
 use Illuminate\Http\Request;
@@ -36,6 +38,7 @@ class BatchController extends Controller
         protected BatchService $batchService,
         protected MaterialAllocationService $allocationService,
         protected WorkstationContext $workstationContext,
+        protected OperationQualityService $operationQualityService,
     ) {}
 
     /**
@@ -170,6 +173,33 @@ class BatchController extends Controller
             return back()->with('success', __('Step completed.'));
         } catch (\Exception $e) {
             return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function qualityCheckStep(PerformOperationQualityCheckRequest $request, BatchStep $batchStep)
+    {
+        abort_unless($this->stepBelongsToSelectedLine($request, $batchStep), 403);
+
+        try {
+            $validated = $request->validated();
+            $check = $this->operationQualityService->performCheck(
+                $batchStep,
+                $request->user(),
+                $validated['samples'],
+                isset($validated['production_quantity']) ? (float) $validated['production_quantity'] : null,
+                $validated['notes'] ?? null,
+            );
+
+            return back()->with(
+                $check->all_passed ? 'success' : 'warning',
+                $check->all_passed
+                    ? __('Operation quality check passed.')
+                    : __('Operation quality check failed and a blocking non-conformance was raised.'),
+            );
+        } catch (\DomainException $exception) {
+            return back()
+                ->withErrors(['quality_gate' => $exception->getMessage()])
+                ->with('error', $exception->getMessage());
         }
     }
 

@@ -125,7 +125,12 @@ class OperationQualityService
         }
 
         $requiredChecks = max(1, (int) data_get($step->quality_check_specification, 'required_checks', 1));
-        $checks = $step->qualityChecks()->with('issue.issueType')->orderBy('checked_at')->get();
+        $checks = $step->relationLoaded('qualityChecks')
+            ? $step->qualityChecks->sortBy('checked_at')->values()
+            : $step->qualityChecks()
+                ->with(['samples', 'checkedBy', 'issue.issueType'])
+                ->orderBy('checked_at')
+                ->get();
         $passingChecks = $checks->where('all_passed', true)->count();
         $openBlockingFailures = $checks->contains(fn (QualityCheck $check) => $check->issue?->isBlocking() ?? false);
 
