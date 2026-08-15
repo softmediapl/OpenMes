@@ -71,8 +71,8 @@ export default function WarehouseStockIndex() {
             <ResourceTable
                 shape="warehouse_stocks"
                 title={__('Stock On Hand')}
-                subtitle={(
-                    <label className="inline-flex items-center gap-3 text-[12.5px] text-om-muted">
+                toolbarExtra={(
+                    <label className="inline-flex items-center gap-2 whitespace-nowrap text-[12.5px] text-om-muted">
                         <Switch
                             checked={showLotDetails}
                             onChange={setShowLotDetails}

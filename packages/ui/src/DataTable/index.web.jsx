@@ -88,6 +88,8 @@ export function DataTable({
     /** Toolbar/footer feature toggles — turn chrome off for plain styled tables. */
     searchable = true,
     columnToggle = true,
+    /** Optional page-specific control rendered after the Columns menu. */
+    toolbarExtra,
     paginated = true,
     /** Fit columns to the container (default). `false` = fixed-width, resizable (§12 demo). */
     fluid = true,
@@ -156,8 +158,8 @@ export function DataTable({
     return (
         <div className={className} {...props}>
             {/* toolbar */}
-            {(searchable || columnToggle || enableSelection) && (
-            <div className="mb-3 flex items-center gap-3">
+            {(searchable || columnToggle || toolbarExtra || enableSelection) && (
+            <div className="mb-3 flex flex-wrap items-center gap-3">
                 {searchable && (
                 <div className="flex max-w-[300px] flex-1 items-center gap-[9px] rounded-om-sm border border-om-line bg-om-bg px-3 py-2">
                     <span className="size-[13px] shrink-0 rounded-full border-2 border-om-faint" />
@@ -207,6 +209,7 @@ export function DataTable({
                     )}
                 </div>
                 )}
+                {toolbarExtra}
                 {enableSelection && selCount > 0 && (
                     <div className="ml-auto flex items-center gap-[10px]">
                         {selectionLabel && (

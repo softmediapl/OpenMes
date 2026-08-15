@@ -70,6 +70,7 @@ function LiveClockProvider({ active, children }) {
  *   pageSize    — rows per page (default 12)
  *   transformRows — optional rows → rows projection before filtering/rendering
  *   enableSelection / bulkActions / selectionLabel — opt-in row selection toolbar
+ *   toolbarExtra — optional control rendered after the Columns menu
  *   fullWidth   — drop the default max-w-7xl cap and span the content area.
  *                 Opt-in: lists stay 7xl-capped unless a page has enough columns
  *                 to need the room. A page that sets it must widen its own
@@ -161,6 +162,7 @@ export default function ResourceTable({
     transformRows,
     filterFn,
     subtitle,
+    toolbarExtra,
     pageSize = 50,
     enableSelection = false,
     bulkActions,
@@ -273,6 +275,7 @@ export default function ResourceTable({
                 enableSelection={enableSelection}
                 bulkActions={bulkActions}
                 selectionLabel={selectionLabel}
+                toolbarExtra={toolbarExtra}
             />
         </div>
         </LiveClockProvider>
