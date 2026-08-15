@@ -7,6 +7,7 @@ use App\Models\WorkOrder;
 use App\Services\WorkOrder\WorkOrderService;
 use App\Support\SystemSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class WorkOrderBatchQuantityTest extends TestCase
@@ -31,6 +32,28 @@ class WorkOrderBatchQuantityTest extends TestCase
         $this->expectExceptionMessage('Total batch quantity would exceed planned quantity');
 
         $this->service->createBatch($workOrder, 40.01);
+    }
+
+    public function test_batch_allocation_sum_does_not_inherit_batch_ordering(): void
+    {
+        $workOrder = WorkOrder::factory()->create(['planned_qty' => 100]);
+        $allocationQueries = [];
+
+        DB::listen(function ($query) use (&$allocationQueries) {
+            $sql = strtolower($query->sql);
+
+            if (str_contains($sql, 'coalesce(sum(') && str_contains($sql, ' as allocated')) {
+                $allocationQueries[] = $sql;
+            }
+        });
+
+        $this->service->createBatch($workOrder, 40);
+
+        $this->assertNotEmpty($allocationQueries);
+
+        foreach ($allocationQueries as $sql) {
+            $this->assertStringNotContainsString('order by', $sql);
+        }
     }
 
     public function test_cancelled_batch_releases_its_target_quantity(): void

@@ -681,6 +681,7 @@ class WorkOrderService
         }
 
         $allocated = (float) $allocatedQuery
+            ->reorder()
             ->selectRaw('COALESCE(SUM(CASE WHEN status = ? THEN produced_qty ELSE target_qty END), 0) AS allocated', [Batch::STATUS_DONE])
             ->value('allocated');
         $planned = (float) $workOrder->planned_qty;
