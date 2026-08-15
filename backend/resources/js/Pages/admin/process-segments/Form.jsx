@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import { Button, Checkbox, Dropdown } from '@openmes/ui';
+import { __ } from '../../../lib/i18n';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -61,6 +62,21 @@ export default function ProcessSegmentForm({ form, workstationTypes, skills, seg
 
             <Field label="Required Operators" error={errors.required_operators} required>
                 <input type="number" value={data.required_operators ?? ''} onChange={(e) => setData('required_operators', e.target.value)} className="form-input w-full" />
+            </Field>
+
+            <Field label={__('Labor attendance')} error={errors.labor_mode} required>
+                <Dropdown
+                    options={[
+                        { value: 'attended', label: __('Attended') },
+                        { value: 'unattended', label: __('Unattended') },
+                    ]}
+                    value={data.labor_mode ?? 'attended'}
+                    onChange={(value) => setData('labor_mode', value)}
+                    className="w-full"
+                />
+                <p className="mt-1 text-xs text-om-muted">
+                    {__('Attended operations reserve qualified workers; unattended operations only reserve equipment capacity.')}
+                </p>
             </Field>
 
             <Field label="Standard Instruction" error={errors.standard_instruction}>

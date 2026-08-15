@@ -2,6 +2,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useMemo } from 'react';
 import { DataTable } from '@openmes/ui/table';
 import AppLayout from '../../../layouts/AppLayout';
+import { __ } from '../../../lib/i18n';
 
 const TYPE_COLORS = {
     production:  'bg-om-chip text-om-accent',
@@ -160,6 +161,12 @@ export default function ProcessSegmentShow() {
                                 <div>
                                     <dt className="text-xs text-om-muted uppercase tracking-wide">Required operators</dt>
                                     <dd className="mt-1 text-om-ink">{segment.required_operators}</dd>
+                                </div>
+                                <div>
+                                    <dt className="text-xs text-om-muted uppercase tracking-wide">{__('Labor attendance')}</dt>
+                                    <dd className="mt-1 text-om-ink">
+                                        {__(segment.labor_mode === 'unattended' ? 'Unattended' : 'Attended')}
+                                    </dd>
                                 </div>
 
                                 <div className="sm:col-span-3">

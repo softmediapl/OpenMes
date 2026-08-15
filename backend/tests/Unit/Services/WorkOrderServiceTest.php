@@ -86,6 +86,7 @@ class WorkOrderServiceTest extends TestCase
         $transportUnitType = TransportUnitType::factory()->create();
         $snapshot = $workOrder->process_snapshot;
         $snapshot['steps'][0]['transport_unit_type_id'] = $transportUnitType->id;
+        $snapshot['steps'][0]['labor_mode'] = 'unattended';
         $workOrder->update(['process_snapshot' => $snapshot]);
         $this->assertCount(3, $workOrder->process_snapshot['steps']); // From factory
 
@@ -106,6 +107,10 @@ class WorkOrderServiceTest extends TestCase
             $this->assertEquals($snapshotStep['name'], $step->name);
             $this->assertEquals($snapshotStep['instruction'], $step->instruction);
             $this->assertSame($snapshotStep['execution_mode'], $step->execution_mode->value);
+            $this->assertSame(
+                $snapshotStep['labor_mode'] ?? 'attended',
+                $step->labor_mode->value,
+            );
             $this->assertEquals($snapshotStep['min_duration_minutes'], $step->min_duration_minutes);
             $this->assertEquals($snapshotStep['transport_unit_type_id'] ?? null, $step->transport_unit_type_id);
             // First step is promoted to READY ("ready to start"); the rest stay

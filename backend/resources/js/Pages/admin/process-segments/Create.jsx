@@ -12,6 +12,7 @@ export default function ProcessSegmentCreate() {
         workstation_type_id: '',
         estimated_duration_minutes: '',
         required_operators: 1,
+        labor_mode: 'attended',
         standard_instruction: '',
         required_skill_ids: [],
         parameters_raw: '',

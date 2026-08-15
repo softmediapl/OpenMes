@@ -12,6 +12,7 @@ export default function ProcessSegmentEdit() {
         workstation_type_id: segment.workstation_type_id != null ? String(segment.workstation_type_id) : '',
         estimated_duration_minutes: segment.estimated_duration_minutes ?? '',
         required_operators: segment.required_operators ?? 1,
+        labor_mode: segment.labor_mode ?? 'attended',
         standard_instruction: segment.standard_instruction ?? '',
         required_skill_ids: segment.required_skill_ids ?? [],
         parameters_raw,

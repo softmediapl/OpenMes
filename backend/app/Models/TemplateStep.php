@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OperationExecutionMode;
+use App\Enums\OperationLaborMode;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,6 +26,7 @@ class TemplateStep extends Model
         'estimated_duration_minutes',
         'execution_mode',
         'required_operators',
+        'labor_mode',
         'min_duration_minutes',
         'requires_confirmation',
         'quantity_reporting_required',
@@ -47,6 +49,7 @@ class TemplateStep extends Model
             'setup_time_minutes' => 'integer',
             'run_time_per_unit_minutes' => 'decimal:2',
             'required_operators' => 'integer',
+            'labor_mode' => OperationLaborMode::class,
             'min_duration_minutes' => 'integer',
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
@@ -179,6 +182,14 @@ class TemplateStep extends Model
         return ($this->required_operators ?: null)
             ?? $this->processSegment?->required_operators
             ?? 1;
+    }
+
+    /** Resolve whether qualified labor must remain present during execution. */
+    public function effectiveLaborMode(): OperationLaborMode
+    {
+        return $this->labor_mode
+            ?? $this->processSegment?->labor_mode
+            ?? OperationLaborMode::Attended;
     }
 
     /**

@@ -95,6 +95,7 @@ class SnapshotServiceTest extends TestCase
         $this->assertArrayHasKey('instruction', $step);
         $this->assertArrayHasKey('estimated_duration_minutes', $step);
         $this->assertArrayHasKey('required_operators', $step);
+        $this->assertArrayHasKey('labor_mode', $step);
         $this->assertArrayHasKey('required_skill_ids', $step);
         $this->assertArrayHasKey('workstation_id', $step);
         // ISA-95 additions (#52).
@@ -187,6 +188,38 @@ class SnapshotServiceTest extends TestCase
         $snapshot = $this->service->createSnapshot($template->fresh());
 
         $this->assertSame(3, $snapshot['steps'][0]['required_operators']);
+    }
+
+    public function test_snapshot_step_inherits_labor_mode_from_process_segment(): void
+    {
+        $segment = \App\Models\ProcessSegment::factory()->create([
+            'labor_mode' => \App\Enums\OperationLaborMode::Unattended,
+        ]);
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update([
+            'process_segment_id' => $segment->id,
+            'labor_mode' => null,
+        ]);
+
+        $snapshot = $this->service->createSnapshot($template->fresh());
+
+        $this->assertSame('unattended', $snapshot['steps'][0]['labor_mode']);
+    }
+
+    public function test_step_labor_mode_overrides_process_segment(): void
+    {
+        $segment = \App\Models\ProcessSegment::factory()->create([
+            'labor_mode' => \App\Enums\OperationLaborMode::Unattended,
+        ]);
+        $template = ProcessTemplate::factory()->withSteps(1)->create();
+        $template->steps()->first()->update([
+            'process_segment_id' => $segment->id,
+            'labor_mode' => \App\Enums\OperationLaborMode::Attended,
+        ]);
+
+        $snapshot = $this->service->createSnapshot($template->fresh());
+
+        $this->assertSame('attended', $snapshot['steps'][0]['labor_mode']);
     }
 
     public function test_snapshot_step_carries_normalized_process_segment_skills(): void

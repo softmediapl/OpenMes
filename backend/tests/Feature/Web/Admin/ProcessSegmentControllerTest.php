@@ -38,6 +38,7 @@ class ProcessSegmentControllerTest extends TestCase
             'segment_type' => ProcessSegment::TYPE_PRODUCTION,
             'estimated_duration_minutes' => 60,
             'required_operators' => 1,
+            'labor_mode' => 'unattended',
             'standard_instruction' => 'Run injection at 220°C, dwell 60s.',
             'required_skill_ids' => [],
             'parameters_raw' => '{"temperature_c": 220}',
@@ -84,6 +85,7 @@ class ProcessSegmentControllerTest extends TestCase
             'code' => 'PSG-INJ-60',
             'segment_type' => ProcessSegment::TYPE_PRODUCTION,
             'is_active' => true,
+            'labor_mode' => 'unattended',
         ]);
 
         $segment = ProcessSegment::where('code', 'PSG-INJ-60')->first();

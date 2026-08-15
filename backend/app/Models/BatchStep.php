@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\OperationExecutionMode;
+use App\Enums\OperationLaborMode;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use App\Support\SystemSetting;
 use App\Traits\Auditable;
@@ -42,6 +43,7 @@ class BatchStep extends Model
         'transport_unit_type_id',
         'estimated_duration_minutes',
         'execution_mode',
+        'labor_mode',
         'min_duration_minutes',
         'hold_override_reason',
         'hold_overridden_by_id',
@@ -81,6 +83,7 @@ class BatchStep extends Model
             'step_number' => 'integer',
             'estimated_duration_minutes' => 'integer',
             'execution_mode' => OperationExecutionMode::class,
+            'labor_mode' => OperationLaborMode::class,
             'min_duration_minutes' => 'integer',
             'hold_overridden_at' => 'datetime',
             'setup_time_minutes' => 'integer',

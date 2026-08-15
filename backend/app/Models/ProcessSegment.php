@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OperationLaborMode;
 use App\Models\Concerns\HasTenant;
 use App\Models\Concerns\SoftDeletesWithAudit;
 use App\Traits\Auditable;
@@ -56,6 +57,7 @@ class ProcessSegment extends Model
         'workstation_type_id',
         'estimated_duration_minutes',
         'required_operators',
+        'labor_mode',
         'standard_instruction',
         'required_skill_ids',
         'parameters',
@@ -72,6 +74,7 @@ class ProcessSegment extends Model
             'parameters' => 'array',
             'estimated_duration_minutes' => 'integer',
             'required_operators' => 'integer',
+            'labor_mode' => OperationLaborMode::class,
         ];
     }
 

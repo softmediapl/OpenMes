@@ -207,7 +207,7 @@ class ShapeRegistry
         ],
         'process_segments' => [
             'table' => 'process_segments',
-            'columns' => ['id', 'code', 'name', 'description', 'segment_type', 'workstation_type_id', 'estimated_duration_minutes', 'required_operators', 'required_skill_ids', 'is_active', 'created_at', 'updated_at'],
+            'columns' => ['id', 'code', 'name', 'description', 'segment_type', 'workstation_type_id', 'estimated_duration_minutes', 'required_operators', 'labor_mode', 'required_skill_ids', 'is_active', 'created_at', 'updated_at'],
         ],
         // All work orders (incl. terminal) for the admin list — the dashboard's
         // work_orders_active excludes done/cancelled/rejected.

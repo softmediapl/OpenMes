@@ -75,6 +75,23 @@ class ProcessTemplateStepWebTest extends TestCase
         ]);
     }
 
+    public function test_admin_can_override_operation_labor_mode(): void
+    {
+        [$pt, $tpl] = $this->template();
+
+        $this->actingAs($this->admin)
+            ->post($this->base($pt, $tpl).'/steps', [
+                'name' => 'Automated curing hold',
+                'labor_mode' => 'unattended',
+            ])->assertRedirect();
+
+        $this->assertDatabaseHas('template_steps', [
+            'process_template_id' => $tpl->id,
+            'name' => 'Automated curing hold',
+            'labor_mode' => 'unattended',
+        ]);
+    }
+
     public function test_confirmation_requires_readable_instruction_content(): void
     {
         [$pt, $tpl] = $this->template();

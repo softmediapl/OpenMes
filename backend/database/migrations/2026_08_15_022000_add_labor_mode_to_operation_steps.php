@@ -1,0 +1,45 @@
+<?php
+
+use App\Enums\OperationLaborMode;
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('process_segments', function (Blueprint $table) {
+            $table->string('labor_mode', 32)
+                ->default(OperationLaborMode::Attended->value)
+                ->after('required_operators');
+        });
+
+        Schema::table('template_steps', function (Blueprint $table) {
+            $table->string('labor_mode', 32)
+                ->nullable()
+                ->after('required_operators');
+        });
+
+        Schema::table('batch_steps', function (Blueprint $table) {
+            $table->string('labor_mode', 32)
+                ->default(OperationLaborMode::Attended->value)
+                ->after('execution_mode');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('batch_steps', function (Blueprint $table) {
+            $table->dropColumn('labor_mode');
+        });
+
+        Schema::table('template_steps', function (Blueprint $table) {
+            $table->dropColumn('labor_mode');
+        });
+
+        Schema::table('process_segments', function (Blueprint $table) {
+            $table->dropColumn('labor_mode');
+        });
+    }
+};

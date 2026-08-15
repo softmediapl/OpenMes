@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V1;
 
 use App\Enums\OperationExecutionMode;
+use App\Enums\OperationLaborMode;
 use App\Http\Requests\Concerns\ValidatesTemplateStepInstruction;
 use App\Http\Requests\Concerns\ValidatesTemplateStepTiming;
 use Illuminate\Foundation\Http\FormRequest;
@@ -32,6 +33,7 @@ class StoreTemplateStepRequest extends FormRequest
             'setup_time_minutes' => ['nullable', 'integer', 'min:0'],
             'run_time_per_unit_minutes' => ['nullable', 'numeric', 'min:0'],
             'required_operators' => ['nullable', 'integer', 'min:1'],
+            'labor_mode' => ['nullable', Rule::enum(OperationLaborMode::class)],
             'workstation_id' => ['nullable', 'integer', 'exists:workstations,id'],
             'workstation_type_id' => ['nullable', 'integer', Rule::exists('workstation_types', 'id')->where('is_active', true)->whereNull('deleted_at')],
             'transport_unit_type_id' => ['nullable', 'integer', Rule::exists('transport_unit_types', 'id')->where('is_active', true)->whereNull('deleted_at')],

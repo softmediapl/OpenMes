@@ -120,6 +120,22 @@ function Isa95StepFields({
                 </p>
             </div>
             <div>
+                <label className="form-label">{__('Labor attendance')}</label>
+                <Dropdown
+                    value={data.labor_mode ?? ''}
+                    onChange={(value) => setData('labor_mode', value)}
+                    options={[
+                        { value: '', label: __('Inherit from process segment') },
+                        { value: 'attended', label: __('Attended') },
+                        { value: 'unattended', label: __('Unattended') },
+                    ]}
+                    className="w-full"
+                />
+                <p className="text-xs text-om-muted mt-1">
+                    {__('Attended operations reserve qualified workers; unattended operations only reserve equipment capacity.')}
+                </p>
+            </div>
+            <div>
                 <label className="form-label">{__('Workstation type (ISA-95)')}</label>
                 <Dropdown
                     value={data.workstation_type_id == null ? '' : String(data.workstation_type_id)}
@@ -220,6 +236,7 @@ function AddStepForm({
         quantity_reporting_required: false,
         estimated_duration_minutes: '',
         execution_mode: 'per_unit',
+        labor_mode: '',
         min_duration_minutes: '',
         setup_time_minutes: '',
         run_time_per_unit_minutes: '',
@@ -394,6 +411,7 @@ function EditStepForm({
         quantity_reporting_required: !!step.quantity_reporting_required,
         estimated_duration_minutes: step.estimated_duration_minutes != null ? String(step.estimated_duration_minutes) : '',
         execution_mode: step.execution_mode ?? 'per_unit',
+        labor_mode: step.labor_mode ?? '',
         min_duration_minutes: step.min_duration_minutes != null ? String(step.min_duration_minutes) : '',
         setup_time_minutes: step.setup_time_minutes != null ? String(step.setup_time_minutes) : '',
         run_time_per_unit_minutes: step.run_time_per_unit_minutes != null ? String(step.run_time_per_unit_minutes) : '',
@@ -851,6 +869,7 @@ function StepCard({
                                         {step.min_duration_minutes != null
                                             ? ` · ${step.min_duration_minutes} ${__('min minimum')}`
                                             : ''}
+                                        {` · ${__(step.effective_labor_mode === 'unattended' ? 'Unattended' : 'Attended')}`}
                                     </p>
                                 </div>
 

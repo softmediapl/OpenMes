@@ -121,6 +121,8 @@ class ProcessTemplateManagementController extends Controller
                     'quantity_reporting_required' => (bool) $s->quantity_reporting_required,
                     'estimated_duration_minutes' => $s->estimated_duration_minutes,
                     'execution_mode' => $s->execution_mode->value,
+                    'labor_mode' => $s->labor_mode?->value,
+                    'effective_labor_mode' => $s->effectiveLaborMode()->value,
                     'min_duration_minutes' => $s->min_duration_minutes,
                     'setup_time_minutes' => $s->setup_time_minutes,
                     'run_time_per_unit_minutes' => $s->run_time_per_unit_minutes,
@@ -191,6 +193,7 @@ class ProcessTemplateManagementController extends Controller
                 'segment_type' => $s->segment_type,
                 'instruction' => $s->standard_instruction,
                 'duration' => $s->estimated_duration_minutes,
+                'labor_mode' => $s->labor_mode->value,
             ]),
         ]);
     }

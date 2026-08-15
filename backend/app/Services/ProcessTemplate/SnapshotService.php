@@ -77,6 +77,7 @@ class SnapshotService
                     'setup_time_minutes' => $step->setup_time_minutes,
                     'run_time_per_unit_minutes' => $step->run_time_per_unit_minutes,
                     'required_operators' => $step->effectiveRequiredOperators(),
+                    'labor_mode' => $step->effectiveLaborMode()->value,
                     'required_skill_ids' => $step->effectiveRequiredSkillIds(),
                     'workstation_id' => $step->workstation_id,
                     'workstation_name' => $step->workstation?->name,
