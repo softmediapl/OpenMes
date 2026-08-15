@@ -30,6 +30,7 @@ class Pallet extends Model
         'work_order_id',
         'batch_id',
         'qty',
+        'capacity_qty',
         'status',
         'quality_status',
         'location',
@@ -44,6 +45,7 @@ class Pallet extends Model
         return [
             'status' => PalletStatus::class,
             'qty' => 'integer',
+            'capacity_qty' => 'integer',
             'shipped_at' => 'datetime',
             'arrived_at' => 'datetime',
         ];
@@ -164,6 +166,20 @@ class Pallet extends Model
     public function isOpen(): bool
     {
         return $this->status === PalletStatus::Open;
+    }
+
+    public function isFull(): bool
+    {
+        return $this->capacity_qty !== null && $this->qty >= $this->capacity_qty;
+    }
+
+    public function remainingCapacity(): ?int
+    {
+        if ($this->capacity_qty === null) {
+            return null;
+        }
+
+        return max(0, $this->capacity_qty - $this->qty);
     }
 
     /**

@@ -45,6 +45,8 @@
     "Freeze the pallet capacity on each released work order.": "Freeze the pallet capacity on each released work order.",
     "Pallet capacity": "Pallet capacity",
     "Maximum number of finished units on one pallet. Leave blank for no configured limit.": "Maximum number of finished units on one pallet. Leave blank for no configured limit.",
+    "Pallet :no is full (:qty/:capacity).": "Pallet :no is full (:qty/:capacity).",
+    "Pallet full": "Pallet full",
     "% of Total": "% of Total",
     "(default)": "(default)",
     "(leave blank to keep current)": "(leave blank to keep current)",

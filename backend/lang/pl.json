@@ -45,6 +45,8 @@
     "Freeze the pallet capacity on each released work order.": "Utrwala pojemność palety w każdym zwolnionym zleceniu.",
     "Pallet capacity": "Pojemność palety",
     "Maximum number of finished units on one pallet. Leave blank for no configured limit.": "Maksymalna liczba gotowych sztuk na jednej palecie. Pozostaw puste, aby nie ustawiać limitu.",
+    "Pallet :no is full (:qty/:capacity).": "Paleta :no jest pełna (:qty/:capacity).",
+    "Pallet full": "Paleta pełna",
     "Converts a weekly salary into an hourly cost (salary / hours).": "Przelicza pensję tygodniową na koszt godzinowy (pensja / godziny).",
     "it will be automatically deleted after": "zostanie automatycznie usunięte po",
     "Delete status \":name\"?": "Usunąć status \":name\"?",

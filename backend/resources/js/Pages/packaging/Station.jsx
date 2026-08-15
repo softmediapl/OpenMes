@@ -457,8 +457,16 @@ export default function Station() {
                                 </p>
                                 <p className="text-[13px] text-om-muted">
                                     {__('Order')} <span className="font-semibold text-om-ink">{activePallet.order_no}</span>
-                                    &nbsp;&middot;&nbsp; {__('Pieces on pallet:')} <span className="font-semibold text-om-ink">{activePallet.qty ?? 0}</span>
+                                    &nbsp;&middot;&nbsp; {__('Pieces on pallet:')} <span className="font-semibold text-om-ink">
+                                        {activePallet.qty ?? 0}
+                                        {activePallet.capacity_qty != null ? ` / ${activePallet.capacity_qty}` : ''}
+                                    </span>
                                 </p>
+                                {activePallet.is_full && (
+                                    <div className="mt-2">
+                                        <StatusPill status="done" label={__('Pallet full')} />
+                                    </div>
+                                )}
                             </div>
                             <div className="flex items-center gap-2">
                                 <LabelPrintMenu kind="pallet" id={activePallet.id} templates={labelTemplates} label={__('Label')} />
@@ -504,7 +512,9 @@ export default function Station() {
                                                 <span className="font-mono font-semibold text-om-ink">{p.pallet_no}</span>
                                                 <span className="text-[13px] text-om-muted">
                                                     &nbsp;&middot;&nbsp; {p.order_no}
-                                                    &nbsp;&middot;&nbsp; <span className="font-semibold text-om-ink">{p.qty} {__('pcs')}</span>
+                                                    &nbsp;&middot;&nbsp; <span className="font-semibold text-om-ink">
+                                                        {p.qty}{p.capacity_qty != null ? ` / ${p.capacity_qty}` : ''} {__('pcs')}
+                                                    </span>
                                                     {p.location ? <>&nbsp;&middot;&nbsp; {p.location}</> : null}
                                                 </span>
                                             </div>

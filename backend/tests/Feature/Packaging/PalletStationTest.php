@@ -47,13 +47,26 @@ class PalletStationTest extends TestCase
     public function test_operator_can_create_open_pallet(): void
     {
         $wo = $this->packableOrder('1111111111111');
+        $wo->update([
+            'process_snapshot' => [
+                'packaging_policy' => ['pallet_capacity_quantity' => 4800],
+            ],
+        ]);
 
         $response = $this->actingAs($this->operator)
             ->postJson(route('packaging.pallets.create'), ['work_order_id' => $wo->id]);
 
         $response->assertCreated()
             ->assertJsonPath('pallet.status', 'open')
-            ->assertJsonPath('pallet.work_order_id', $wo->id);
+            ->assertJsonPath('pallet.work_order_id', $wo->id)
+            ->assertJsonPath('pallet.capacity_qty', 4800)
+            ->assertJsonPath('pallet.remaining_capacity', 4800)
+            ->assertJsonPath('pallet.is_full', false);
+
+        $this->assertDatabaseHas('pallets', [
+            'work_order_id' => $wo->id,
+            'capacity_qty' => 4800,
+        ]);
 
         $this->assertMatchesRegularExpression('/^PAL-\d{6}$/', $response->json('pallet.pallet_no'));
     }
@@ -99,6 +112,34 @@ class PalletStationTest extends TestCase
         $this->actingAs($this->operator)
             ->postJson(route('packaging.scan'), ['ean' => '5555555555555', 'pallet_id' => $pallet->id])
             ->assertStatus(422);
+    }
+
+    public function test_scan_rejects_a_full_pallet_without_changing_any_counters(): void
+    {
+        $wo = $this->packableOrder('5656565656565');
+        $pallet = Pallet::create([
+            'work_order_id' => $wo->id,
+            'status' => 'open',
+            'qty' => 1,
+            'capacity_qty' => 2,
+        ]);
+
+        $this->actingAs($this->operator)
+            ->postJson(route('packaging.scan'), ['ean' => '5656565656565', 'pallet_id' => $pallet->id])
+            ->assertOk()
+            ->assertJsonPath('pallet.qty', 2)
+            ->assertJsonPath('pallet.remaining_capacity', 0)
+            ->assertJsonPath('pallet.is_full', true)
+            ->assertJsonPath('pallet.fill_percent', 100);
+
+        $this->actingAs($this->operator)
+            ->postJson(route('packaging.scan'), ['ean' => '5656565656565', 'pallet_id' => $pallet->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', "Pallet {$pallet->pallet_no} is full (2/2).");
+
+        $this->assertSame(2, $pallet->fresh()->qty);
+        $this->assertSame(1, $wo->fresh()->packed_qty);
+        $this->assertSame(1, $pallet->scanLogs()->count());
     }
 
     public function test_open_pallets_list_excludes_closed_and_includes_line(): void

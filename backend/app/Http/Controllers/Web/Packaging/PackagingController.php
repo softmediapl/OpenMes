@@ -64,56 +64,81 @@ class PackagingController extends Controller
             return response()->json(['message' => __('Unknown EAN')], 404);
         }
 
-        $workOrder = WorkOrder::find($eanRecord->work_order_id);
+        $result = DB::transaction(function () use ($eanRecord, $request, $validated) {
+            $workOrder = WorkOrder::query()->lockForUpdate()->find($eanRecord->work_order_id);
 
-        if (! $workOrder) {
-            return response()->json(['message' => __('Work order not found')], 404);
-        }
-
-        if (! WorkOrder::whereKey($workOrder->id)->packable()->exists()) {
-            return response()->json([
-                'message' => __('Work order not in a packable state (current: :status)', ['status' => $workOrder->status]),
-            ], 422);
-        }
-
-        $planned = (int) $workOrder->planned_qty;
-        if ($planned > 0 && $workOrder->packed_qty >= $planned) {
-            return response()->json(['message' => __('Work order fully packed')], 422);
-        }
-
-        // Optional pallet assignment: the open pallet must belong to the same work
-        // order as the scanned piece.
-        $pallet = null;
-        if (! empty($validated['pallet_id'])) {
-            $pallet = Pallet::find($validated['pallet_id']);
-
-            if (! $pallet || ! $pallet->isOpen()) {
-                return response()->json(['message' => __('Pallet is not open')], 422);
+            if (! $workOrder) {
+                return ['error' => __('Work order not found'), 'status' => 404];
             }
 
-            if ($pallet->work_order_id !== $workOrder->id) {
-                return response()->json(['message' => __('Piece does not belong to this pallet\'s work order')], 422);
+            if (! in_array($workOrder->status, [WorkOrder::STATUS_DONE, WorkOrder::STATUS_IN_PROGRESS], true)) {
+                return [
+                    'error' => __('Work order not in a packable state (current: :status)', ['status' => $workOrder->status]),
+                    'status' => 422,
+                ];
             }
+
+            $planned = (int) $workOrder->planned_qty;
+            if ($planned > 0 && $workOrder->packed_qty >= $planned) {
+                return ['error' => __('Work order fully packed'), 'status' => 422];
+            }
+
+            // Lock both counters before checking and incrementing them. This keeps
+            // concurrent scanners from overfilling a pallet or the work order.
+            $pallet = null;
+            if (! empty($validated['pallet_id'])) {
+                $pallet = Pallet::query()->lockForUpdate()->find($validated['pallet_id']);
+
+                if (! $pallet || ! $pallet->isOpen()) {
+                    return ['error' => __('Pallet is not open'), 'status' => 422];
+                }
+
+                if ($pallet->work_order_id !== $workOrder->id) {
+                    return ['error' => __('Piece does not belong to this pallet\'s work order'), 'status' => 422];
+                }
+
+                if ($pallet->isFull()) {
+                    return [
+                        'error' => __('Pallet :no is full (:qty/:capacity).', [
+                            'no' => $pallet->pallet_no,
+                            'qty' => $pallet->qty,
+                            'capacity' => $pallet->capacity_qty,
+                        ]),
+                        'status' => 422,
+                    ];
+                }
+            }
+
+            $workOrder->increment('packed_qty');
+            \App\Sync\CollectionBroadcaster::flush($workOrder); // increment() bypasses model events
+            $workOrder->refresh();
+
+            if ($pallet) {
+                $pallet->increment('qty');
+                \App\Sync\CollectionBroadcaster::flush($pallet); // increment() bypasses model events
+                $pallet->refresh()->loadMissing(['workOrder.line', 'batch']);
+            }
+
+            PackagingScanLog::create([
+                'user_id' => $request->user()?->id,
+                'work_order_id' => $workOrder->id,
+                'pallet_id' => $pallet?->id,
+                'ean' => $validated['ean'],
+                'product_name' => $this->productLabel($workOrder),
+                'scanned_at' => now(),
+            ]);
+
+            return ['work_order' => $workOrder, 'pallet' => $pallet];
+        });
+
+        if (isset($result['error'])) {
+            return response()->json(['message' => $result['error']], $result['status']);
         }
 
-        $workOrder->increment('packed_qty');
-        \App\Sync\CollectionBroadcaster::flush($workOrder); // increment() bypasses model events
-        $workOrder->refresh();
-
-        if ($pallet) {
-            $pallet->increment('qty');
-            \App\Sync\CollectionBroadcaster::flush($pallet); // increment() bypasses model events
-            $pallet->refresh()->loadMissing(['workOrder.line', 'batch']);
-        }
-
-        PackagingScanLog::create([
-            'user_id' => $request->user()?->id,
-            'work_order_id' => $workOrder->id,
-            'pallet_id' => $pallet?->id,
-            'ean' => $validated['ean'],
-            'product_name' => $this->productLabel($workOrder),
-            'scanned_at' => now(),
-        ]);
+        /** @var WorkOrder $workOrder */
+        $workOrder = $result['work_order'];
+        /** @var Pallet|null $pallet */
+        $pallet = $result['pallet'];
 
         return response()->json([
             'work_order' => [
@@ -176,6 +201,7 @@ class PackagingController extends Controller
             'status' => PalletStatus::Open->value,
             'location' => $request->input('location'),
             'qty' => 0,
+            'capacity_qty' => data_get($workOrder->process_snapshot, 'packaging_policy.pallet_capacity_quantity'),
         ]);
 
         // Milestone backflush: when enabled, declare the BOM consumption implied
@@ -220,6 +246,12 @@ class PackagingController extends Controller
             'batch_lot' => $pallet->batch?->lot_number,
             'batch_number' => $pallet->batch?->batch_number,
             'qty' => (int) $pallet->qty,
+            'capacity_qty' => $pallet->capacity_qty,
+            'remaining_capacity' => $pallet->remainingCapacity(),
+            'is_full' => $pallet->isFull(),
+            'fill_percent' => $pallet->capacity_qty
+                ? min(100, (int) round($pallet->qty / $pallet->capacity_qty * 100))
+                : null,
             'status' => $pallet->status instanceof PalletStatus ? $pallet->status->value : $pallet->status,
             'location' => $pallet->location,
             'updated_at' => $pallet->updated_at?->toIso8601String(),
