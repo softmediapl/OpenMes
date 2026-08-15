@@ -5,7 +5,7 @@
 // them in inline styles means dark mode "just works" with no per-component
 // branching. This board follows the "OpenMES Schedule" design: technical
 // Geist-Mono labelling, ACCEPTED = blue, maintenance = purple.
-import { __, formatNumber } from '../../../../lib/i18n';
+import { __, formatDateTime, formatNumber } from '../../../../lib/i18n';
 import { loadColorVar } from '../../../../lib/load';
 
 export const MONO = 'var(--font-mono)';
@@ -170,6 +170,54 @@ export function durationEstimateMeta(workOrder) {
         complete,
         title: parts.join(' · '),
     };
+}
+
+export function forecastMeta(workOrder) {
+    const endAt = workOrder.forecast_end_at ?? null;
+    const remainingMinutes = workOrder.forecast_remaining_work_minutes ?? null;
+    const varianceMinutes = workOrder.forecast_variance_minutes ?? null;
+    const slackMinutes = workOrder.forecast_slack_minutes ?? null;
+    const risk = workOrder.forecast_risk_level ?? null;
+    const confidence = workOrder.forecast_confidence ?? null;
+    const reasons = workOrder.forecast_reason_codes ?? [];
+    const endLabel = endAt
+        ? formatDateTime(endAt, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+        : null;
+    const riskLabels = {
+        on_track: __('On track'),
+        at_risk: __('At risk'),
+        late: __('Late'),
+        complete: __('Complete'),
+    };
+    const parts = [];
+    if (endLabel) parts.push(`${__('Forecast completion')}: ${endLabel}`);
+    if (remainingMinutes != null) parts.push(`${__('Remaining work')}: ${fmtDurationMinutes(remainingMinutes)}`);
+    if (varianceMinutes != null) parts.push(`${__('Plan variance')}: ${signedDuration(varianceMinutes)}`);
+    if (slackMinutes != null) parts.push(`${__('Deadline slack')}: ${signedDuration(slackMinutes)}`);
+    if (confidence) parts.push(`${__('Confidence')}: ${__(confidence)}`);
+    if (reasons.length) parts.push(`${__('Reasons')}: ${reasons.join(', ')}`);
+
+    return {
+        available: endAt != null,
+        endAt,
+        endLabel,
+        remainingMinutes,
+        varianceMinutes,
+        varianceLabel: signedDuration(varianceMinutes),
+        slackMinutes,
+        slackLabel: signedDuration(slackMinutes),
+        risk,
+        riskLabel: riskLabels[risk] ?? null,
+        confidence,
+        reasons,
+        title: parts.join(' · '),
+    };
+}
+
+function signedDuration(minutes) {
+    if (minutes == null) return '—';
+    const sign = minutes > 0 ? '+' : minutes < 0 ? '−' : '';
+    return sign + fmtDurationMinutes(Math.abs(minutes));
 }
 
 export function apsProposalMeta(proposal) {

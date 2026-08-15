@@ -5,7 +5,7 @@ import { usePage } from '@inertiajs/react';
 import { Dropdown, DatePicker } from '@openmes/ui';
 import { __, formatDateTime } from '../../../../lib/i18n';
 import WorkOrderForm from '../../work-orders/WorkOrderForm';
-import { apsProposalMeta, statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, shiftWindow, MONO } from './helpers';
+import { apsProposalMeta, statusOf, statusLabel, priorityMeta, fmtQty, fmtDurationMinutes, durationEstimateMeta, forecastMeta, shiftWindow, MONO } from './helpers';
 import { StatusPill } from './OrderCard';
 
 const lblStyle = { fontFamily: MONO, fontSize: 8.5, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--om-faint)', marginBottom: 5 };
@@ -23,6 +23,7 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
     const { data, config } = ctx;
     const s = statusOf(wo.status);
     const estimate = durationEstimateMeta(wo);
+    const forecast = forecastMeta(wo);
     const [line, setLine] = useState(wo.line_id || '');
     const [extras, setExtras] = useState((wo.placements || []).map((p) => ({ ...p })));
     const [startDate, setStartDate] = useState(wo.planned_start_at?.slice(0, 10) || '');
@@ -106,7 +107,7 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                         <span onClick={onClose} style={{ color: 'var(--om-faint)', fontSize: 19, cursor: 'pointer', lineHeight: 1 }}>×</span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 mb-4" style={{ background: 'var(--om-chip)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4" style={{ background: 'var(--om-chip)', borderRadius: 8, padding: '10px 12px' }}>
                         <div>
                             <div style={lblStyle}>{__('Customer deadline')}</div>
                             <div style={{ fontFamily: MONO, fontSize: 12, color: wo.is_overdue ? 'var(--om-blocked)' : 'var(--om-ink)' }}>{wo.due_date || __('Not set')}</div>
@@ -119,7 +120,23 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                             <div style={lblStyle}>{__('Operation time')}</div>
                             <div title={estimate.title} style={{ fontFamily: MONO, fontSize: 12, color: 'var(--om-ink)' }}>{fmtDurationMinutes(estimate.operationTime)}</div>
                         </div>
+                        <div>
+                            <div style={lblStyle}>{__('Current forecast')}</div>
+                            <div title={forecast.title} style={{ fontFamily: MONO, fontSize: 12, color: forecast.risk === 'late' ? 'var(--om-blocked)' : 'var(--om-ink)' }}>
+                                {forecast.available ? forecast.endLabel : __('Not calculated')}
+                            </div>
+                            {forecast.available && <div style={{ fontFamily: MONO, fontSize: 9, color: 'var(--om-muted)', marginTop: 2 }}>{__('Remaining')} {fmtDurationMinutes(forecast.remainingMinutes)} · {forecast.riskLabel}</div>}
+                        </div>
                     </div>
+
+                    {forecast.available && (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-muted)', borderLeft: `3px solid ${forecast.risk === 'late' ? 'var(--om-blocked)' : forecast.risk === 'at_risk' ? 'var(--om-downtime)' : 'var(--om-running)'}`, padding: '7px 10px', background: 'var(--om-bg)' }}>
+                            <span>{__('Approved plan end')}: {wo.baseline_planned_end_at ? formatDateTime(wo.baseline_planned_end_at) : '—'}</span>
+                            <span>{__('Plan variance')}: {forecast.varianceLabel}</span>
+                            <span>{__('Deadline slack')}: {forecast.slackLabel}</span>
+                            <span>{__('Confidence')}: {__(forecast.confidence ?? '—')}</span>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-3 mb-4">
                         <div>

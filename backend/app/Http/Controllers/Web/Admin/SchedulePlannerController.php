@@ -148,7 +148,14 @@ class SchedulePlannerController extends Controller
         // Customer due dates are commitments, not schedule positions. A primary
         // placement is visible only when it has a complete planned time window;
         // extra placements keep their own coarse schedule dates.
-        $workOrders = WorkOrder::with(['productType', 'line', 'customer', 'extraPlacements'])
+        $workOrders = WorkOrder::with([
+            'productType',
+            'line',
+            'customer',
+            'extraPlacements',
+            'currentScheduleBaseline',
+            'currentForecast',
+        ])
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
             ->where(function ($q) use ($lineIds) {
                 // An order shows on every line it runs on — its primary
@@ -263,7 +270,13 @@ class SchedulePlannerController extends Controller
 
         // Backlog: every active order without a complete primary time window.
         // A preferred line and a customer deadline may already be present.
-        $backlogOrders = WorkOrder::with(['productType', 'line', 'customer'])
+        $backlogOrders = WorkOrder::with([
+            'productType',
+            'line',
+            'customer',
+            'currentScheduleBaseline',
+            'currentForecast',
+        ])
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
             ->where(function ($q) {
                 $q->whereNull('planned_start_at')
@@ -357,6 +370,7 @@ class SchedulePlannerController extends Controller
                 'planned_start_at' => $wo->planned_start_at?->toIso8601String(),
                 'planned_end_at' => $wo->planned_end_at?->toIso8601String(),
                 ...$this->durationEstimatePayload($wo),
+                ...$this->scheduleForecastPayload($wo),
             ];
         })->values()->all();
 
@@ -375,6 +389,7 @@ class SchedulePlannerController extends Controller
                 'priority' => $wo->priority,
                 'priority_score' => $wo->priority_score,
                 ...$this->durationEstimatePayload($wo),
+                ...$this->scheduleForecastPayload($wo),
             ];
         })->values()->all();
 
@@ -924,6 +939,27 @@ class SchedulePlannerController extends Controller
             'estimated_duration_minutes' => $estimate->leadTimeMinutes,
             'estimate_complete' => $estimate->isComplete() && $estimate->leadTimeMinutes !== null,
             'unestimated_step_numbers' => $estimate->unestimatedStepNumbers,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function scheduleForecastPayload(WorkOrder $workOrder): array
+    {
+        $baseline = $workOrder->currentScheduleBaseline;
+        $forecast = $workOrder->currentForecast;
+
+        return [
+            'schedule_baseline_version' => $baseline?->version,
+            'baseline_planned_start_at' => $baseline?->planned_start_at?->toIso8601String(),
+            'baseline_planned_end_at' => $baseline?->planned_end_at?->toIso8601String(),
+            'forecast_calculated_at' => $forecast?->calculated_at?->toIso8601String(),
+            'forecast_end_at' => $forecast?->forecast_end_at?->toIso8601String(),
+            'forecast_remaining_work_minutes' => $forecast?->remaining_work_minutes,
+            'forecast_variance_minutes' => $forecast?->variance_to_baseline_minutes,
+            'forecast_slack_minutes' => $forecast?->slack_to_deadline_minutes,
+            'forecast_risk_level' => $forecast?->risk_level,
+            'forecast_confidence' => $forecast?->confidence,
+            'forecast_reason_codes' => $forecast?->reason_codes ?? [],
         ];
     }
 

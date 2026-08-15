@@ -5554,5 +5554,16 @@
     "Qualified crew": "Wykwalifikowana obsada",
     "No operator required": "Operator nie jest wymagany",
     "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Pracownicy uprawnieni do obsługi tego stanowiska. Ich stanowisko podstawowe jest zarządzane oddzielnie.",
-    "(primary: :station)": "(podstawowe: :station)"
+    "(primary: :station)": "(podstawowe: :station)",
+    "Forecast completion": "Prognozowane zakończenie",
+    "Current forecast": "Bieżąca prognoza",
+    "Remaining work": "Pozostała praca",
+    "Plan variance": "Odchylenie od planu",
+    "Deadline slack": "Zapas do terminu",
+    "Approved plan end": "Zatwierdzone zakończenie planu",
+    "Not calculated": "Nie obliczono",
+    "Confidence": "Wiarygodność",
+    "Reasons": "Przyczyny",
+    "At risk": "Zagrożone",
+    "ETA": "ETA"
 }

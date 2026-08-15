@@ -6,6 +6,8 @@ use App\Models\Line;
 use App\Models\Shift;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderForecast;
+use App\Models\WorkOrderScheduleBaseline;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -137,6 +139,39 @@ class SchedulePlannerHourlyTest extends TestCase
                 ],
             ],
         ]);
+        $baseline = $scheduled->scheduleBaselines()->create([
+            'version' => 1,
+            'line_id' => $line->id,
+            'requested_start_at' => $monday->copy()->addDay()->setTime(6, 0),
+            'planned_start_at' => $monday->copy()->addDay()->setTime(6, 0),
+            'planned_end_at' => $monday->copy()->addDay()->setTime(14, 0),
+            'total_operation_minutes' => 35,
+            'calendar_lead_minutes' => 25,
+            'source' => WorkOrderScheduleBaseline::SOURCE_APS,
+            'approved_at' => now(),
+        ]);
+        $forecast = $scheduled->forecasts()->create([
+            'schedule_baseline_id' => $baseline->id,
+            'sequence' => 1,
+            'calculated_at' => $monday->copy()->addDay()->setTime(7, 0),
+            'forecast_start_at' => $monday->copy()->addDay()->setTime(7, 0),
+            'forecast_end_at' => $monday->copy()->addDay()->setTime(15, 0),
+            'baseline_end_at' => $monday->copy()->addDay()->setTime(14, 0),
+            'customer_deadline_at' => $monday->copy()->addMonth(),
+            'remaining_work_minutes' => 30,
+            'variance_to_baseline_minutes' => 60,
+            'slack_to_deadline_minutes' => 1000,
+            'progress_percent' => 10,
+            'confidence' => WorkOrderForecast::CONFIDENCE_HIGH,
+            'risk_level' => WorkOrderForecast::RISK_ON_TRACK,
+            'reason_codes' => [],
+            'forecast_metrics' => [],
+            'input_fingerprint' => hash('sha256', 'weekly-payload-forecast'),
+        ]);
+        $scheduled->update([
+            'current_schedule_baseline_id' => $baseline->id,
+            'current_forecast_id' => $forecast->id,
+        ]);
         // Unassigned (no line) → backlog rail.
         $backlog = WorkOrder::factory()->create([
             'order_no' => 'WO-WK-BACKLOG',
@@ -179,6 +214,13 @@ class SchedulePlannerHourlyTest extends TestCase
         $this->assertSame(25, $row['estimated_duration_minutes']);
         $this->assertTrue($row['estimate_complete']);
         $this->assertSame([], $row['unestimated_step_numbers']);
+        $this->assertSame(1, $row['schedule_baseline_version']);
+        $this->assertNotNull($row['baseline_planned_end_at']);
+        $this->assertNotNull($row['forecast_end_at']);
+        $this->assertSame(30, $row['forecast_remaining_work_minutes']);
+        $this->assertSame(60, $row['forecast_variance_minutes']);
+        $this->assertSame(1000, $row['forecast_slack_minutes']);
+        $this->assertSame(WorkOrderForecast::RISK_ON_TRACK, $row['forecast_risk_level']);
 
         // The unassigned order lands in the backlog payload.
         $this->assertNotNull(collect($props['backlogOrders'])->firstWhere('id', $backlog->id));

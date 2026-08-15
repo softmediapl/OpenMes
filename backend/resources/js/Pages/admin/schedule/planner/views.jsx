@@ -7,7 +7,7 @@ import { __, formatDate } from '../../../../lib/i18n';
 import { OrderCard, TwinChip, TierDot } from './OrderCard';
 import { DraggableOrder, useOrderDrop } from './dnd';
 import {
-    weeklySlot, weeklyPlacements, lineLoad, loadColor, shiftColor, statusOf, fmtQty, fmtDurationMinutes, durationEstimateMeta, parseDate, dayList, onLine, chainChipMeta, segmentChain, placementsOf, projectSegment, MONO,
+    weeklySlot, weeklyPlacements, lineLoad, loadColor, shiftColor, statusOf, fmtQty, fmtDurationMinutes, durationEstimateMeta, forecastMeta, parseDate, dayList, onLine, chainChipMeta, segmentChain, placementsOf, projectSegment, MONO,
 } from './helpers';
 
 const LINE_COL_W = 172;
@@ -66,6 +66,7 @@ function WeekBlock({ item, ctx, N, laneH, setPreview }) {
     const draggedRef = useRef(false);
     const s = statusOf(wo.status);
     const estimate = durationEstimateMeta(wo);
+    const forecast = forecastMeta(wo);
     // While moving, the block stays put (dimmed) and only the ghost follows the
     // cursor (in any direction). While resizing, the block itself follows.
     const moving = drag && drag.mode === 'move';
@@ -150,9 +151,11 @@ function WeekBlock({ item, ctx, N, laneH, setPreview }) {
                         {wo.is_overdue && <span className="ml-auto" style={{ fontFamily: MONO, fontSize: 8, color: '#fff', background: 'var(--om-blocked)', borderRadius: 3, padding: '0 3px' }}>!</span>}
                     </div>
                     <span className="truncate" style={{ fontSize: 10, color: 'var(--om-muted)' }}>{wo.product_name || '—'} · {fmtQty(wo.planned_qty)}</span>
-                    <span className="truncate" title={`${estimate.title} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
-                        style={{ fontFamily: MONO, fontSize: 8.5, color: 'var(--om-faint)' }}>
-                        {__('Lead')} {fmtDurationMinutes(estimate.leadTime)} · {__('Due')} {fmtDeadline(wo.due_date)}
+                    <span className="truncate" title={`${forecast.available ? forecast.title : estimate.title} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
+                        style={{ fontFamily: MONO, fontSize: 8.5, color: forecast.risk === 'late' ? 'var(--om-blocked)' : 'var(--om-faint)' }}>
+                        {forecast.available
+                            ? <>{__('ETA')} {forecast.endLabel} · {__('Due')} {fmtDeadline(wo.due_date)}</>
+                            : <>{__('Lead')} {fmtDurationMinutes(estimate.leadTime)} · {__('Due')} {fmtDeadline(wo.due_date)}</>}
                     </span>
                 </div>
                 <span onPointerDown={(e) => begin('r', e)} className="flex items-center justify-center" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 7, cursor: 'ew-resize', zIndex: 3 }}>

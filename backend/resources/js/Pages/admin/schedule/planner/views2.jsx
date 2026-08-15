@@ -5,7 +5,7 @@ import { useState, useRef } from 'react';
 import { __, formatDate, formatTime } from '../../../../lib/i18n';
 import { TwinChip } from './OrderCard';
 import {
-    hourlyLanes, onMonthlyDay, statusOf, parseDate, todayKey, loadColor, chainChipMeta, fmtDurationMinutes, durationEstimateMeta, MONO,
+    hourlyLanes, onMonthlyDay, statusOf, parseDate, todayKey, loadColor, chainChipMeta, fmtDurationMinutes, durationEstimateMeta, forecastMeta, MONO,
 } from './helpers';
 
 const HLANE = 46;
@@ -31,6 +31,7 @@ function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
     const cur = drag || { start: item.start, end: item.end };
     const s = statusOf(wo.status);
     const estimate = durationEstimateMeta(wo);
+    const forecast = forecastMeta(wo);
 
     function begin(mode, e) {
         if (readOnly) return;
@@ -73,9 +74,9 @@ function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
                         {twinMeta && <TwinChip code={twinMeta.code} dir={twinMeta.dir} />}
                         {width > 16 && <span className="truncate" style={{ fontFamily: MONO, fontSize: 9, color: 'var(--om-muted)' }}>{wo.product_name}</span>}
                     </div>
-                    <span title={`${estimate.title} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
+                    <span title={`${forecast.available ? forecast.title : estimate.title} · ${__('Customer deadline')}: ${fmtDeadline(wo.due_date)}`}
                         style={{ fontFamily: MONO, fontSize: 9, fontWeight: 500, color: 'var(--om-muted)', whiteSpace: 'nowrap' }}>
-                        {fmtMin(cur.start)}–{fmtMin(cur.end)} · {__('Lead')} {fmtDurationMinutes(estimate.leadTime)} · {__('Due')} {fmtDeadline(wo.due_date)}
+                        {fmtMin(cur.start)}–{fmtMin(cur.end)} · {forecast.available ? `${__('ETA')} ${forecast.endLabel}` : `${__('Lead')} ${fmtDurationMinutes(estimate.leadTime)}`} · {__('Due')} {fmtDeadline(wo.due_date)}
                     </span>
                 </div>
                 {item.conflict && <span style={{ position: 'absolute', top: 3, right: 9, fontFamily: MONO, fontSize: 7.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#fff', background: 'var(--om-blocked)', borderRadius: 3, padding: '1px 4px', zIndex: 4, pointerEvents: 'none' }}>{__('overlap')}</span>}

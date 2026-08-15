@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apsProposalMeta, durationEstimateMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
+import { apsProposalMeta, durationEstimateMeta, forecastMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
 
 const shifts = [
     { start_time: '06:00:00', end_time: '14:00:00' },
@@ -64,6 +64,25 @@ describe('planner schedule helpers', () => {
 
         expect(meta.complete).toBe(false);
         expect(meta.title).toContain('4, 7');
+    });
+
+    it('keeps the live completion forecast distinct from workload and customer deadline', () => {
+        const meta = forecastMeta({
+            forecast_end_at: '2026-08-21T18:30:00+02:00',
+            forecast_remaining_work_minutes: 7800,
+            forecast_variance_minutes: 180,
+            forecast_slack_minutes: -30,
+            forecast_risk_level: 'late',
+            forecast_confidence: 'medium',
+            forecast_reason_codes: ['observed_rate_slowdown'],
+        });
+
+        expect(meta.available).toBe(true);
+        expect(meta.remainingMinutes).toBe(7800);
+        expect(meta.risk).toBe('late');
+        expect(meta.varianceLabel).toContain('+');
+        expect(meta.slackLabel).toContain('−');
+        expect(meta.title).toContain('observed_rate_slowdown');
     });
 
     it('summarizes a finite-capacity proposal without flattening parallel segments', () => {

@@ -5554,5 +5554,16 @@
     "Qualified crew": "Qualified crew",
     "No operator required": "No operator required",
     "Workers qualified to operate this workstation. Their primary workstation is managed separately.": "Workers qualified to operate this workstation. Their primary workstation is managed separately.",
-    "(primary: :station)": "(primary: :station)"
+    "(primary: :station)": "(primary: :station)",
+    "Forecast completion": "Forecast completion",
+    "Current forecast": "Current forecast",
+    "Remaining work": "Remaining work",
+    "Plan variance": "Plan variance",
+    "Deadline slack": "Deadline slack",
+    "Approved plan end": "Approved plan end",
+    "Not calculated": "Not calculated",
+    "Confidence": "Confidence",
+    "Reasons": "Reasons",
+    "At risk": "At risk",
+    "ETA": "ETA"
 }
