@@ -1602,6 +1602,7 @@
     "Defines whether and when operators can correct previously reported quantities.": "Określa, czy i kiedy operatorzy mogą korygować wcześniej zgłoszone ilości.",
     "Back to :name": "Powrót do :name",
     "Created": "Utworzono",
+    "Created :time": "Utworzono :time",
     "Pause live updates": "Wstrzymaj aktualizacje na żywo",
     "TOPICS": "TEMATY",
     "Production Schedule": "Harmonogram produkcji",

@@ -126,11 +126,7 @@ export function timeAgo(d) {
     for (const [name, s] of units) {
         if (abs >= s) {
             const n = Math.floor(abs / s);
-            if (past) {
-                return __(':count :unit ago', { count: n, unit: __(name + (n > 1 ? 's' : '')) });
-            } else {
-                return __('in :count :unit', { count: n, unit: __(name + (n > 1 ? 's' : '')) });
-            }
+            return new Intl.RelativeTimeFormat(localeTag(), { numeric: 'always' }).format(sec >= 0 ? -n : n, name);
         }
     }
     return past ? __('just now') : __('soon');

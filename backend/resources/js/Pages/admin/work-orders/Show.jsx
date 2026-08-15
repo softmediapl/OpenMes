@@ -645,11 +645,11 @@ export default function AdminWorkOrderShow() {
                         <div className="flex items-center gap-3 flex-wrap">
                             <h1 className="text-3xl font-bold text-om-ink font-mono">{workOrder.order_no}</h1>
                             <span className={`px-2 py-0.5 rounded text-xs font-semibold ${WO_STATUS_STYLES[status] ?? 'bg-om-chip text-om-muted'}`}>
-                                {status}
+                                {__(status)}
                             </span>
                         </div>
                         <p className="text-om-muted mt-1">
-                            Created {timeAgo(workOrder.created_at)}
+                            {__('Created :time', { time: timeAgo(workOrder.created_at) })}
                             {workOrder.product_type_name ? ` · ${workOrder.product_type_name}` : ''}
                         </p>
                     </div>
@@ -661,22 +661,22 @@ export default function AdminWorkOrderShow() {
                                     onClick={() => post('accept')}
                                     className="px-4 py-2 text-sm font-medium text-om-on-ink bg-om-ink rounded-md hover:bg-om-ink-hover"
                                 >
-                                    Accept
+                                    {__('Accept')}
                                 </button>
                                 <button
-                                    onClick={() => { if (confirm('Reject this work order?')) post('reject'); }}
+                                    onClick={() => { if (confirm(__('Reject this work order?'))) post('reject'); }}
                                     className="px-4 py-2 text-sm font-medium text-om-blocked bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                                 >
-                                    Reject
+                                    {__('Reject')}
                                 </button>
                             </>
                         )}
                         {status === 'ACCEPTED' && (
                             <button
-                                onClick={() => { if (confirm('Reject this work order?')) post('reject'); }}
+                                onClick={() => { if (confirm(__('Reject this work order?'))) post('reject'); }}
                                 className="px-4 py-2 text-sm font-medium text-om-blocked bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                             >
-                                Reject
+                                {__('Reject')}
                             </button>
                         )}
                         {status === 'IN_PROGRESS' && (
@@ -685,7 +685,7 @@ export default function AdminWorkOrderShow() {
                                     onClick={() => post('pause')}
                                     className="px-4 py-2 text-sm font-medium text-om-downtime bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                                 >
-                                    Pause
+                                    {__('Pause')}
                                 </button>
                                 <button
                                     onClick={() => setShowStopModal(true)}
@@ -698,7 +698,7 @@ export default function AdminWorkOrderShow() {
                                     onClick={() => setShowDoneModal(true)}
                                     className="px-4 py-2 text-sm font-medium text-white bg-om-running rounded-md hover:brightness-95"
                                 >
-                                    Done
+                                    {__('Done')}
                                 </button>
                             </>
                         )}
@@ -711,7 +711,7 @@ export default function AdminWorkOrderShow() {
                                     : undefined}
                                 className="px-4 py-2 text-sm font-medium text-om-on-ink bg-om-ink rounded-md hover:bg-om-ink-hover disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Resume
+                                {__('Resume')}
                             </button>
                         )}
                         {!isTerminal && changeControl.can_raise_change && (
@@ -726,16 +726,16 @@ export default function AdminWorkOrderShow() {
                         {isTerminal ? (
                             <>
                                 <button
-                                    onClick={() => { if (confirm('Reopen this work order?')) post('reopen'); }}
+                                    onClick={() => { if (confirm(__('Reopen this work order?'))) post('reopen'); }}
                                     className="px-4 py-2 text-sm font-medium text-om-on-ink bg-om-ink rounded-md hover:bg-om-ink-hover"
                                 >
-                                    Reopen
+                                    {__('Reopen')}
                                 </button>
                                 <Link
                                     href={`/admin/work-orders/${workOrder.id}/edit`}
                                     className="px-4 py-2 text-sm font-medium text-om-muted bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                                 >
-                                    Edit
+                                    {__('Edit')}
                                 </Link>
                             </>
                         ) : (
@@ -744,13 +744,13 @@ export default function AdminWorkOrderShow() {
                                     href={`/admin/work-orders/${workOrder.id}/edit`}
                                     className="px-4 py-2 text-sm font-medium text-om-muted bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                                 >
-                                    Edit
+                                    {__('Edit')}
                                 </Link>
                                 <button
-                                    onClick={() => { if (confirm('Cancel this work order?')) post('cancel'); }}
+                                    onClick={() => { if (confirm(__('Cancel this work order?'))) post('cancel'); }}
                                     className="px-4 py-2 text-sm font-medium text-om-accent bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                                 >
-                                    Cancel
+                                    {__('Cancel')}
                                 </button>
                             </>
                         )}
@@ -759,7 +759,7 @@ export default function AdminWorkOrderShow() {
                             href="/admin/work-orders"
                             className="px-4 py-2 text-sm font-medium text-om-muted bg-om-card border border-om-line rounded-md hover:bg-om-bg"
                         >
-                            ← Back
+                            {__('← Back')}
                         </Link>
                     </div>
                 </div>
@@ -811,6 +811,10 @@ export default function AdminWorkOrderShow() {
                                 <div>
                                     <p className="text-om-muted">{__('Product Type')}</p>
                                     <p className="font-medium text-om-ink">{workOrder.product_type_name ?? '—'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-om-muted">{__('Product Revision')}</p>
+                                    <p className="font-medium text-om-ink">{workOrder.product_revision_code ?? '—'}</p>
                                 </div>
                                 <div>
                                     <p className="text-om-muted">{__('Planned Qty')}</p>
@@ -867,7 +871,7 @@ export default function AdminWorkOrderShow() {
                         {/* Batches */}
                         <div className="bg-om-card rounded-om-sm shadow-sm border border-om-line2 p-5">
                             <h2 className="text-lg font-bold text-om-ink mb-4">
-                                Batches{' '}
+                                {__('Batches')}{' '}
                                 <span className="text-sm font-normal text-om-faint">({workOrder.batches.length})</span>
                             </h2>
                             {workOrder.batches.length === 0 ? (
