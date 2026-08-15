@@ -985,6 +985,10 @@ function BatchStepList({ steps, labelTemplates = [], stepPhotos = {}, stepMedia 
                             <OperationQuantitySummary step={step} />
                         )}
 
+                        {step.requires_palletization && (
+                            <PalletizationSummary step={step} />
+                        )}
+
                         {qualityGate?.required && (
                             <OperationQualityGate step={step} status={qualityGate} />
                         )}
@@ -1341,6 +1345,42 @@ function OperationQuantitySummary({ step }) {
                         </span>
                     </div>
                 ))}
+            </div>
+        </div>
+    );
+}
+
+function PalletizationSummary({ step }) {
+    const loaded = Number(step.pallet_loaded_quantity ?? 0);
+    const remaining = Number(step.pallet_remaining_quantity ?? 0);
+    const palletLoads = step.pallet_loads ?? [];
+
+    return (
+        <div className="border-t border-om-line2 bg-om-card px-3 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <span className={`${sectionLabelCls} block`}>{__('Palletized output')}</span>
+                    <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 font-mono text-[12px] text-om-muted">
+                        <span>{__('Loaded')}: <strong className="text-om-ink">{fmtQty(loaded, 0)}</strong></span>
+                        <span>{__('Remaining')}: <strong className={remaining > 0 ? 'text-om-downtime' : 'text-om-running'}>{fmtQty(remaining, 0)}</strong></span>
+                        <span>{__('Pallets')}: <strong className="text-om-ink">{step.pallet_count ?? 0}</strong></span>
+                    </div>
+                    {palletLoads.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[10px] text-om-faint">
+                            {palletLoads.map((load) => (
+                                <span key={load.id}>
+                                    {load.pallet_no}: {fmtQty(load.quantity, 0)}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                <Link
+                    href={step.pallet_station_url}
+                    className="inline-flex min-h-10 items-center justify-center rounded-om-sm bg-om-ink px-4 py-2 text-sm font-semibold text-om-paper transition-colors hover:bg-om-ink2 focus:outline-none focus:ring-2 focus:ring-om-accent focus:ring-offset-2"
+                >
+                    {remaining > 0 ? __('Load onto pallet') : __('View pallet station')}
+                </Link>
             </div>
         </div>
     );

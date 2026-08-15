@@ -271,6 +271,7 @@ class WorkOrderController extends Controller
             'batches.steps.checklistCompletions.checkedBy',
             'batches.steps.transportUnitType',
             'batches.steps.transportUnitLoads.transportUnit.type',
+            'batches.steps.palletContents.pallet:id,pallet_no,status,qty,capacity_qty',
             'batches.steps.qualityChecks.samples',
             'batches.steps.qualityChecks.checkedBy',
             'batches.steps.qualityChecks.issue.issueType',
@@ -287,10 +288,43 @@ class WorkOrderController extends Controller
 
         $issueTypes = IssueType::where('is_active', true)->orderBy('name')->get();
 
-        $workOrder->batches->flatMap->steps->each(function ($step) {
-            $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
-            $step->setAttribute('hold_remaining_seconds', $step->holdRemainingSeconds());
-        });
+        foreach ($workOrder->batches as $batch) {
+            foreach ($batch->steps as $step) {
+                $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
+                $step->setAttribute('hold_remaining_seconds', $step->holdRemainingSeconds());
+
+                if (! $step->requires_palletization) {
+                    continue;
+                }
+
+                $loadedQuantity = (int) $step->palletContents->sum('quantity');
+                $expectedQuantity = (int) floor((float) ($step->input_quantity ?? $batch->target_qty ?? 0));
+                $palletLoads = $step->palletContents
+                    ->groupBy('pallet_id')
+                    ->map(function ($contents) {
+                        $pallet = $contents->first()?->pallet;
+
+                        return [
+                            'id' => $pallet?->id,
+                            'pallet_no' => $pallet?->pallet_no,
+                            'status' => $pallet?->status?->value ?? $pallet?->status,
+                            'quantity' => (int) $contents->sum('quantity'),
+                        ];
+                    })
+                    ->filter(fn (array $load) => $load['id'] !== null)
+                    ->values();
+
+                $step->setAttribute('pallet_loaded_quantity', $loadedQuantity);
+                $step->setAttribute('pallet_remaining_quantity', max(0, $expectedQuantity - $loadedQuantity));
+                $step->setAttribute('pallet_count', $palletLoads->count());
+                $step->setAttribute('pallet_loads', $palletLoads);
+                $step->setAttribute('pallet_station_url', route('packaging.station', [
+                    'work_order_id' => $workOrder->id,
+                    'batch_id' => $batch->id,
+                ]));
+                $step->unsetRelation('palletContents');
+            }
+        }
 
         if ($workstationLocked) {
             $visibleBatches = $workOrder->batches
