@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Services;
 
+use App\Models\BomItem;
+use App\Models\Material;
 use App\Models\ProcessTemplate;
 use App\Services\ProcessTemplate\SnapshotService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -48,6 +50,20 @@ class SnapshotServiceTest extends TestCase
         $this->assertEquals('Test Template', $snapshot['template_name']);
         $this->assertEquals(2, $snapshot['template_version']);
         $this->assertEquals($template->product_type_id, $snapshot['product_type_id']);
+    }
+
+    public function test_snapshot_includes_product_precision_for_bom_items(): void
+    {
+        $template = ProcessTemplate::factory()->create();
+        $material = Material::factory()->create(['unit_of_measure' => 'kg']);
+        BomItem::factory()->create([
+            'process_template_id' => $template->id,
+            'material_id' => $material->id,
+        ]);
+
+        $snapshot = $this->service->createSnapshot($template);
+
+        $this->assertSame($template->productType->quantity_precision, $snapshot['bom'][0]['output_quantity_precision']);
     }
 
     public function test_snapshot_freezes_the_batch_policy(): void

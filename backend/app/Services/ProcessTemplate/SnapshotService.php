@@ -109,7 +109,7 @@ class SnapshotService
                     'is_default_variant' => (bool) $step->is_default_variant,
                 ];
             })->toArray(),
-            'bom' => $template->bomItems->map(function ($item) {
+            'bom' => $template->bomItems->map(function ($item) use ($template) {
                 return [
                     'material_id' => $item->material_id,
                     'material_code' => $item->material->code,
