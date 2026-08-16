@@ -73,6 +73,11 @@ class MiniOrnamentDemoSeederTest extends TestCase
             $template->allow_partial_final_batch,
         ]);
         $this->assertSame(['per_batch', 'fixed_hold', 'per_batch'], $steps->pluck('execution_mode')->map->value->all());
+        $this->assertSame(
+            ['LAK-01', 'SUS-02', 'MON-01'],
+            $steps->map(fn (TemplateStep $step) => $step->workstation->code)->all(),
+        );
+        $this->assertTrue($steps->every(fn (TemplateStep $step) => $step->workstation_type_id === $step->workstation->workstation_type_id));
         $this->assertNull($steps[0]->estimated_duration_minutes);
         $this->assertNull($steps[0]->min_duration_minutes);
         $this->assertSame(1, $steps[1]->min_duration_minutes);

@@ -199,6 +199,7 @@ class MiniOrnamentDemoSeeder extends Seeder
                 'quantity_reporting_required' => true,
                 'quality_gate_required' => false,
                 'workstation_id' => $workstations['paint']->id,
+                'workstation_type_id' => $workstations['paint']->workstation_type_id,
             ],
             'dry' => [
                 'step_number' => 2,
@@ -212,6 +213,7 @@ class MiniOrnamentDemoSeeder extends Seeder
                 'quantity_reporting_required' => false,
                 'quality_gate_required' => false,
                 'workstation_id' => $workstations['dry']->id,
+                'workstation_type_id' => $workstations['dry']->workstation_type_id,
             ],
             'quality' => [
                 'step_number' => 3,
@@ -225,6 +227,7 @@ class MiniOrnamentDemoSeeder extends Seeder
                 'quantity_reporting_required' => true,
                 'quality_gate_required' => true,
                 'workstation_id' => $workstations['quality']->id,
+                'workstation_type_id' => $workstations['quality']->workstation_type_id,
             ],
         ];
 
