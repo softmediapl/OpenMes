@@ -5422,6 +5422,8 @@
     "Maximum number of operations that may occupy this workstation at the same time.": "Maximum number of operations that may occupy this workstation at the same time.",
     "Occupied capacity": "Occupied capacity",
     "Workstation :station is at capacity (:occupied/:capacity active operations).": "Workstation :station is at capacity (:occupied/:capacity active operations).",
+    "No free workstation capacity (:occupied/:capacity). Release a ready batch first.": "No free workstation capacity (:occupied/:capacity). Release a ready batch first.",
+    "No free capacity": "No free capacity",
     "At least one transport unit must be scanned.": "At least one transport unit must be scanned.",
     "Transport unit code is required.": "Transport unit code is required.",
     "A transport unit may only be scanned once per operation.": "A transport unit may only be scanned once per operation.",

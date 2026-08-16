@@ -5428,6 +5428,8 @@
     "Maximum number of operations that may occupy this workstation at the same time.": "Maksymalna liczba operacji, które mogą jednocześnie zajmować to stanowisko.",
     "Occupied capacity": "Zajęta pojemność",
     "Workstation :station is at capacity (:occupied/:capacity active operations).": "Stanowisko :station osiągnęło limit pojemności (:occupied/:capacity aktywnych operacji).",
+    "No free workstation capacity (:occupied/:capacity). Release a ready batch first.": "Brak wolnej pojemności stanowiska (:occupied/:capacity). Najpierw przekaż gotową partię.",
+    "No free capacity": "Brak wolnej pojemności",
     "At least one transport unit must be scanned.": "Należy zeskanować co najmniej jedną jednostkę transportową.",
     "Transport unit code is required.": "Kod jednostki transportowej jest wymagany.",
     "A transport unit may only be scanned once per operation.": "Jednostkę transportową można zeskanować tylko raz w ramach operacji.",

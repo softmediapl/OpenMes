@@ -5,7 +5,7 @@ import PanelLayout from '../../layouts/PanelLayout';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { compactQuantity } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
-import { isRunningFixedHold } from '../../lib/workstationQueue';
+import { isRunningFixedHold, isStepStartCapacityBlocked, workstationCapacityState } from '../../lib/workstationQueue';
 
 function currentStep(batch) {
     return (batch.steps || []).find((step) => step.status === 'IN_PROGRESS')
@@ -52,8 +52,8 @@ export default function Queue({ workstationQueue = [], selectedWorkstation }) {
         progress: tasks.filter((task) => taskState(task, now) === 'progress'),
         ready: tasks.filter((task) => taskState(task, now) === 'ready'),
     };
-    const capacity = Number(selectedWorkstation?.capacity_slots || 1);
-    const occupied = groups.progress.length + groups.ready.length;
+    const capacityState = workstationCapacityState(selectedWorkstation);
+    const { capacity, occupied } = capacityState;
     const isHoldStation = tasks.some((task) => task.step.execution_mode === 'fixed_hold');
 
     return (
@@ -71,7 +71,7 @@ export default function Queue({ workstationQueue = [], selectedWorkstation }) {
                     <span className="hidden text-sm text-om-muted sm:block">{__('Operator')}: <strong className="text-om-ink">{panelOperator?.name || '—'}</strong></span>
                 </div>
                 <div className="panel-task-list">
-                    {groups[tab].map((task, index) => <TaskCard key={`${task.batch.id}:${task.step.id}`} task={task} state={tab} now={now} featured={tab === 'todo' && index === 0} />)}
+                    {groups[tab].map((task, index) => <TaskCard key={`${task.batch.id}:${task.step.id}`} task={task} state={tab} now={now} featured={tab === 'todo' && index === 0} workstation={selectedWorkstation} />)}
                     {groups[tab].length === 0 && <div className="panel-empty"><CheckCircle2 size={34} />{__('No tasks in this state.')}</div>}
                 </div>
             </div>
@@ -83,14 +83,20 @@ function Tab({ active, onClick, label, count, alert }) {
     return <button type="button" onClick={onClick} className={`panel-tab ${active ? 'panel-tab-active' : ''}`}>{label}<span className={`panel-tab-count ${alert ? 'panel-tab-count-alert' : ''}`}>{count}</span></button>;
 }
 
-function TaskCard({ task, state, now, featured }) {
+function TaskCard({ task, state, now, featured, workstation }) {
     const { order, batch, step } = task;
     const remaining = isRunningFixedHold(step)
         ? holdRemainingSeconds(step.hold_release_at, now)
         : null;
     const blockingReasons = order.blocking_reasons || [];
     const workOrderBlocked = blockingReasons.length > 0;
-    const blocked = step.status === 'PENDING' || workOrderBlocked;
+    const capacityBlocked = isStepStartCapacityBlocked(step, workstation);
+    const blocked = step.status === 'PENDING' || workOrderBlocked || capacityBlocked;
+    const capacityState = workstationCapacityState(workstation);
+    const capacityReason = __('No free workstation capacity (:occupied/:capacity). Release a ready batch first.', {
+        occupied: capacityState.occupied,
+        capacity: capacityState.capacity,
+    });
     const rawQuantity = step.input_quantity ?? batch.target_qty;
     const product = order.product_type;
     const quantity = `${compactQuantity(rawQuantity, product?.quantity_precision, product?.unit_of_measure)}${product?.unit_of_measure ? ` ${product.unit_of_measure}` : ''}`;
@@ -98,18 +104,19 @@ function TaskCard({ task, state, now, featured }) {
         <article className={`panel-task ${featured ? 'panel-task-featured' : ''} ${state === 'ready' ? 'panel-task-ready' : ''}`}>
             <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className={`panel-status ${state === 'ready' ? 'panel-status-ready' : state === 'progress' ? 'panel-status-running' : blocked ? 'panel-status-blocked' : 'panel-status-ready'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : workOrderBlocked ? __('Blocked') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
+                    <span className={`panel-status ${state === 'ready' ? 'panel-status-ready' : state === 'progress' ? 'panel-status-running' : blocked ? 'panel-status-blocked' : 'panel-status-ready'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : workOrderBlocked ? __('Blocked') : capacityBlocked ? __('No free capacity') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
                     {remaining !== null && <span className="font-mono text-sm font-bold">{remaining > 0 ? formatHoldCountdown(remaining) : __('Ready now')}</span>}
                 </div>
                 <h2 className="truncate text-xl font-bold">{step.name} · {__('Batch')} #{batch.batch_number || batch.id}</h2>
                 <p className="mt-1 truncate text-sm text-om-muted">{order.product_type?.name} · {order.order_no}</p>
                 {workOrderBlocked && <p className="mt-3 rounded-om-sm bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked">{__('Reason')}: {blockingReasons.join(', ')}</p>}
+                {capacityBlocked && <p className="mt-3 rounded-om-sm bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked">{capacityReason}</p>}
                 <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={quantity} /><Fact label={__('From')} value={step.step_number > 1 ? (batch.steps || []).find((candidate) => Number(candidate.step_number) === Number(step.step_number) - 1)?.name || '—' : '—'} />{nextStepName(batch, step) && <Fact label={__('Next operation')} value={nextStepName(batch, step)} />}{carrierCode(step) && <Fact label={__('Carrier')} value={carrierCode(step)} />}</div>
             </div>
             <div className="panel-task-side">
                 <strong className="font-mono text-3xl">{quantity}</strong>
-                {workOrderBlocked
-                    ? <button type="button" disabled className="panel-task-action opacity-50"><Clock3 size={22} />{__('Unavailable')}</button>
+                {workOrderBlocked || capacityBlocked
+                    ? <button type="button" disabled title={capacityBlocked ? capacityReason : undefined} className="panel-task-action opacity-50"><Clock3 size={22} />{__('Unavailable')}</button>
                     : <Link href={`/panel/work-order/${order.id}?batch=${batch.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>}
             </div>
         </article>

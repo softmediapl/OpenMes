@@ -14,6 +14,23 @@ export function isRunningFixedHold(step) {
     return step?.execution_mode === 'fixed_hold' && step?.status === 'IN_PROGRESS';
 }
 
+export function workstationCapacityState(workstation) {
+    const capacity = Math.max(1, Number(workstation?.capacity_slots) || 1);
+    const occupied = Math.max(0, Number(workstation?.capacity_occupied_slots) || 0);
+
+    return {
+        capacity,
+        occupied,
+        available: Math.max(0, capacity - occupied),
+        full: workstation?.capacity_is_full === true || occupied >= capacity,
+    };
+}
+
+export function isStepStartCapacityBlocked(step, workstation) {
+    return ['PENDING', 'READY'].includes(step?.status)
+        && workstationCapacityState(workstation).full;
+}
+
 function stationCanOperateStep(workOrder, step, workstation) {
     const workstationId = typeof workstation === 'object' ? workstation?.id : workstation;
 

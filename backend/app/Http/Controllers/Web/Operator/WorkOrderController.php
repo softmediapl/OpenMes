@@ -168,6 +168,10 @@ class WorkOrderController extends Controller
 
         $page = $request->routeIs('panel.*') ? 'panel/Queue' : 'operator/Queue';
 
+        if ($request->routeIs('panel.*')) {
+            $this->appendWorkstationCapacity($selectedWorkstation);
+        }
+
         return Inertia::render($page, compact(
             'activeWorkOrders', 'completedWorkOrders', 'line', 'selectedWorkstation',
             'lineStatuses', 'issueTypes', 'workflowMode', 'doneStatusIds',
@@ -454,6 +458,9 @@ class WorkOrderController extends Controller
 
         $line = $workOrder->line;
         $selectedWorkstation = $lockedWorkstation;
+        if ($request->routeIs('panel.*')) {
+            $this->appendWorkstationCapacity($selectedWorkstation);
+        }
 
         // Active label templates (by type) for the React label-print menu —
         // replaces the old <x-label-print-dropdown> Blade component.
@@ -582,6 +589,23 @@ class WorkOrderController extends Controller
         $page = $request->routeIs('panel.*') ? 'panel/WorkOrder' : 'operator/WorkOrderDetail';
 
         return Inertia::render($page, compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'selectedWorkstation', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+    }
+
+    private function appendWorkstationCapacity(?Workstation $workstation): void
+    {
+        if (! $workstation) {
+            return;
+        }
+
+        $capacity = max(1, (int) $workstation->capacity_slots);
+        $occupied = BatchStep::query()
+            ->where('workstation_id', $workstation->id)
+            ->where('status', BatchStep::STATUS_IN_PROGRESS)
+            ->count();
+
+        $workstation->setAttribute('capacity_occupied_slots', $occupied);
+        $workstation->setAttribute('capacity_available_slots', max(0, $capacity - $occupied));
+        $workstation->setAttribute('capacity_is_full', $occupied >= $capacity);
     }
 
     /**

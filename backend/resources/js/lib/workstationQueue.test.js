@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { currentBatchStep, isRunningFixedHold, workForStation, workItemsForStation } from './workstationQueue';
+import {
+    currentBatchStep,
+    isRunningFixedHold,
+    isStepStartCapacityBlocked,
+    workstationCapacityState,
+    workForStation,
+    workItemsForStation,
+} from './workstationQueue';
 
 describe('workstation queue selection', () => {
     it('shows a hold countdown only after a timed hold has started', () => {
@@ -7,6 +14,33 @@ describe('workstation queue selection', () => {
         expect(isRunningFixedHold({ execution_mode: 'fixed_hold', status: 'PENDING' })).toBe(false);
         expect(isRunningFixedHold({ execution_mode: 'per_batch', status: 'IN_PROGRESS' })).toBe(false);
         expect(isRunningFixedHold({ execution_mode: 'fixed_hold', status: 'IN_PROGRESS' })).toBe(true);
+    });
+
+    it('blocks a new start when the workstation has no available slot', () => {
+        const workstation = {
+            capacity_slots: 10,
+            capacity_occupied_slots: 10,
+            capacity_is_full: true,
+        };
+
+        expect(workstationCapacityState(workstation)).toEqual({
+            capacity: 10,
+            occupied: 10,
+            available: 0,
+            full: true,
+        });
+        expect(isStepStartCapacityBlocked({ status: 'READY' }, workstation)).toBe(true);
+        expect(isStepStartCapacityBlocked({ status: 'IN_PROGRESS' }, workstation)).toBe(false);
+    });
+
+    it('allows a new start as soon as a workstation slot is available', () => {
+        const workstation = {
+            capacity_slots: 10,
+            capacity_occupied_slots: 9,
+            capacity_is_full: false,
+        };
+
+        expect(isStepStartCapacityBlocked({ status: 'READY' }, workstation)).toBe(false);
     });
 
     it('prefers an in-progress operation over ready and pending work', () => {

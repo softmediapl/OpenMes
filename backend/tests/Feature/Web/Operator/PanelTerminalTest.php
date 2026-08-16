@@ -111,6 +111,33 @@ class PanelTerminalTest extends TestCase
             );
     }
 
+    public function test_panel_exposes_current_workstation_capacity_on_queue_and_work_order(): void
+    {
+        $this->workstation->update(['capacity_slots' => 1]);
+        $occupiedBatch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $occupiedBatch->id,
+            'workstation_id' => $this->workstation->id,
+            'step_number' => 1,
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+        ]);
+
+        $assertCapacity = fn (Assert $page) => $page
+            ->where('selectedWorkstation.capacity_occupied_slots', 1)
+            ->where('selectedWorkstation.capacity_available_slots', 0)
+            ->where('selectedWorkstation.capacity_is_full', true);
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.index'))
+            ->assertOk()
+            ->assertInertia($assertCapacity);
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.work-order', $this->workOrder).'?batch='.$this->step->batch_id)
+            ->assertOk()
+            ->assertInertia($assertCapacity);
+    }
+
     public function test_panel_queue_exposes_open_blocking_issue_reasons(): void
     {
         $issueType = IssueType::factory()->blocking()->create();

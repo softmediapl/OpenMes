@@ -6,6 +6,7 @@ import { BatchStepList } from '../operator/WorkOrderDetail';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { compactQuantity } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
+import { isStepStartCapacityBlocked, workstationCapacityState } from '../../lib/workstationQueue';
 
 function elapsedSeconds(startedAt, now) {
     if (!startedAt) return 0;
@@ -42,6 +43,7 @@ export default function WorkOrder({
     stepMedia = {},
     stepChecklists = {},
     canOverrideOperationHold = false,
+    selectedWorkstation = null,
 }) {
     const [now, setNow] = useState(Date.now());
     useEffect(() => {
@@ -53,6 +55,14 @@ export default function WorkOrder({
     const active = useMemo(() => batches.find((batch) => currentStep(batch)?.status === 'IN_PROGRESS') || batches[0], [batches]);
     const activeStep = active ? currentStep(active) : null;
     const product = workOrder.product_type;
+    const capacityState = workstationCapacityState(selectedWorkstation);
+    const capacityBlocked = isStepStartCapacityBlocked(activeStep, selectedWorkstation);
+    const capacityReason = capacityBlocked
+        ? __('No free workstation capacity (:occupied/:capacity). Release a ready batch first.', {
+            occupied: capacityState.occupied,
+            capacity: capacityState.capacity,
+        })
+        : null;
 
     return (
         <div className="panel-operation-screen">
@@ -73,6 +83,7 @@ export default function WorkOrder({
                     {activeStep?.panel_qualification && !activeStep.panel_qualification.qualified && (
                         <div className="panel-operation-warning"><span>{activeStep.panel_qualification.reasons.join(' ')}</span><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}>{__('Authorize replacement')}</button></div>
                     )}
+                    {capacityReason && <div className="panel-operation-warning"><span>{capacityReason}</span></div>}
                     <div className="panel-step-zone panel-touch-step">
                         <BatchStepList
                             steps={[activeStep]}
@@ -86,6 +97,7 @@ export default function WorkOrder({
                             canOverrideOperationHold={canOverrideOperationHold}
                             routeBase="/panel"
                             panelMode
+                            startBlockedReason={capacityReason}
                         />
                     </div>
                 </section>

@@ -786,7 +786,7 @@ function CompactHoldCountdown({ step }) {
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false }) {
+export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false, startBlockedReason = null }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
@@ -968,8 +968,9 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                             {(step.status === 'PENDING' || step.status === 'READY') && (
                                 <Button
                                     variant="accent"
-                                    disabled={isInflight}
+                                    disabled={isInflight || !!startBlockedReason}
                                     onClick={() => handleStart(step)}
+                                    title={startBlockedReason || undefined}
                                     className="px-6 py-3.5 text-[15px] whitespace-nowrap"
                                 >
                                     {isInflight ? '…' : __('Start')}
