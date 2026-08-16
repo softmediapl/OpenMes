@@ -171,6 +171,7 @@ class WorkOrderController extends Controller
         if ($request->routeIs('panel.*')) {
             $this->appendWorkstationCapacity($selectedWorkstation);
             if ($selectedWorkstation && $request->attributes->get('panel_operator')) {
+                $request->attributes->set(WorkstationContext::REQUEST_ATTRIBUTE, $selectedWorkstation);
                 $this->appendPanelQualifications(
                     $request,
                     $selectedWorkstation,
@@ -467,6 +468,9 @@ class WorkOrderController extends Controller
         $selectedWorkstation = $lockedWorkstation;
         if ($request->routeIs('panel.*')) {
             $this->appendWorkstationCapacity($selectedWorkstation);
+            if ($selectedWorkstation) {
+                $request->attributes->set(WorkstationContext::REQUEST_ATTRIBUTE, $selectedWorkstation);
+            }
         }
 
         // Active label templates (by type) for the React label-print menu —

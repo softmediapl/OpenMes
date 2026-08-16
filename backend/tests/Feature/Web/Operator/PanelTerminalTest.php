@@ -424,6 +424,46 @@ class PanelTerminalTest extends TestCase
             );
     }
 
+    public function test_human_device_recognizes_and_consumes_a_selected_station_override(): void
+    {
+        Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $deviceUser = User::factory()->create(['account_type' => 'user']);
+        $deviceUser->assignRole('Admin');
+        $this->operator->worker->update(['workstation_id' => null]);
+        $authorization = PanelSupervisorAuthorization::create([
+            'workstation_id' => $this->workstation->id,
+            'batch_step_id' => $this->step->id,
+            'operator_id' => $this->operator->id,
+            'supervisor_id' => $deviceUser->id,
+            'action' => PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+            'mode' => 'remote_only',
+            'reason' => 'Supervisor approved this one selected-station operation.',
+            'authorized_at' => now(),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+        $session = [
+            'selected_line_id' => $this->workstation->line_id,
+            'selected_workstation_id' => $this->workstation->id,
+            PanelOperatorContext::SESSION_KEY => $this->operator->id,
+            'panel_operator_started_at' => now()->timestamp,
+        ];
+
+        $this->actingAs($deviceUser)->withSession($session)
+            ->get(route('panel.work-order', $this->workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workOrder.batches.0.steps.0.panel_qualification.qualified', false)
+                ->where('workOrder.batches.0.steps.0.panel_qualification.supervisor_authorized', true)
+            );
+
+        $this->actingAs($deviceUser)->withSession($session)
+            ->post(route('panel.batch-step.start', $this->step), [])
+            ->assertSessionHas('success');
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $this->step->fresh()->status);
+        $this->assertNotNull($authorization->fresh()->consumed_at);
+    }
+
     public function test_remote_only_workstation_rejects_local_supervisor_authorization(): void
     {
         $this->workstation->update(['panel_supervisor_mode' => 'remote_only']);

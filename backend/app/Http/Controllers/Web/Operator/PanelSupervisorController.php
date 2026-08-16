@@ -26,7 +26,7 @@ class PanelSupervisorController extends Controller
             'username' => ['nullable', 'string', 'max:255'],
             'pin' => ['nullable', 'digits_between:4,12'],
         ]);
-        $workstation = $workstations->workstation($request);
+        $workstation = $workstations->currentWorkstation($request);
         $step = BatchStep::findOrFail($data['batch_step_id']);
         abort_unless($workstation && $workstations->canAccessStep($request, $step), 403);
         $mode = $authorizations->mode($workstation);

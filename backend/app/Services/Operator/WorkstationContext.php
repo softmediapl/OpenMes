@@ -101,12 +101,18 @@ class WorkstationContext
             return null;
         }
 
-        return Workstation::query()
+        $workstation = Workstation::query()
             ->whereKey($workstationId)
             ->where('is_active', true)
             ->whereHas('line', fn ($query) => $query->where('is_active', true))
             ->with('line')
             ->first();
+
+        if ($workstation) {
+            $request->attributes->set(self::REQUEST_ATTRIBUTE, $workstation);
+        }
+
+        return $workstation;
     }
 
     /**
