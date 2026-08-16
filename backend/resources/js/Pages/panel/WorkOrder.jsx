@@ -64,7 +64,10 @@ export default function WorkOrder({
         })
         : null;
     const qualification = activeStep?.panel_qualification;
-    const qualificationBlocked = !!qualification && !qualification.qualified && !qualification.supervisor_authorized;
+    const qualificationBlocked = ['PENDING', 'READY'].includes(activeStep?.status)
+        && !!qualification
+        && !qualification.qualified
+        && !qualification.supervisor_authorized;
     const qualificationReason = qualificationBlocked ? qualification.reasons.join(' ') : null;
     const startBlockedReason = capacityReason || qualificationReason;
 

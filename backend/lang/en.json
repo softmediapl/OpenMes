@@ -5428,6 +5428,8 @@
     "Supervisor authorized this start.": "Supervisor authorized this start.",
     "Unavailable": "Unavailable",
     "Step completed.": "Step completed.",
+    "Checklist item checked.": "Checklist item checked.",
+    "Checklist item unchecked.": "Checklist item unchecked.",
     "At least one transport unit must be scanned.": "At least one transport unit must be scanned.",
     "Transport unit code is required.": "Transport unit code is required.",
     "A transport unit may only be scanned once per operation.": "A transport unit may only be scanned once per operation.",

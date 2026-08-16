@@ -378,7 +378,7 @@ class BatchController extends Controller
         if ($existing) {
             $existing->delete();
 
-            return back()->with('success', 'Checklist item unchecked.');
+            return back()->with('success', __('Checklist item unchecked.'));
         }
 
         BatchStepChecklistCompletion::create([
@@ -388,7 +388,7 @@ class BatchController extends Controller
             'checked_at' => now(),
         ]);
 
-        return back()->with('success', 'Checklist item checked.');
+        return back()->with('success', __('Checklist item checked.'));
     }
 
     /**

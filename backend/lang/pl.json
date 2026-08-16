@@ -5434,6 +5434,8 @@
     "Supervisor authorized this start.": "Supervisor autoryzował ten start.",
     "Unavailable": "Niedostępne",
     "Step completed.": "Krok zakończono.",
+    "Checklist item checked.": "Pozycja listy kontrolnej została potwierdzona.",
+    "Checklist item unchecked.": "Cofnięto potwierdzenie pozycji listy kontrolnej.",
     "At least one transport unit must be scanned.": "Należy zeskanować co najmniej jedną jednostkę transportową.",
     "Transport unit code is required.": "Kod jednostki transportowej jest wymagany.",
     "A transport unit may only be scanned once per operation.": "Jednostkę transportową można zeskanować tylko raz w ramach operacji.",
