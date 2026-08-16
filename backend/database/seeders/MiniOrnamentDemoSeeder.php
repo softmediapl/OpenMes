@@ -191,7 +191,7 @@ class MiniOrnamentDemoSeeder extends Seeder
                 'step_number' => 1,
                 'name' => 'Malowanie bombki mini',
                 'instruction' => 'Pobierz surowe bombki mini i czerwoną farbę. Pokryj każdą bombkę równą warstwą bez zacieków.',
-                'estimated_duration_minutes' => 2,
+                'estimated_duration_minutes' => null,
                 'execution_mode' => OperationExecutionMode::PerBatch,
                 'labor_mode' => OperationLaborMode::Attended,
                 'min_duration_minutes' => null,
