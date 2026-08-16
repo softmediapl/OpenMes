@@ -67,6 +67,14 @@ class PanelTerminalTest extends TestCase
 
     public function test_panel_renders_the_terminal_queue_without_changing_operator_ui(): void
     {
+        $otherStation = Workstation::factory()->create(['line_id' => $this->workstation->line_id]);
+        $otherBatch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $otherBatch->id,
+            'workstation_id' => $otherStation->id,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
         $this->actingAs($this->terminal)
             ->get(route('panel.index'))
             ->assertOk()
@@ -75,6 +83,8 @@ class PanelTerminalTest extends TestCase
                 ->where('selectedWorkstation.id', $this->workstation->id)
                 ->where('panelOperator', null)
                 ->has('workstationQueue', 1)
+                ->has('workstationQueue.0.batches', 1)
+                ->where('workstationQueue.0.batches.0.steps.0.workstation_id', $this->workstation->id)
                 ->where('workstationQueue.0.product_type.quantity_precision', $this->workOrder->productType->quantityPrecision())
             );
 

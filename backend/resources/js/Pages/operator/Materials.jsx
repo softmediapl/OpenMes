@@ -48,7 +48,7 @@ function materialRouteBase() {
         : '/operator';
 }
 
-export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation, unitPrecisions = {} }) {
+export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation, unitPrecisions = {}, panelMode = false }) {
     const [countedStock, setCountedStock] = useState(null);
     const [requestingPolicyId, setRequestingPolicyId] = useState(null);
     const rows = useMemo(
@@ -62,8 +62,8 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
     return (
         <>
             <Head title={__('Workstation Materials')} />
-            <div className="mx-auto max-w-6xl">
-                <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+            <div className={panelMode ? 'panel-materials-screen' : 'mx-auto max-w-6xl'}>
+                <div className={panelMode ? 'panel-materials-heading' : 'mb-6 flex flex-wrap items-end justify-between gap-3'}>
                     <div>
                         <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">
                             {__('Current workstation')}
@@ -81,6 +81,22 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                 {rows.length === 0 ? (
                     <div className="border-y border-om-line py-16 text-center text-sm text-om-muted">
                         {__('No materials are configured for this workstation.')}
+                    </div>
+                ) : panelMode ? (
+                    <div className="panel-material-list">
+                        {rows.map((row) => (
+                            <PanelMaterialRow
+                                key={row.material.id}
+                                row={row}
+                                displayQuantity={displayQuantity}
+                                requesting={requestingPolicyId === row.policy?.id}
+                                onCount={setCountedStock}
+                                onRequest={() => {
+                                    setRequestingPolicyId(row.policy.id);
+                                    requestRefill(row, () => setRequestingPolicyId(null));
+                                }}
+                            />
+                        ))}
                     </div>
                 ) : (
                     <div className="overflow-hidden border-y border-om-line bg-om-card">
@@ -175,13 +191,45 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                         </div>
                     </div>
                 )}
-                {countedStock && <CountModal stock={countedStock} unitPrecisions={unitPrecisions} onClose={() => setCountedStock(null)} />}
+                {countedStock && <CountModal stock={countedStock} unitPrecisions={unitPrecisions} panelMode={panelMode} onClose={() => setCountedStock(null)} />}
             </div>
         </>
     );
 }
 
-function CountModal({ stock, unitPrecisions, onClose }) {
+function PanelMaterialRow({ row, displayQuantity, requesting, onCount, onRequest }) {
+    const primaryStock = row.stocks[0];
+
+    return <article className={`panel-material-row ${row.level === 'low' ? 'panel-material-row-low' : ''}`}>
+        <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+                <h2 className="truncate text-lg font-bold">{row.material.name}</h2>
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${levelStyles[row.level]}`}>{__(levelLabels[row.level])}</span>
+            </div>
+            <p className="font-mono text-xs text-om-muted">{row.material.code}</p>
+            <div className="mt-3 flex flex-wrap gap-x-7 gap-y-2">
+                <MaterialFact label={__('Lot')} value={primaryStock?.material_lot?.lot_number ?? __('Bulk')} />
+                <MaterialFact label={__('On hand')} value={displayQuantity(row.onHand, row.material.unit_of_measure)} />
+                <MaterialFact label={__('Reserved')} value={displayQuantity(row.reserved, row.material.unit_of_measure)} />
+                <MaterialFact label={__('Available')} value={displayQuantity(row.available, row.material.unit_of_measure)} emphasize />
+            </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+            {primaryStock ? <button type="button" onClick={() => onCount(primaryStock)} className="panel-secondary">{__('Reconcile count')}</button> : <span />}
+            {row.request ? (
+                <button type="button" onClick={() => cancelRequest(row.request.id)} className="panel-secondary text-om-blocked">{__('Cancel request')}</button>
+            ) : row.policy ? (
+                <button type="button" disabled={requesting} onClick={onRequest} className="panel-primary">{requesting ? '…' : __('Request refill')}</button>
+            ) : null}
+        </div>
+    </article>;
+}
+
+function MaterialFact({ label, value, emphasize = false }) {
+    return <span><span className="panel-label mb-1">{label}</span><strong className={emphasize ? 'text-lg' : ''}>{value}</strong></span>;
+}
+
+function CountModal({ stock, unitPrecisions, onClose, panelMode = false }) {
     const form = useForm({
         counted_quantity: String(stock.quantity),
         notes: '',
@@ -225,7 +273,7 @@ function CountModal({ stock, unitPrecisions, onClose }) {
                     </div>
                     <div>
                         <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Measured quantity')}</label>
-                        <input type="number" min="0" step={inputConfig.step} inputMode={precision === 0 ? 'numeric' : 'decimal'} autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />
+                        {panelMode ? <MaterialCountStepper value={form.data.counted_quantity} step={inputConfig.step} onChange={(value) => form.setData('counted_quantity', value)} /> : <input type="number" min="0" step={inputConfig.step} inputMode={precision === 0 ? 'numeric' : 'decimal'} autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />}
                         <p className="mt-1 text-xs text-om-muted">{__('The difference from the system quantity is settled as use to this point. The measured quantity becomes the new baseline.')}</p>
                         {form.errors.counted_quantity && <p className="mt-1 text-xs text-om-blocked">{form.errors.counted_quantity}</p>}
                     </div>
@@ -245,6 +293,21 @@ function CountModal({ stock, unitPrecisions, onClose }) {
             </form>
         </div>
     );
+}
+
+function MaterialCountStepper({ value, step, onChange }) {
+    const changeBy = (direction) => {
+        const increment = Number(step) || 1;
+        const decimals = String(step).includes('.') ? String(step).split('.')[1].length : 0;
+        const next = Math.max(0, (Number(value) || 0) + increment * direction);
+        onChange(decimals ? next.toFixed(decimals) : String(Math.round(next)));
+    };
+
+    return <div className="grid grid-cols-[4rem_minmax(0,1fr)_4rem] gap-2">
+        <button type="button" className="panel-quantity-button h-16 w-16" onClick={() => changeBy(-1)} aria-label={__('Decrease')}>−</button>
+        <input type="number" min="0" step={step} inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} className="min-w-0 rounded-om-sm border border-om-line bg-om-bg px-3 text-center font-mono text-2xl font-bold text-om-ink" />
+        <button type="button" className="panel-quantity-button h-16 w-16" onClick={() => changeBy(1)} aria-label={__('Increase')}>+</button>
+    </div>;
 }
 
 function Summary({ label, value, alert = false }) {

@@ -112,6 +112,18 @@ class WorkOrderController extends Controller
                 }
 
                 return false;
+            })->map(function (WorkOrder $workOrder) use ($selectedWorkstation) {
+                $visibleBatches = $workOrder->batches
+                    ->filter(function (Batch $batch) use ($selectedWorkstation) {
+                        $currentStep = $batch->currentStep();
+
+                        return $currentStep
+                            && $this->workstationContext->workstationCanOperateStep($selectedWorkstation, $currentStep);
+                    })
+                    ->values();
+                $workOrder->setRelation('batches', $visibleBatches);
+
+                return $workOrder;
             })->values();
         }
 
