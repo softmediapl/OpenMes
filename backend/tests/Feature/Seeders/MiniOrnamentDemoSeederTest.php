@@ -10,6 +10,7 @@ use App\Models\ProductRevision;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
 use App\Models\Warehouse;
+use App\Models\WarehouseStock;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\WorkOrder\WorkOrderService;
@@ -84,6 +85,19 @@ class MiniOrnamentDemoSeederTest extends TestCase
         $this->assertTrue($steps[2]->quality_gate_required);
         $this->assertCount(3, BomItem::where('process_template_id', $template->id)->get());
         $this->assertCount(4, $template->checklistItems);
+
+        $paint = \App\Models\Material::where('code', 'FAR-MINI-CZER')->firstOrFail();
+        $warehouse = Warehouse::where('is_default', true)->firstOrFail();
+        $this->assertTrue(WarehouseStock::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('material_id', $paint->id)
+            ->whereNull('material_lot_id')
+            ->exists());
+        $this->assertTrue(WarehouseStock::query()
+            ->where('warehouse_id', $warehouse->id)
+            ->where('material_id', $paint->id)
+            ->whereNotNull('material_lot_id')
+            ->exists());
 
         $snapshot = $template->toSnapshot();
         $this->assertCount(3, $snapshot['steps']);

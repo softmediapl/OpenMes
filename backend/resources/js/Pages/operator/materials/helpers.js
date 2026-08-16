@@ -5,6 +5,13 @@ export function numberValue(value) {
     return Number.isFinite(parsed) ? parsed : 0;
 }
 
+export function countInputValue(value, precision) {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return '0';
+
+    return String(Number(parsed.toFixed(precision)));
+}
+
 export function buildMaterialRows(stocks = [], policies = [], requests = []) {
     const rows = new Map();
 

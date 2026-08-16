@@ -422,6 +422,9 @@ function DeliverModal({ request, materials, warehouseStocks, onClose }) {
                 {stockOptions.length === 0 && (
                     <p className="rounded-md bg-om-blocked-bg px-3 py-2 text-sm text-om-blocked">{__('No available stock in the source warehouse.')}</p>
                 )}
+                {form.errors.warehouse_id && (
+                    <p className="rounded-md bg-om-blocked-bg px-3 py-2 text-sm text-om-blocked">{form.errors.warehouse_id}</p>
+                )}
                 <Field label={__('Quantity')} error={form.errors.quantity} hint={`${__('Remaining')}: ${configuredQuantity.format(remainingQuantity(request))} ${request.unit_of_measure}`}>
                     <input required min="0" step={configuredQuantity.input.step} type="number" value={form.data.quantity} onChange={(event) => form.setData('quantity', event.target.value)} className={inputClass} />
                 </Field>

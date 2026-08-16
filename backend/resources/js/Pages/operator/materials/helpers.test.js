@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMaterialRows } from './helpers';
+import { buildMaterialRows, countInputValue } from './helpers';
 
 const material = { id: 1, code: 'GLASS', name: 'Glass tube', unit_of_measure: 'pcs' };
 
@@ -29,5 +29,12 @@ describe('buildMaterialRows', () => {
         const rows = buildMaterialRows([{ material, quantity: 5, reserved_quantity: 0 }]);
 
         expect(rows[0].level).toBe('unmanaged');
+    });
+});
+
+describe('countInputValue', () => {
+    it('uses the configured unit precision instead of database scale', () => {
+        expect(countInputValue('816.5000', 2)).toBe('816.5');
+        expect(countInputValue('95.0000', 0)).toBe('95');
     });
 });

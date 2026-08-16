@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import { assertQuantityPrecision, quantityInputConfig } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
-import { buildMaterialRows } from './materials/helpers';
+import { buildMaterialRows, countInputValue } from './materials/helpers';
 
 const levelStyles = {
     low: 'bg-om-blocked-bg text-om-blocked border-om-blocked/20',
@@ -230,16 +230,16 @@ function MaterialFact({ label, value, emphasize = false }) {
 }
 
 function CountModal({ stock, unitPrecisions, onClose, panelMode = false }) {
+    const unit = stock.material?.unit_of_measure ?? stock.unit_of_measure;
+    const precision = assertQuantityPrecision(unitPrecisions[unit], unit);
     const form = useForm({
-        counted_quantity: String(stock.quantity),
+        counted_quantity: countInputValue(stock.quantity, precision),
         notes: '',
     });
     const counted = Number(form.data.counted_quantity);
     const book = Number(stock.quantity);
     const difference = Number.isFinite(counted) ? counted - book : 0;
     const valid = Number.isFinite(counted) && counted >= 0;
-    const unit = stock.material?.unit_of_measure ?? stock.unit_of_measure;
-    const precision = assertQuantityPrecision(unitPrecisions[unit], unit);
     const inputConfig = quantityInputConfig(precision, unit);
     const displayQuantity = (value) => quantity(value, unit, unitPrecisions);
 

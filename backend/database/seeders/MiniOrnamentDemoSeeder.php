@@ -417,6 +417,19 @@ class MiniOrnamentDemoSeeder extends Seeder
                 [
                     'warehouse_id' => $warehouse->id,
                     'material_id' => $material->id,
+                    'material_lot_id' => null,
+                ],
+                [
+                    'product_type_id' => null,
+                    'quantity' => $definition['warehouse'],
+                    'unit_of_measure' => $material->unit_of_measure,
+                ],
+            );
+
+            WarehouseStock::firstOrCreate(
+                [
+                    'warehouse_id' => $warehouse->id,
+                    'material_id' => $material->id,
                     'material_lot_id' => $lot->id,
                 ],
                 [
