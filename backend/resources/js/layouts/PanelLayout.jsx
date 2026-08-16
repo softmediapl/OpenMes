@@ -2,6 +2,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { __ } from '../lib/i18n';
+import { pinDigits, replacePinGroup, splitGroupedPin } from '../lib/groupedPin';
 
 export default function PanelLayout({ children }) {
     const props = usePage().props;
@@ -118,8 +119,10 @@ function Submit({ form, label }) { return <button type="submit" disabled={form.p
 
 function IdentityModal({ operator, identity = {}, onClose }) {
     const form = useForm({ username: '', pin: '' });
+    const pinInputRef = useRef(null);
     const mode = identity?.mode || 'username_pin';
     const needsUsername = mode !== 'pin_only';
+    const focusPin = () => requestAnimationFrame(() => pinInputRef.current?.focus());
     const submit = (event) => {
         event.preventDefault();
         form.post('/panel/identity', { onSuccess: onClose });
@@ -134,12 +137,12 @@ function IdentityModal({ operator, identity = {}, onClose }) {
                 </div>
                 {operator && <div className="mb-5 flex items-center justify-between rounded-om-sm bg-om-panel p-4"><strong>{operator.name}</strong><button type="button" onClick={() => router.delete('/panel/identity')} className="flex items-center gap-2 text-sm font-semibold text-om-blocked"><LogOut size={18} />{__('End session')}</button></div>}
                 {mode === 'list_pin' ? (
-                    <><label className="panel-label">{__('Operator')}</label><select autoFocus={!operator} value={form.data.username} onChange={(e) => form.setData('username', e.target.value)} className="panel-input mb-4"><option value="">{__('Select operator')}</option>{(identity.operators || []).map((item) => <option key={item.id} value={item.username}>{item.name}</option>)}</select></>
+                    <><label className="panel-label">{__('Operator')}</label><select autoFocus={!operator} value={form.data.username} onChange={(event) => { form.setData('username', event.target.value); if (event.target.value) focusPin(); }} className="panel-input mb-4"><option value="">{__('Select operator')}</option>{(identity.operators || []).map((item) => <option key={item.id} value={item.username}>{item.name}</option>)}</select></>
                 ) : needsUsername ? (
-                    <><label className="panel-label">{__('Worker code')}</label><input autoFocus={!operator} value={form.data.username} onChange={(e) => form.setData('username', e.target.value)} className="panel-input mb-4" autoComplete="username" /></>
+                    <><label className="panel-label">{__('Worker code')}</label><input autoFocus={!operator} value={form.data.username} onChange={(event) => form.setData('username', event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && event.currentTarget.value.trim()) { event.preventDefault(); focusPin(); } }} className="panel-input mb-4" autoComplete="username" /></>
                 ) : null}
                 <label className="panel-label">{__('PIN')}</label>
-                <GroupedPinInput value={form.data.pin} onChange={(pin) => form.setData('pin', pin)} length={mode === 'pin_only' ? identity.pinLength : 12} groupSize={identity.groupSize || 3} autoFocus={mode === 'pin_only' && !operator} />
+                <GroupedPinInput firstInputRef={pinInputRef} value={form.data.pin} onChange={(pin) => form.setData('pin', pin)} length={mode === 'pin_only' ? identity.pinLength : 12} groupSize={identity.groupSize || 3} autoFocus={mode === 'pin_only' && !operator} />
                 {(form.errors.username || form.errors.pin) && <p className="mt-2 text-sm text-om-blocked">{form.errors.username || form.errors.pin}</p>}
                 <button disabled={form.processing || form.data.pin.length < 4 || (mode === 'pin_only' && form.data.pin.length !== identity.pinLength) || (needsUsername && !form.data.username.trim())} className="panel-primary mt-6 w-full">{form.processing ? __('Checking...') : __('Start work')}</button>
             </form>
@@ -147,31 +150,30 @@ function IdentityModal({ operator, identity = {}, onClose }) {
     );
 }
 
-function GroupedPinInput({ value, onChange, length, groupSize, autoFocus }) {
+function GroupedPinInput({ value, onChange, length, groupSize, autoFocus, firstInputRef }) {
     const groups = Math.ceil(length / groupSize);
     const refs = useRef([]);
-    const parts = Array.from({ length: groups }, (_, index) => value.slice(index * groupSize, (index + 1) * groupSize));
+    const parts = splitGroupedPin(value, length, groupSize);
+    const focusAfterInput = (digitsLength, startIndex = 0) => {
+        const target = Math.min(groups - 1, startIndex + Math.max(0, Math.ceil(digitsLength / groupSize) - 1));
+        requestAnimationFrame(() => refs.current[target]?.focus());
+    };
     const update = (index, input) => {
-        const digits = input.replace(/\D/g, '');
-        if (digits.length > groupSize) {
-            const combined = [...parts];
-            let remaining = digits;
-            for (let cursor = index; cursor < groups && remaining; cursor++) {
-                const size = cursor === groups - 1 ? length - cursor * groupSize : groupSize;
-                combined[cursor] = remaining.slice(0, size);
-                remaining = remaining.slice(size);
-            }
-            onChange(combined.join('').slice(0, length));
-            refs.current[Math.min(groups - 1, index + Math.ceil(digits.length / groupSize) - 1)]?.focus();
-            return;
-        }
-        const next = [...parts];
-        next[index] = digits.slice(0, groupSize);
-        onChange(next.join('').slice(0, length));
+        const digits = pinDigits(input, length);
+        onChange(replacePinGroup(value, index, input, length, groupSize));
+        if (digits.length > groupSize) focusAfterInput(digits.length, index);
         if (digits.length === groupSize) refs.current[index + 1]?.focus();
     };
+    const paste = (event) => {
+        const digits = pinDigits(event.clipboardData.getData('text'), length);
+        if (!digits) return;
 
-    return <div className="flex flex-wrap gap-2">{parts.map((part, index) => <input key={index} ref={(node) => { refs.current[index] = node; }} autoFocus={autoFocus && index === 0} value={part} onChange={(event) => update(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !part) refs.current[index - 1]?.focus(); }} className="panel-input w-24 text-center font-mono text-2xl" inputMode="numeric" type="password" autoComplete="off" maxLength={groupSize} aria-label={`${__('PIN')} ${index + 1}`} />)}</div>;
+        event.preventDefault();
+        onChange(digits);
+        focusAfterInput(digits.length);
+    };
+
+    return <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${groups}, minmax(0, 1fr))` }} onPaste={paste}>{parts.map((part, index) => <input key={index} ref={(node) => { refs.current[index] = node; if (index === 0 && firstInputRef) firstInputRef.current = node; }} autoFocus={autoFocus && index === 0} value={part} onChange={(event) => update(index, event.target.value)} onKeyDown={(event) => { if (event.key === 'Backspace' && !part) refs.current[index - 1]?.focus(); }} className="panel-input min-w-0 w-full px-2 text-center font-mono text-2xl" inputMode="numeric" pattern="[0-9]*" type="password" autoComplete={index === 0 ? 'one-time-code' : 'off'} aria-label={`${__('PIN')} ${index + 1}`} />)}</div>;
 }
 
 function Flash({ flash }) {

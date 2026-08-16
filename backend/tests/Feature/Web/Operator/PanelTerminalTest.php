@@ -83,6 +83,20 @@ class PanelTerminalTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('operator/Queue'));
     }
 
+    public function test_panel_work_order_includes_the_configured_product_quantity_unit(): void
+    {
+        $product = $this->workOrder->productType;
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.work-order', $this->workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('panel/WorkOrder')
+                ->where('workOrder.product_type.unit_of_measure', $product->unit_of_measure)
+                ->where('workOrder.product_type.quantity_precision', $product->quantityPrecision())
+            );
+    }
+
     public function test_panel_requires_a_personal_operator_before_starting_work(): void
     {
         $this->actingAs($this->terminal)

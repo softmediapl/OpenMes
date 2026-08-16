@@ -297,6 +297,7 @@ class WorkOrderController extends Controller
             'scrapEntries.scrapReason',
             'scrapEntries.reportedBy',
         ]);
+        $workOrder->productType?->append('quantity_precision');
 
         $issueTypes = IssueType::where('is_active', true)->orderBy('name')->get();
 
