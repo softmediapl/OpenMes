@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { operationActualRunMinutes, operationActualTimeDefaults } from './operationActualTime';
+import { operationActualRunMinutes, operationActualTimeDefaults, shouldReportOperationTime } from './operationActualTime';
 
 describe('operationActualTimeDefaults', () => {
     it('prefills elapsed time from the step start timestamp', () => {
@@ -40,5 +40,17 @@ describe('operationActualTimeDefaults', () => {
             setup: 0,
             run: 0,
         });
+    });
+});
+
+describe('shouldReportOperationTime', () => {
+    it('records start-stop time for every started panel operation without making it a timed hold', () => {
+        expect(shouldReportOperationTime({ started_at: '2026-08-16T10:00:00Z', execution_mode: 'per_batch' }, true)).toBe(true);
+        expect(shouldReportOperationTime({ started_at: null, execution_mode: 'per_batch' }, true)).toBe(false);
+    });
+
+    it('keeps the legacy operator condition based on configured time fields', () => {
+        expect(shouldReportOperationTime({ execution_mode: 'per_batch' })).toBe(false);
+        expect(shouldReportOperationTime({ execution_mode: 'fixed_hold' })).toBe(true);
     });
 });

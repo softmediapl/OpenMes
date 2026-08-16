@@ -14,7 +14,7 @@ import { customFieldInitial, customFieldProps, submitForm } from '../../lib/cust
 import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdownValid, quantityInputValue } from '../../lib/operationQuantity';
-import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
+import { operationActualRunMinutes, operationActualTimeDefaults, shouldReportOperationTime } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
 import { assertQuantityPrecision, compactQuantity } from '../../lib/configuredQuantity';
@@ -1569,7 +1569,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         return workstationTypeIds.length === 0 || workstationTypeIds.includes(Number(step.workstation_type_id));
     });
     const isFixedHold = step.execution_mode === 'fixed_hold';
-    const reportsTime = isFixedHold || step.setup_time_minutes != null || step.run_time_per_unit_minutes != null;
+    const panelMode = routeBase === '/panel';
+    const reportsTime = shouldReportOperationTime(step, panelMode);
     const [clock, setClock] = useState(Date.now());
     const actualTimeDefaults = operationActualTimeDefaults(step, clock);
     const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
@@ -1744,6 +1745,17 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                     ? __('Rework and scrap cannot exceed the input quantity.')
                                     : __('Enter valid quantities for the complete balance.')}
                         </div>
+                        {reportsTime && panelMode && (
+                            <CompletionTimeFields
+                                compact
+                                elapsed={form.data.actual_elapsed_minutes}
+                                setup={form.data.actual_setup_minutes}
+                                run={actualRunMinutes}
+                                setupExceedsElapsed={setupExceedsElapsed}
+                                onElapsedChange={(value) => form.setData('actual_elapsed_minutes', value)}
+                                onSetupChange={(value) => form.setData('actual_setup_minutes', value)}
+                            />
+                        )}
                         <div className="space-y-2">
                             <div className="flex items-center justify-between gap-3">
                                 <span className={labelCls}>{__('Scrap breakdown')}</span>
@@ -1903,24 +1915,15 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                     </section>
                 )}
 
-                {reportsTime && (
-                    <section className="space-y-3 border-t border-om-line2 pt-4">
-                        <div>
-                            <label className={labelCls}>{__('Actual elapsed (minutes)')}</label>
-                            <input type="number" min="0" value={form.data.actual_elapsed_minutes} onChange={(e) => form.setData('actual_elapsed_minutes', e.target.value)} className={inputCls} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className={labelCls}>{__('Actual setup (minutes)')}</label>
-                                <TouchNumberControl value={form.data.actual_setup_minutes} onChange={(value) => form.setData('actual_setup_minutes', value)} />
-                            </div>
-                            <div>
-                                <label className={labelCls}>{__('Actual run (minutes)')}</label>
-                                <input type="number" min="0" value={actualRunMinutes ?? ''} readOnly className={`${inputCls} bg-om-panel`} />
-                            </div>
-                        </div>
-                        {setupExceedsElapsed && <p className="text-om-blocked text-xs">{__('Setup cannot exceed the elapsed time.')}</p>}
-                    </section>
+                {reportsTime && (!reportsQuantity || !panelMode) && (
+                    <CompletionTimeFields
+                        elapsed={form.data.actual_elapsed_minutes}
+                        setup={form.data.actual_setup_minutes}
+                        run={actualRunMinutes}
+                        setupExceedsElapsed={setupExceedsElapsed}
+                        onElapsedChange={(value) => form.setData('actual_elapsed_minutes', value)}
+                        onSetupChange={(value) => form.setData('actual_setup_minutes', value)}
+                    />
                 )}
 
                 {Object.keys(form.errors).length > 0 && (
@@ -1936,6 +1939,31 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                 </Button>
             </div>
         </ModalShell>
+    );
+}
+
+function CompletionTimeFields({ compact = false, elapsed, setup, run, setupExceedsElapsed, onElapsedChange, onSetupChange }) {
+    const inputClass = 'w-full rounded-om-sm border border-om-line bg-om-card px-3 py-2 font-mono text-[15px]';
+    const labelClass = 'mb-1 block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint';
+
+    return (
+        <section className={compact ? 'border-t border-om-line2 pt-3' : 'space-y-3 border-t border-om-line2 pt-4'}>
+            <div className={compact ? 'grid grid-cols-[0.8fr_1.6fr_0.8fr] items-end gap-3' : 'space-y-3'}>
+                <div>
+                    <label className={labelClass}>{__('Actual elapsed (minutes)')}</label>
+                    <input type="number" min="0" value={elapsed} readOnly={compact} onChange={(event) => onElapsedChange(event.target.value)} className={`${inputClass} ${compact ? 'bg-om-panel' : ''}`} />
+                </div>
+                <div>
+                    <label className={labelClass}>{__('Actual setup (minutes)')}</label>
+                    <TouchNumberControl value={setup} onChange={onSetupChange} />
+                </div>
+                <div>
+                    <label className={labelClass}>{__('Actual run (minutes)')}</label>
+                    <input type="number" min="0" value={run ?? ''} readOnly className={`${inputClass} bg-om-panel`} />
+                </div>
+            </div>
+            {setupExceedsElapsed && <p className="mt-2 text-xs text-om-blocked">{__('Setup cannot exceed the elapsed time.')}</p>}
+        </section>
     );
 }
 

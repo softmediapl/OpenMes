@@ -15,6 +15,14 @@ export function operationActualTimeDefaults(step, nowMs = Date.now()) {
     };
 }
 
+export function shouldReportOperationTime(step, panelMode = false) {
+    if (panelMode) return Boolean(step?.started_at);
+
+    return step?.execution_mode === 'fixed_hold'
+        || step?.setup_time_minutes != null
+        || step?.run_time_per_unit_minutes != null;
+}
+
 export function operationActualRunMinutes(elapsed, setup) {
     const elapsedMinutes = Number(elapsed);
     const setupMinutes = Number(setup);
