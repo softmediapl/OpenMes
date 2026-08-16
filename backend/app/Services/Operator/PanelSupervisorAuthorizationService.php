@@ -3,6 +3,7 @@
 namespace App\Services\Operator;
 
 use App\Models\BatchStep;
+use App\Models\Issue;
 use App\Models\PanelSupervisorAuthorization;
 use App\Models\User;
 use App\Models\Workstation;
@@ -92,6 +93,28 @@ class PanelSupervisorAuthorizationService
 
     public function consume(?PanelSupervisorAuthorization $authorization): void
     {
-        $authorization?->update(['consumed_at' => now()]);
+        if (! $authorization) {
+            return;
+        }
+
+        $consumedAt = now();
+        $authorization->update(['consumed_at' => $consumedAt]);
+
+        $helpIssueTypeId = SystemSetting::get('panel_help_issue_type_id');
+        if (! $helpIssueTypeId) {
+            return;
+        }
+
+        Issue::query()
+            ->open()
+            ->where('issue_type_id', $helpIssueTypeId)
+            ->where('batch_step_id', $authorization->batch_step_id)
+            ->where('reported_by_id', $authorization->operator_id)
+            ->update([
+                'status' => Issue::STATUS_RESOLVED,
+                'resolved_at' => $consumedAt,
+                'resolution_notes' => 'The authorized supervisor action was completed.',
+                'updated_at' => $consumedAt,
+            ]);
     }
 }

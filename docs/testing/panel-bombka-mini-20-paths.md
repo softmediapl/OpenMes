@@ -48,6 +48,7 @@ Statusy sa uzupelniane podczas testu: `NIEURUCHOMIONY`, `W TOKU`, `OK`, `BLAD`, 
 - Wymagana checklista blokuje przycisk zakonczenia przed otwarciem modala, z czytelnym powodem.
 - Panel pokazuje zajeta pojemnosc stanowiska przed startem; backend nadal transakcyjnie chroni ostatnie miejsce.
 - Brak kompetencji blokuje start przed doborem materialow, a zdalna zgoda supervisora dziala takze dla panelu uruchomionego przez konto ludzkie z wybranym stanowiskiem.
+- Wezwanie supervisora jest rozwiazywane dopiero po wykonaniu i zuzyciu autoryzowanej czynnosci.
 - Uzupelniono tlumaczenia komunikatow zakonczenia, niedostepnosci i checklisty.
 
 ## Audyt ekranow tabletowych

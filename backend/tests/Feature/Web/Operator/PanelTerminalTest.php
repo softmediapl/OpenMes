@@ -14,6 +14,7 @@ use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Operator\PanelOperatorContext;
 use App\Services\Operator\PanelSupervisorAuthorizationService;
+use App\Support\SystemSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -511,5 +512,35 @@ class PanelTerminalTest extends TestCase
             PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
         ));
         $this->assertNotNull($authorization->fresh());
+    }
+
+    public function test_consuming_an_override_resolves_its_supervisor_request(): void
+    {
+        $issueType = IssueType::factory()->create();
+        SystemSetting::put('panel_help_issue_type_id', $issueType->id);
+        $issue = Issue::factory()->create([
+            'work_order_id' => $this->workOrder->id,
+            'batch_step_id' => $this->step->id,
+            'issue_type_id' => $issueType->id,
+            'reported_by_id' => $this->operator->id,
+            'status' => Issue::STATUS_ACKNOWLEDGED,
+        ]);
+        $authorization = PanelSupervisorAuthorization::create([
+            'workstation_id' => $this->workstation->id,
+            'batch_step_id' => $this->step->id,
+            'operator_id' => $this->operator->id,
+            'supervisor_id' => $this->terminal->id,
+            'action' => PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+            'mode' => 'remote_only',
+            'reason' => 'Supervisor approved this requested action.',
+            'authorized_at' => now(),
+            'expires_at' => now()->addMinutes(10),
+        ]);
+
+        app(PanelSupervisorAuthorizationService::class)->consume($authorization);
+
+        $this->assertNotNull($authorization->fresh()->consumed_at);
+        $this->assertSame(Issue::STATUS_RESOLVED, $issue->fresh()->status);
+        $this->assertNotNull($issue->fresh()->resolved_at);
     }
 }
