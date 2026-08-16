@@ -1599,19 +1599,21 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
     });
 
     useEffect(() => {
-        if (!earlyRelease) return undefined;
+        if (!earlyRelease && !(panelMode && reportsTime)) return undefined;
 
         const timer = window.setInterval(() => setClock(Date.now()), 1000);
 
         return () => window.clearInterval(timer);
-    }, [earlyRelease]);
+    }, [earlyRelease, panelMode, reportsTime]);
 
     // Backend rules are integer|min:0; mirror them so bad values never submit
     // (the number inputs' min= does not block this custom-button submission).
     const isNonNegInt = (v) => /^\d+$/.test(String(v).trim());
-    const elapsedValid = !reportsTime || isNonNegInt(form.data.actual_elapsed_minutes);
+    const elapsedValid = !reportsTime || panelMode || isNonNegInt(form.data.actual_elapsed_minutes);
     const setupValid = !reportsTime || isNonNegInt(form.data.actual_setup_minutes);
-    const elapsedNum = elapsedValid ? Number(form.data.actual_elapsed_minutes) : 0;
+    const elapsedNum = reportsTime && panelMode
+        ? actualTimeDefaults.elapsed
+        : elapsedValid ? Number(form.data.actual_elapsed_minutes) : 0;
     const setupNum = setupValid ? Number(form.data.actual_setup_minutes) : 0;
     const actualRunMinutes = reportsTime && elapsedValid && setupValid
         ? operationActualRunMinutes(elapsedNum, setupNum)
@@ -1748,7 +1750,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                         {reportsTime && panelMode && (
                             <CompletionTimeFields
                                 compact
-                                elapsed={form.data.actual_elapsed_minutes}
+                                elapsed={elapsedNum}
                                 setup={form.data.actual_setup_minutes}
                                 run={actualRunMinutes}
                                 setupExceedsElapsed={setupExceedsElapsed}
