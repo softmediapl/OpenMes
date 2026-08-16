@@ -10,6 +10,7 @@ use App\Models\LineStatus;
 use App\Models\ScrapReason;
 use App\Models\TemplateStepChecklistItem;
 use App\Models\TemplateStepMedia;
+use App\Models\UnitOfMeasure;
 use App\Models\WorkOrder;
 use App\Models\Workstation;
 use App\Services\Material\BomService;
@@ -298,6 +299,13 @@ class WorkOrderController extends Controller
             'scrapEntries.reportedBy',
         ]);
         $workOrder->productType?->append('quantity_precision');
+        $workOrder->batches
+            ->flatMap->steps
+            ->flatMap->materialAllocations
+            ->each(fn ($allocation) => $allocation->setAttribute(
+                'quantity_precision',
+                UnitOfMeasure::precisionForCode($allocation->material?->unit_of_measure),
+            ));
 
         $issueTypes = IssueType::where('is_active', true)->orderBy('name')->get();
 

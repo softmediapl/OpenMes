@@ -10,6 +10,7 @@ use App\Models\BatchStepLotConsumption;
 use App\Models\Material;
 use App\Models\MaterialAllocation;
 use App\Models\StockMovement;
+use App\Models\UnitOfMeasure;
 use App\Models\User;
 use App\Models\Workstation;
 use App\Models\WorkstationMaterialMovement;
@@ -214,6 +215,9 @@ class MaterialAllocationService
                 'material_name' => $bomItem['material_name'] ?? $material->name,
                 'material_code' => $bomItem['material_code'] ?? $material->code,
                 'unit_of_measure' => $bomItem['unit_of_measure'] ?? $material->unit_of_measure,
+                'quantity_precision' => UnitOfMeasure::precisionForCode(
+                    $bomItem['unit_of_measure'] ?? $material->unit_of_measure,
+                ),
                 'required_qty' => $requiredQty,
                 'strategy' => $proposal['strategy'],
                 'proposed' => $proposal['proposed'],

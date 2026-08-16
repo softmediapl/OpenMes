@@ -17,7 +17,7 @@ import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdown
 import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
-import { assertQuantityPrecision } from '../../lib/configuredQuantity';
+import { assertQuantityPrecision, compactQuantity } from '../../lib/configuredQuantity';
 
 // Geist White restyle: light-only v1 — former `dark:` variants removed.
 
@@ -1545,8 +1545,16 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         scrap_entries: reportsQuantity ? [{ scrap_reason_id: '', quantity: '0' }] : [],
         material_consumptions: materialAllocations.map((allocation) => ({
             allocation_id: allocation.id,
-            consumed_qty: String(allocation.consumption_recorded ? allocation.consumed_qty : allocation.allocated_qty),
-            scrap_qty: String(allocation.consumption_recorded ? allocation.scrap_qty : 0),
+            consumed_qty: compactQuantity(
+                allocation.consumption_recorded ? allocation.consumed_qty : allocation.allocated_qty,
+                allocation.quantity_precision,
+                allocation.material?.unit_of_measure,
+            ),
+            scrap_qty: compactQuantity(
+                allocation.consumption_recorded ? allocation.scrap_qty : 0,
+                allocation.quantity_precision,
+                allocation.material?.unit_of_measure,
+            ),
         })),
         quantity_notes: '',
         hold_override_reason: '',
@@ -1808,6 +1816,10 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             <p className="text-xs text-om-muted">{__('Enter actual use. The unused reserved quantity remains at the workstation.')}</p>
                         </div>
                         {materialAllocations.map((allocation) => {
+                            const materialQuantityInput = operationQuantityInput(
+                                allocation.quantity_precision,
+                                allocation.material?.unit_of_measure,
+                            );
                             const row = form.data.material_consumptions.find((item) => item.allocation_id === allocation.id);
                             const allocated = Number(allocation.allocated_qty);
                             const consumed = Number(row?.consumed_qty ?? 0);
@@ -1823,7 +1835,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             <span className="font-mono text-[10px] text-om-faint">{allocation.material?.code}</span>
                                         </div>
                                         <span className="font-mono text-[11px] text-om-muted">
-                                            {__('Reserved')} {fmtQty(allocated, 4)} {allocation.material?.unit_of_measure}
+                                            {__('Reserved')} {fmtQty(allocated, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}
                                         </span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -1832,8 +1844,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             <input
                                                 type="number"
                                                 min="0"
-                                                step="0.0001"
-                                                inputMode="decimal"
+                                                step={materialQuantityInput.step}
+                                                inputMode={materialQuantityInput.inputMode}
                                                 value={row?.consumed_qty ?? ''}
                                                 onChange={(event) => updateMaterialConsumption(allocation.id, 'consumed_qty', event.target.value)}
                                                 className={inputCls}
@@ -1844,8 +1856,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             <input
                                                 type="number"
                                                 min="0"
-                                                step="0.0001"
-                                                inputMode="decimal"
+                                                step={materialQuantityInput.step}
+                                                inputMode={materialQuantityInput.inputMode}
                                                 value={row?.scrap_qty ?? ''}
                                                 onChange={(event) => updateMaterialConsumption(allocation.id, 'scrap_qty', event.target.value)}
                                                 className={inputCls}
@@ -1854,7 +1866,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                     </div>
                                     <div className={`mt-3 flex items-center justify-between rounded-om-sm px-3 py-2 text-xs ${consumed + materialScrap <= allocated + EPSILON ? 'bg-om-done-bg text-om-running' : 'bg-om-blocked-bg text-om-blocked'}`}>
                                         <span>{usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}</span>
-                                        <strong className="font-mono">{fmtQty(remaining, 4)} {allocation.material?.unit_of_measure}</strong>
+                                        <strong className="font-mono">{fmtQty(remaining, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}</strong>
                                     </div>
                                 </div>
                             );
@@ -2231,6 +2243,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                     )}
 
                     {materials.map((m) => {
+                        const materialQuantityInput = operationQuantityInput(m.quantity_precision, m.unit_of_measure);
                         const lines = picks[m.material_id] ?? [];
                         const allocated = lines.reduce((s, ln) => s + (Number(ln.picked_qty) || 0), 0);
                         const balanced = Math.abs(allocated - m.required_qty) < EPSILON;
@@ -2250,15 +2263,15 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
 
                                 {m.is_workstation_stock && (
                                     <div className={`mb-3 grid grid-cols-3 gap-2 rounded-om-sm px-3 py-2 font-mono text-[10px] ${Number(m.shortage_qty) > EPSILON ? 'bg-om-blocked-bg text-om-blocked' : 'bg-om-done-bg text-om-muted'}`}>
-                                        <span>{__('At workstation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.available_qty, 4)} {m.unit_of_measure}</strong></span>
-                                        <span>{__('Operation reserve')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.required_qty, 4)} {m.unit_of_measure}</strong></span>
-                                        <span>{__('After reservation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(afterReservation, 4)} {m.unit_of_measure}</strong></span>
+                                        <span>{__('At workstation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.available_qty, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
+                                        <span>{__('Operation reserve')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.required_qty, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
+                                        <span>{__('After reservation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(afterReservation, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
                                     </div>
                                 )}
 
                                 {m.is_workstation_stock && Number(m.shortage_qty) > EPSILON && (
                                     <div className="mb-3 flex items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-xs text-om-blocked">
-                                        <span>{__('Workstation stock is short by :quantity :unit.', { quantity: fmtQty(m.shortage_qty, 4), unit: m.unit_of_measure })}</span>
+                                        <span>{__('Workstation stock is short by :quantity :unit.', { quantity: fmtQty(m.shortage_qty, materialQuantityInput.precision), unit: m.unit_of_measure })}</span>
                                         <Link href={`${routeBase}/materials`} className="shrink-0 font-semibold underline">{__('Request replenishment')}</Link>
                                     </div>
                                 )}
@@ -2282,16 +2295,16 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                                         {cand?.lot_number ?? `#${ln.material_lot_id}`}
                                                     </div>
                                                     <div className="font-mono text-[11px] text-om-faint mt-0.5">
-                                                        {m.is_workstation_stock ? __('Available at workstation') : __('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, 4)}</span>
+                                                        {m.is_workstation_stock ? __('Available at workstation') : __('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, materialQuantityInput.precision)}</span>
                                                         {cand?.expiry_date ? ` · ${__('exp')}: ${formatDate(cand.expiry_date)}` : ''}
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-1.5 flex-shrink-0">
                                                     <input
                                                         type="number"
-                                                        step="0.0001"
+                                                        step={materialQuantityInput.step}
                                                         min="0"
-                                                        inputMode="decimal"
+                                                        inputMode={materialQuantityInput.inputMode}
                                                         value={ln.picked_qty}
                                                         onChange={(e) => setLineQty(m.material_id, idx, e.target.value)}
                                                         className="text-[12px] text-om-ink bg-om-bg border border-om-line rounded-om-sm px-2 py-1 outline-none w-20 text-right focus:border-om-accent transition-colors font-mono"
@@ -2321,7 +2334,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                         <option value="">{__('+ Add lot…')}</option>
                                         {remaining.map((c) => (
                                             <option key={c.id} value={c.id}>
-                                                {c.lot_number} — {__('avail')} {fmtQty(c.quantity_available, 4)}
+                                                {c.lot_number} — {__('avail')} {fmtQty(c.quantity_available, materialQuantityInput.precision)}
                                                 {c.expiry_date ? ` (${__('exp')} ${formatDate(c.expiry_date)})` : ''}
                                             </option>
                                         ))}
@@ -2330,10 +2343,10 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
 
                                 <div className="mt-2 flex justify-between font-mono text-[11px]">
                                     <span className="text-om-faint">
-                                        {__('Required')} {fmtQty(m.required_qty, 4)} {m.unit_of_measure}
+                                        {__('Required')} {fmtQty(m.required_qty, materialQuantityInput.precision)} {m.unit_of_measure}
                                     </span>
                                     <span className={balanced ? 'text-om-done' : 'text-om-blocked'}>
-                                        {m.is_workstation_stock ? __('Reserved for operation') : __('Allocated')} {fmtQty(allocated, 4)}
+                                        {m.is_workstation_stock ? __('Reserved for operation') : __('Allocated')} {fmtQty(allocated, materialQuantityInput.precision)}
                                     </span>
                                 </div>
                             </div>

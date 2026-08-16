@@ -114,6 +114,7 @@ class WoTimeLotPickingTest extends TestCase
             ->getJson("/operator/batch-step/{$this->step->id}/pick-preview")
             ->assertOk()
             ->assertJsonPath('materials.0.material_id', $this->material->id)
+            ->assertJsonPath('materials.0.quantity_precision', 0)
             ->assertJsonPath('materials.0.required_qty', 20)
             ->assertJsonCount(1, 'materials.0.candidates');
     }
