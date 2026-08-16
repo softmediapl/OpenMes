@@ -1151,7 +1151,7 @@ function OperationMaterialSummary({ allocations, onIncrease }) {
                             <div className="min-w-0">
                                 <span className="block truncate text-sm font-medium text-om-ink">{allocation.material?.name}</span>
                                 <span className="font-mono text-[11px] text-om-muted">
-                                    {__('Reserved')}: {fmtQty(allocation.allocated_qty, 4)} {allocation.material?.unit_of_measure}
+                                    {__('Reserved')}: {fmtQty(allocation.allocated_qty, allocation.quantity_precision)} {allocation.material?.unit_of_measure}
                                 </span>
                             </div>
                             {local && (
@@ -1171,6 +1171,10 @@ function MaterialTopUpModal({ step, allocation, routeBase = '/operator', onClose
     const form = useForm({ additional_qty: '' });
     const quantity = Number(form.data.additional_qty);
     const valid = Number.isFinite(quantity) && quantity > 0;
+    const quantityInput = operationQuantityInput(
+        allocation.quantity_precision,
+        allocation.material?.unit_of_measure,
+    );
 
     const submit = (event) => {
         event.preventDefault();
@@ -1183,32 +1187,40 @@ function MaterialTopUpModal({ step, allocation, routeBase = '/operator', onClose
     };
 
     return (
-        <ModalShell title={__('Add material')} subtitle={allocation.material?.name} onClose={onClose}>
+        <ModalShell title={__('Add material')} subtitle={allocation.material?.name} onClose={onClose} wide={routeBase === '/panel'}>
             <form onSubmit={submit}>
-                <div className="space-y-4 px-[18px] py-4">
+                <div className={routeBase === '/panel' ? 'panel-topup-content' : 'space-y-4 px-[18px] py-4'}>
                     <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
                         <span className="block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Currently reserved')}</span>
-                        <strong className="font-mono text-xl text-om-ink">{fmtQty(allocation.allocated_qty, 4)} {allocation.material?.unit_of_measure}</strong>
+                        <strong className="font-mono text-3xl text-om-ink">{fmtQty(allocation.allocated_qty, quantityInput.precision)} {allocation.material?.unit_of_measure}</strong>
                     </div>
                     <div>
                         <label className={fieldLabelCls}>{__('Additional quantity')}</label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.0001"
-                            inputMode="decimal"
-                            autoFocus
-                            value={form.data.additional_qty}
-                            onChange={(event) => form.setData('additional_qty', event.target.value)}
-                            className={inputCls}
-                        />
+                        {routeBase === '/panel' ? (
+                            <TouchNumberControl
+                                step={quantityInput.step}
+                                value={form.data.additional_qty}
+                                onChange={(value) => form.setData('additional_qty', value)}
+                            />
+                        ) : (
+                            <input
+                                type="number"
+                                min="0"
+                                step={quantityInput.step}
+                                inputMode={quantityInput.inputMode}
+                                autoFocus
+                                value={form.data.additional_qty}
+                                onChange={(event) => form.setData('additional_qty', event.target.value)}
+                                className={inputCls}
+                            />
+                        )}
                         <p className="mt-1 text-xs text-om-muted">{__('The quantity will be reserved from material already delivered to this workstation.')}</p>
                         {form.errors.additional_qty && <p className={errorCls}>{form.errors.additional_qty}</p>}
                     </div>
                 </div>
-                <div className={modalFooterCls}>
-                    <Button variant="secondary" type="button" onClick={onClose}>{__('Cancel')}</Button>
-                    <Button variant="accent" type="submit" disabled={!valid || form.processing}>
+                <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>
+                    <Button variant="secondary" size={routeBase === '/panel' ? 'lg' : 'md'} type="button" onClick={onClose}>{__('Cancel')}</Button>
+                    <Button variant="accent" size={routeBase === '/panel' ? 'lg' : 'md'} type="submit" disabled={!valid || form.processing}>
                         {form.processing ? '…' : __('Reserve additional material')}
                     </Button>
                 </div>
