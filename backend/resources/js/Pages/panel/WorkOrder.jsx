@@ -63,6 +63,10 @@ export default function WorkOrder({
             capacity: capacityState.capacity,
         })
         : null;
+    const qualification = activeStep?.panel_qualification;
+    const qualificationBlocked = !!qualification && !qualification.qualified && !qualification.supervisor_authorized;
+    const qualificationReason = qualificationBlocked ? qualification.reasons.join(' ') : null;
+    const startBlockedReason = capacityReason || qualificationReason;
 
     return (
         <div className="panel-operation-screen">
@@ -80,9 +84,10 @@ export default function WorkOrder({
             {active && <div className="panel-operation-grid">
                 <section id="panel-operation-details" className="panel-operation-body">
                     <OperationSummary batch={active} step={activeStep} product={product} />
-                    {activeStep?.panel_qualification && !activeStep.panel_qualification.qualified && (
+                    {qualificationBlocked && (
                         <div className="panel-operation-warning"><span>{activeStep.panel_qualification.reasons.join(' ')}</span><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}>{__('Authorize replacement')}</button></div>
                     )}
+                    {qualification?.supervisor_authorized && <div className="rounded-om-sm bg-om-done-bg px-4 py-3 text-sm font-semibold text-om-running">{__('Supervisor authorized this start.')}</div>}
                     {capacityReason && <div className="panel-operation-warning"><span>{capacityReason}</span></div>}
                     <div className="panel-step-zone panel-touch-step">
                         <BatchStepList
@@ -97,7 +102,7 @@ export default function WorkOrder({
                             canOverrideOperationHold={canOverrideOperationHold}
                             routeBase="/panel"
                             panelMode
-                            startBlockedReason={capacityReason}
+                            startBlockedReason={startBlockedReason}
                         />
                     </div>
                 </section>

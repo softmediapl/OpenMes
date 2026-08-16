@@ -170,6 +170,13 @@ class WorkOrderController extends Controller
 
         if ($request->routeIs('panel.*')) {
             $this->appendWorkstationCapacity($selectedWorkstation);
+            if ($selectedWorkstation && $request->attributes->get('panel_operator')) {
+                $this->appendPanelQualifications(
+                    $request,
+                    $selectedWorkstation,
+                    $workstationQueue->flatMap->batches->flatMap->steps,
+                );
+            }
         }
 
         return Inertia::render($page, compact(
@@ -576,14 +583,11 @@ class WorkOrderController extends Controller
         }
 
         if ($request->routeIs('panel.*') && $lockedWorkstation && $request->attributes->get('panel_operator')) {
-            $qualificationService = app(\App\Services\Operator\PanelQualificationService::class);
-            $workOrder->batches->flatMap->steps->each(function (BatchStep $step) use ($qualificationService, $request, $lockedWorkstation) {
-                $step->setAttribute('panel_qualification', $qualificationService->evaluate(
-                    $request->attributes->get('panel_operator'),
-                    $lockedWorkstation,
-                    $step,
-                ));
-            });
+            $this->appendPanelQualifications(
+                $request,
+                $lockedWorkstation,
+                $workOrder->batches->flatMap->steps,
+            );
         }
 
         $page = $request->routeIs('panel.*') ? 'panel/WorkOrder' : 'operator/WorkOrderDetail';
@@ -606,6 +610,23 @@ class WorkOrderController extends Controller
         $workstation->setAttribute('capacity_occupied_slots', $occupied);
         $workstation->setAttribute('capacity_available_slots', max(0, $capacity - $occupied));
         $workstation->setAttribute('capacity_is_full', $occupied >= $capacity);
+    }
+
+    private function appendPanelQualifications(Request $request, Workstation $workstation, iterable $steps): void
+    {
+        $operator = $request->attributes->get('panel_operator');
+        $qualificationService = app(\App\Services\Operator\PanelQualificationService::class);
+        $authorizationService = app(\App\Services\Operator\PanelSupervisorAuthorizationService::class);
+
+        foreach ($steps as $step) {
+            $qualification = $qualificationService->evaluate($operator, $workstation, $step);
+            $qualification['supervisor_authorized'] = $authorizationService->active(
+                $request,
+                $step,
+                \App\Models\PanelSupervisorAuthorization::ACTION_START_UNQUALIFIED,
+            ) !== null;
+            $step->setAttribute('panel_qualification', $qualification);
+        }
     }
 
     /**

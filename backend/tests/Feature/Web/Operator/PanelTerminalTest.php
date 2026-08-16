@@ -392,11 +392,36 @@ class PanelTerminalTest extends TestCase
         $this->assertNull($authorization->consumed_at);
 
         $this->actingAs($this->terminal)->withSession($session)
+            ->get(route('panel.work-order', $this->workOrder))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workOrder.batches.0.steps.0.panel_qualification.qualified', false)
+                ->where('workOrder.batches.0.steps.0.panel_qualification.supervisor_authorized', true)
+            );
+
+        $this->actingAs($this->terminal)->withSession($session)
             ->post(route('panel.batch-step.start', $this->step), [])
             ->assertSessionHas('success');
 
         $this->assertSame($this->operator->id, $this->step->fresh()->started_by_id);
         $this->assertNotNull($authorization->fresh()->consumed_at);
+    }
+
+    public function test_panel_queue_exposes_an_unqualified_operator_before_opening_the_task(): void
+    {
+        $this->operator->worker->update(['workstation_id' => null]);
+
+        $this->actingAs($this->terminal)
+            ->withSession([
+                PanelOperatorContext::SESSION_KEY => $this->operator->id,
+                'panel_operator_started_at' => now()->timestamp,
+            ])
+            ->get(route('panel.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workstationQueue.0.batches.0.steps.0.panel_qualification.qualified', false)
+                ->where('workstationQueue.0.batches.0.steps.0.panel_qualification.supervisor_authorized', false)
+            );
     }
 
     public function test_remote_only_workstation_rejects_local_supervisor_authorization(): void
