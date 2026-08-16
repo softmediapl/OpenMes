@@ -13,7 +13,7 @@ import { apiGet } from '../../lib/http';
 import { customFieldInitial, customFieldProps, submitForm } from '../../lib/customFieldForm';
 import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
-import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdownValid } from '../../lib/operationQuantity';
+import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdownValid, quantityInputValue } from '../../lib/operationQuantity';
 import { operationActualRunMinutes, operationActualTimeDefaults } from '../../lib/operationActualTime';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
@@ -1043,7 +1043,13 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                         )}
 
                         {qualityGate?.required && (
-                            <OperationQualityGate step={step} status={qualityGate} routeBase={routeBase} />
+                            <OperationQualityGate
+                                step={step}
+                                status={qualityGate}
+                                routeBase={routeBase}
+                                quantityPrecision={quantityPrecision}
+                                quantityUnit={quantityUnit}
+                            />
                         )}
 
                         {(step.transport_unit_loads?.length > 0) && (
@@ -1246,14 +1252,15 @@ function buildOperationQualitySamples(specification) {
     )).flat();
 }
 
-function OperationQualityGate({ step, status, routeBase = '/operator' }) {
+function OperationQualityGate({ step, status, routeBase = '/operator', quantityPrecision, quantityUnit }) {
     const specification = status.specification ?? {};
+    const quantityInput = operationQuantityInput(quantityPrecision, quantityUnit);
     const initialSamples = useMemo(
         () => buildOperationQualitySamples(specification),
         [step.id, status.passing_checks]
     );
     const form = useForm({
-        production_quantity: step.input_quantity ?? '',
+        production_quantity: quantityInputValue(step.input_quantity, quantityInput.precision),
         notes: '',
         samples: initialSamples,
     });
@@ -1413,7 +1420,8 @@ function OperationQualityGate({ step, status, routeBase = '/operator' }) {
                             <span className={fieldLabelCls}>{__('Production quantity checked')}</span>
                             <input
                                 type="number"
-                                step="any"
+                                step={quantityInput.step}
+                                inputMode={quantityInput.inputMode}
                                 min="0"
                                 value={form.data.production_quantity}
                                 onChange={(event) => form.setData('production_quantity', event.target.value)}

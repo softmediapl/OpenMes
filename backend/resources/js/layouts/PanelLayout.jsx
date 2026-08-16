@@ -91,15 +91,18 @@ function HelpModal({ support = {}, context, onClose, onAuthorize }) {
             <FieldSelect label={__('Problem type')} value={issue.data.issue_type_id} onChange={(value) => issue.setData('issue_type_id', value)} options={support.issueTypes || []} />
             <Field label={__('Title')} value={issue.data.title} onChange={(value) => issue.setData('title', value)} />
             <Field label={__('Description')} value={issue.data.description} onChange={(value) => issue.setData('description', value)} multiline />
+            <FormErrors form={issue} />
             <Submit form={issue} label={__('Report problem')} />
         </form>}
         {view === 'downtime' && <form onSubmit={(event) => { event.preventDefault(); downtime.post('/panel/downtime/start', { onSuccess: onClose }); }} className="space-y-4">
             <FieldSelect label={__('Downtime reason')} value={downtime.data.reason_id} onChange={(value) => downtime.setData('reason_id', value)} options={support.downtimeReasons || []} />
             <Field label={__('Notes')} value={downtime.data.notes} onChange={(value) => downtime.setData('notes', value)} multiline />
+            <FormErrors form={downtime} />
             <Submit form={downtime} label={__('Start downtime')} />
         </form>}
         {view === 'supervisor' && <form onSubmit={(event) => { event.preventDefault(); supervisor.post('/panel/help/supervisor', { onSuccess: onClose }); }} className="space-y-4">
             <Field label={__('What help is needed?')} value={supervisor.data.description} onChange={(value) => supervisor.setData('description', value)} multiline />
+            <FormErrors form={supervisor} />
             <Submit form={supervisor} label={__('Send request')} />
         </form>}
     </Modal>;
@@ -127,6 +130,7 @@ function Modal({ title, onClose, children }) { return <div className="fixed inse
 function HelpAction({ icon: Icon, label, onClick, disabled }) { return <button type="button" disabled={disabled} onClick={onClick} className="flex min-h-20 items-center gap-3 rounded-om-sm border border-om-line px-4 text-left text-base font-bold disabled:opacity-40"><Icon size={24} />{label}</button>; }
 function Field({ label, value, onChange, multiline, inputMode, secret }) { const Input = multiline ? 'textarea' : 'input'; return <label className="block"><span className="panel-label">{label}</span><Input value={value} onChange={(event) => onChange(event.target.value)} className="panel-input" rows={3} inputMode={inputMode} type={secret ? 'password' : undefined} /></label>; }
 function FieldSelect({ label, value, onChange, options }) { return <label className="block"><span className="panel-label">{label}</span><select required value={value} onChange={(event) => onChange(event.target.value)} className="panel-input"><option value="">{__('Select...')}</option>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label>; }
+function FormErrors({ form }) { const message = Object.values(form.errors || {}).flat().find(Boolean); return message ? <p role="alert" className="rounded-om-sm bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">{message}</p> : null; }
 function Submit({ form, label }) { return <button type="submit" disabled={form.processing} className="panel-primary w-full">{form.processing ? __('Sending...') : label}</button>; }
 
 function IdentityModal({ operator, identity = {}, onClose }) {
