@@ -151,6 +151,35 @@ class PanelTerminalTest extends TestCase
             ->assertSessionHas('error');
     }
 
+    public function test_panel_returns_to_the_station_queue_after_completing_a_batch(): void
+    {
+        $this->step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'started_at' => now()->subMinute(),
+            'started_by_id' => $this->operator->id,
+        ]);
+        $nextBatch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $nextBatch->id,
+            'workstation_id' => $this->workstation->id,
+            'step_number' => 1,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->withSession([
+                PanelOperatorContext::SESSION_KEY => $this->operator->id,
+                'panel_operator_started_at' => now()->timestamp,
+            ])
+            ->from(route('panel.work-order', $this->workOrder).'?batch='.$this->step->batch_id)
+            ->post(route('panel.batch-step.complete', $this->step))
+            ->assertRedirect(route('panel.index'))
+            ->assertSessionHas('success')
+            ->assertSessionMissing('error');
+
+        $this->assertSame(BatchStep::STATUS_DONE, $this->step->fresh()->status);
+    }
+
     public function test_human_device_panel_only_receives_batches_for_the_selected_workstation(): void
     {
         Role::create(['name' => 'Admin', 'guard_name' => 'web']);

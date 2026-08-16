@@ -182,17 +182,21 @@ class BatchController extends Controller
 
             if ($this->workstationContext->workstation($request)) {
                 $workOrder = $batchStep->batch->workOrder->fresh();
+                $canContinueAtWorkstation = $this->workstationContext->canAccessWorkOrder($request, $workOrder);
 
-                if ($this->workstationContext->canAccessWorkOrder($request, $workOrder)) {
-                    $route = $request->routeIs('panel.*') ? 'panel.work-order' : 'operator.work-order.detail';
+                if ($request->routeIs('panel.*')) {
+                    return redirect()->route('panel.index')
+                        ->with('success', $canContinueAtWorkstation
+                            ? __('Step completed.')
+                            : __('Step completed and the batch was transferred to the next operation.'));
+                }
 
-                    return redirect()->route($route, $workOrder)
+                if ($canContinueAtWorkstation) {
+                    return redirect()->route('operator.work-order.detail', $workOrder)
                         ->with('success', __('Step completed.'));
                 }
 
-                $route = $request->routeIs('panel.*') ? 'panel.index' : 'operator.queue';
-
-                return redirect()->route($route)
+                return redirect()->route('operator.queue')
                     ->with('success', __('Step completed and the batch was transferred to the next operation.'));
             }
 
