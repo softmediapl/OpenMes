@@ -1713,16 +1713,16 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             <span className={labelCls}>{__('Input quantity')}</span>
                             <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, quantityInput.precision)}</span>
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
+                        <div className={routeBase === '/panel' ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'}>
+                            <div className={routeBase === '/panel' ? 'col-start-1 row-start-1' : ''}>
                                 <label className={labelCls}>{__('Good quantity')}</label>
                                 <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(goodQuantity) ? goodQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
-                            <div>
+                            <div className={routeBase === '/panel' ? 'col-span-2 row-start-2' : ''}>
                                 <label className={labelCls}>{__('Rework quantity')}</label>
                                 <TouchNumberControl step={quantityInput.step} value={form.data.rework_quantity} onChange={(value) => form.setData('rework_quantity', value)} />
                             </div>
-                            <div>
+                            <div className={routeBase === '/panel' ? 'col-start-2 row-start-1' : ''}>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
                                 <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
@@ -1742,7 +1742,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 <button
                                     type="button"
                                     onClick={addScrapEntry}
-                                    className="flex h-9 w-9 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent"
+                                    className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent ${routeBase === '/panel' ? 'h-12 w-12' : 'h-9 w-9'}`}
                                     aria-label={__('Add scrap reason')}
                                     title={__('Add scrap reason')}
                                 >
@@ -1750,7 +1750,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 </button>
                             </div>
                             {form.data.scrap_entries.map((entry, index) => (
-                                <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(0,1fr)_18rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
+                                <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(10rem,1fr)_12rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
                                     <div>
                                         <label className={labelCls}>{__('Scrap reason')}</label>
                                         <Dropdown
@@ -1774,7 +1774,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                     <button
                                         type="button"
                                         onClick={() => removeScrapEntry(index)}
-                                        className="flex h-10 w-10 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked"
+                                        className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked ${routeBase === '/panel' ? 'h-14 w-14' : 'h-10 w-10'}`}
                                         aria-label={__('Remove scrap reason')}
                                         title={__('Remove scrap reason')}
                                     >
