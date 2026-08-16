@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { currentBatchStep, workForStation, workItemsForStation } from './workstationQueue';
+import { currentBatchStep, isRunningFixedHold, workForStation, workItemsForStation } from './workstationQueue';
 
 describe('workstation queue selection', () => {
+    it('shows a hold countdown only after a timed hold has started', () => {
+        expect(isRunningFixedHold({ execution_mode: 'fixed_hold', status: 'READY' })).toBe(false);
+        expect(isRunningFixedHold({ execution_mode: 'fixed_hold', status: 'PENDING' })).toBe(false);
+        expect(isRunningFixedHold({ execution_mode: 'per_batch', status: 'IN_PROGRESS' })).toBe(false);
+        expect(isRunningFixedHold({ execution_mode: 'fixed_hold', status: 'IN_PROGRESS' })).toBe(true);
+    });
+
     it('prefers an in-progress operation over ready and pending work', () => {
         const step = currentBatchStep({
             steps: [

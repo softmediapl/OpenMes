@@ -5,6 +5,7 @@ import PanelLayout from '../../layouts/PanelLayout';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { compactQuantity } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
+import { isRunningFixedHold } from '../../lib/workstationQueue';
 
 function currentStep(batch) {
     return (batch.steps || []).find((step) => step.status === 'IN_PROGRESS')
@@ -84,7 +85,9 @@ function Tab({ active, onClick, label, count, alert }) {
 
 function TaskCard({ task, state, now, featured }) {
     const { order, batch, step } = task;
-    const remaining = step.execution_mode === 'fixed_hold' ? holdRemainingSeconds(step.hold_release_at, now) : null;
+    const remaining = isRunningFixedHold(step)
+        ? holdRemainingSeconds(step.hold_release_at, now)
+        : null;
     const blocked = step.status === 'PENDING';
     const rawQuantity = step.input_quantity ?? batch.target_qty;
     const product = order.product_type;

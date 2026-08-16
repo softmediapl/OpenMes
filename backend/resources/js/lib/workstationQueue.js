@@ -10,6 +10,10 @@ export function currentBatchStep(batch) {
         ?? null;
 }
 
+export function isRunningFixedHold(step) {
+    return step?.execution_mode === 'fixed_hold' && step?.status === 'IN_PROGRESS';
+}
+
 function stationCanOperateStep(workOrder, step, workstation) {
     const workstationId = typeof workstation === 'object' ? workstation?.id : workstation;
 
