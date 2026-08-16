@@ -1007,7 +1007,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                                 kind="workstation-step"
                                 id={step.id}
                                 templates={labelTemplates}
-                                label="Label"
+                                label={__('Label')}
                             />
                         </div>
 

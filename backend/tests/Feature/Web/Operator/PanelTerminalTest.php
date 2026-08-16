@@ -103,6 +103,7 @@ class PanelTerminalTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('panel/WorkOrder')
+                ->where('selectedWorkstation.id', $this->workstation->id)
                 ->where('workOrder.product_type.unit_of_measure', $product->unit_of_measure)
                 ->where('workOrder.product_type.quantity_precision', $product->quantityPrecision())
             );

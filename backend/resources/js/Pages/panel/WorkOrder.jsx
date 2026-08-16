@@ -116,7 +116,7 @@ function OperationTimer({ step, now }) {
     const remaining = fixedHold ? holdRemainingSeconds(step.hold_release_at, now) : null;
     const elapsed = elapsedSeconds(step.started_at, now);
 
-    if (!fixedHold && !running) {
+    if (!running) {
         return <div className="panel-timer"><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{__('Operation status')}</span></div><span className="mt-5 text-2xl font-bold text-om-running">{__('Ready to start')}</span></div>;
     }
 

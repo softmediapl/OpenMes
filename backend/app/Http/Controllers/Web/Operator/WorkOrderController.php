@@ -437,6 +437,7 @@ class WorkOrderController extends Controller
         $defaultWorkstationId = auth()->user()->workstation_id;
 
         $line = $workOrder->line;
+        $selectedWorkstation = $lockedWorkstation;
 
         // Active label templates (by type) for the React label-print menu —
         // replaces the old <x-label-print-dropdown> Blade component.
@@ -564,7 +565,7 @@ class WorkOrderController extends Controller
 
         $page = $request->routeIs('panel.*') ? 'panel/WorkOrder' : 'operator/WorkOrderDetail';
 
-        return Inertia::render($page, compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
+        return Inertia::render($page, compact('workOrder', 'materialRequirements', 'materialRequirementQuantity', 'issueTypes', 'scrapReasons', 'workstations', 'defaultWorkstationId', 'line', 'selectedWorkstation', 'labelTemplates', 'processPhotos', 'stepPhotos', 'stepMedia', 'stepChecklists', 'issueCustomFields', 'engineeringDocuments', 'workstationLocked', 'canOverrideOperationHold'));
     }
 
     /**
