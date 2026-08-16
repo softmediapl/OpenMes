@@ -265,6 +265,18 @@ class WorkOrderController extends Controller
     public function show(Request $request, WorkOrder $workOrder)
     {
         $lockedWorkstation = $this->workstationContext->workstation($request);
+
+        // A panel opened by a human/admin account still operates in the station
+        // selected on the queue. Treat that selection as the terminal scope so
+        // the touch UI never receives unrelated batches or process steps.
+        if ($request->routeIs('panel.*') && ! $lockedWorkstation) {
+            $selectedWorkstationId = (int) $request->session()->get('selected_workstation_id', 0);
+            $lockedWorkstation = Workstation::query()
+                ->whereKey($selectedWorkstationId)
+                ->where('line_id', $workOrder->line_id)
+                ->where('is_active', true)
+                ->first();
+        }
         $workstationLocked = $lockedWorkstation !== null;
 
         if (! $this->workstationContext->canAccessWorkOrder($request, $workOrder)) {

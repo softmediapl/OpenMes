@@ -173,6 +173,194 @@ html.dark {
     .panel-step-zone button {
         min-height: 48px;
     }
+    .panel-shell {
+        @apply fixed inset-0 flex min-h-0 flex-col overflow-hidden;
+    }
+    .panel-topbar {
+        @apply z-30 flex h-16 shrink-0 items-center gap-3 bg-[#1d1f20] px-4 text-white;
+    }
+    .panel-topbar-button {
+        @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-om-sm border border-white/10 bg-white/5 px-3 text-sm font-bold text-white hover:bg-white/10;
+    }
+    .panel-topbar-button-warn {
+        @apply border-amber-500/40 bg-amber-900/30 text-amber-200;
+    }
+    .panel-main {
+        @apply min-h-0 flex-1 overflow-hidden;
+    }
+    .panel-station-screen,
+    .panel-operation-screen {
+        @apply flex h-full min-h-0 flex-col;
+    }
+    .panel-tabs {
+        @apply grid h-16 shrink-0 grid-cols-3 border-b border-om-line bg-om-card;
+    }
+    .panel-tab {
+        @apply flex min-h-16 items-center justify-center gap-2 border-b-[3px] border-transparent px-3 text-base font-bold text-om-muted;
+    }
+    .panel-tab-active {
+        @apply border-om-ink text-om-ink;
+    }
+    .panel-tab-count {
+        @apply inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-om-chip px-2 text-sm text-om-ink;
+    }
+    .panel-tab-count-alert {
+        @apply bg-om-blocked text-white;
+    }
+    .panel-station-content {
+        @apply min-h-0 flex-1 overflow-y-auto p-4 md:p-5;
+    }
+    .panel-task-list {
+        @apply space-y-3;
+    }
+    .panel-task {
+        @apply grid min-h-28 grid-cols-[minmax(0,1fr)_12rem] items-center gap-4 rounded-om-sm border border-om-line bg-om-card p-4;
+    }
+    .panel-task-featured {
+        @apply min-h-44 border-2 border-om-running;
+    }
+    .panel-task-ready {
+        @apply border-om-running bg-om-running-bg;
+    }
+    .panel-task-side {
+        @apply flex h-full min-h-20 flex-col items-end justify-center gap-2;
+    }
+    .panel-task-action {
+        @apply inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-om-sm bg-om-ink px-5 text-lg font-bold text-om-on-ink hover:bg-om-ink-hover;
+    }
+    .panel-task-ready .panel-task-action {
+        @apply bg-om-running text-white;
+    }
+    .panel-status {
+        @apply inline-flex min-h-8 items-center rounded-full px-3 text-xs font-bold;
+    }
+    .panel-status-ready {
+        @apply bg-om-running-bg text-om-running;
+    }
+    .panel-status-running {
+        @apply bg-om-accepted-bg text-om-accepted;
+    }
+    .panel-status-blocked {
+        @apply bg-om-downtime-bg text-om-downtime;
+    }
+    .panel-capacity {
+        @apply mb-4 grid grid-cols-3 gap-4 rounded-om-sm border border-om-line bg-om-card p-4;
+    }
+    .panel-empty {
+        @apply flex min-h-48 items-center justify-center gap-3 rounded-om-sm border border-dashed border-om-line bg-om-card text-lg text-om-muted;
+    }
+    .panel-operation-heading {
+        @apply flex h-16 shrink-0 items-center justify-between gap-3 border-b border-om-line bg-om-card px-4;
+    }
+    .panel-operation-grid {
+        @apply grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_24rem];
+    }
+    .panel-operation-body {
+        @apply min-h-0 overflow-y-auto rounded-om-sm border border-om-line bg-om-card;
+    }
+    .panel-operation-summary {
+        @apply grid grid-cols-2 gap-3 border-b border-om-line p-4 sm:grid-cols-4;
+    }
+    .panel-operation-side {
+        @apply flex min-h-0 flex-col gap-3;
+    }
+    .panel-timer {
+        @apply flex min-h-52 flex-1 flex-col rounded-om-sm border border-om-line bg-om-card p-5;
+    }
+    .panel-timer strong {
+        @apply mt-3 block font-mono text-5xl;
+    }
+    .panel-timer p {
+        @apply mt-2 text-sm text-om-muted;
+    }
+    .panel-timer-ready {
+        @apply border-om-running bg-om-running-bg;
+    }
+    .panel-operation-warning {
+        @apply m-3 flex items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked;
+    }
+    .panel-operation-warning button {
+        @apply min-h-12 shrink-0 rounded-om-sm border border-om-blocked px-4 font-bold;
+    }
+    .panel-touch-step {
+        @apply p-3;
+    }
+    .panel-current-step {
+        @apply border-0 bg-transparent;
+    }
+    .panel-current-step-heading {
+        @apply min-h-20 rounded-om-sm bg-om-panel px-4;
+    }
+    .panel-current-step-heading > button {
+        @apply min-h-16 px-7 text-lg;
+    }
+    .panel-step-controller input,
+    .panel-step-controller select,
+    .panel-step-controller textarea {
+        min-height: 52px;
+    }
+    .panel-complete-content {
+        @apply grid max-h-[68vh] grid-cols-2 gap-5 overflow-y-auto p-5;
+    }
+    .panel-complete-content > section {
+        @apply rounded-om-sm border border-om-line bg-om-card p-4;
+    }
+    .panel-complete-content input,
+    .panel-complete-content textarea,
+    .panel-complete-content [role="combobox"] {
+        min-height: 56px;
+    }
+    .panel-quantity-button {
+        @apply flex h-14 w-14 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-2xl font-bold text-om-ink hover:border-om-ink;
+    }
+
+    @media (max-width: 820px) {
+        .panel-topbar {
+            @apply h-14 gap-2 px-3;
+        }
+        .panel-tabs {
+            @apply h-14;
+        }
+        .panel-tab {
+            @apply min-h-14 text-sm;
+        }
+        .panel-operation-grid {
+            @apply grid-cols-1 overflow-y-auto p-3;
+        }
+        .panel-operation-body {
+            @apply overflow-visible;
+        }
+        .panel-operation-side {
+            @apply grid grid-cols-1;
+        }
+        .panel-timer {
+            @apply min-h-40;
+        }
+        .panel-complete-content {
+            @apply grid-cols-1;
+        }
+        .panel-task {
+            @apply grid-cols-[minmax(0,1fr)_9rem];
+        }
+    }
+
+    @media (max-width: 620px) {
+        .panel-station-content {
+            @apply p-3;
+        }
+        .panel-task {
+            @apply grid-cols-1;
+        }
+        .panel-task-side {
+            @apply flex-row items-center justify-between;
+        }
+        .panel-task-action {
+            @apply w-auto min-w-40;
+        }
+        .panel-capacity {
+            @apply grid-cols-2;
+        }
+    }
     /* Navigation */
     .nav-link {
         @apply text-gray-700 hover:text-blue-600 hover:bg-gray-50 px-5 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap;

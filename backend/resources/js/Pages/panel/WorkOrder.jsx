@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowLeft, Clock3, Layers3 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, FileText, Printer, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import PanelLayout from '../../layouts/PanelLayout';
 import { BatchStepList } from '../operator/WorkOrderDetail';
@@ -51,87 +51,68 @@ export default function WorkOrder({
 
     const batches = workOrder.batches || [];
     const active = useMemo(() => batches.find((batch) => currentStep(batch)?.status === 'IN_PROGRESS') || batches[0], [batches]);
+    const activeStep = active ? currentStep(active) : null;
     const product = workOrder.product_type;
 
     return (
-        <>
+        <div className="panel-operation-screen">
             <Head title={`${workOrder.order_no} · ${__('Production panel')}`} />
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div className="panel-operation-heading">
                 <div className="flex min-w-0 items-center gap-3">
                     <Link href="/panel" className="panel-icon-button" title={__('Back to queue')}><ArrowLeft /></Link>
-                    <div className="min-w-0"><h1 className="truncate text-2xl font-bold md:text-3xl">{workOrder.order_no}</h1><p className="truncate text-om-muted">{product?.name}</p></div>
+                    <div className="min-w-0"><h1 className="truncate text-xl font-bold">{activeStep?.name || workOrder.order_no}</h1><p className="truncate text-sm text-om-muted">{product?.name} · {workOrder.order_no}</p></div>
                 </div>
-                <span className="rounded-full bg-om-running-bg px-4 py-2 text-sm font-bold text-om-running">{__('In progress')}</span>
+                <span className="panel-status panel-status-running">{__('In progress')}</span>
             </div>
 
-            {active && <OperationHero batch={active} step={currentStep(active)} now={now} product={product} />}
-
-            <section id="panel-operation-details" className="mt-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                    <div><span className="panel-label">{__('Batches')}</span><h2 className="text-2xl font-bold">{batches.length > 1 ? __('Operations at this workstation') : __('Current operation')}</h2></div>
-                    <span className="flex items-center gap-2 text-sm text-om-muted"><Layers3 size={18} />{batches.length}</span>
-                </div>
-                <div className="space-y-4">
-                    {batches.map((batch) => {
-                        const step = currentStep(batch);
-                        return (
-                            <article key={batch.id} className="rounded-om border border-om-line bg-om-card p-4 md:p-5">
-                                <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-om-line2 pb-4">
-                                    <div><span className="panel-label">{__('Batch')}</span><strong className="text-xl">#{batch.batch_number || batch.id}</strong></div>
-                                    <div className="flex flex-wrap gap-6"><Fact label={__('Input quantity')} value={productQuantity(step?.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Operation')} value={`${step?.step_number ?? '—'} · ${step?.name ?? '—'}`} /></div>
-                                </div>
-                                {step?.panel_qualification && !step.panel_qualification.qualified && (
-                                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">
-                                        <span>{step.panel_qualification.reasons.join(' ')}</span>
-                                        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: step.id, step, action: 'start_unqualified' } }))} className="font-bold underline">{__('Authorize replacement')}</button>
-                                    </div>
-                                )}
-                                <div className="panel-step-zone">
-                                    <BatchStepList
-                                        steps={batch.steps}
-                                        quantityUnit={product?.unit_of_measure}
-                                        quantityPrecision={product?.quantity_precision}
-                                        labelTemplates={labelTemplates}
-                                        stepPhotos={stepPhotos}
-                                        stepMedia={stepMedia}
-                                        stepChecklists={stepChecklists}
-                                        scrapReasons={scrapReasons}
-                                        canOverrideOperationHold={canOverrideOperationHold}
-                                        routeBase="/panel"
-                                    />
-                                </div>
-                            </article>
-                        );
-                    })}
-                </div>
-            </section>
-        </>
+            {active && <div className="panel-operation-grid">
+                <section id="panel-operation-details" className="panel-operation-body">
+                    <OperationSummary batch={active} step={activeStep} product={product} />
+                    {activeStep?.panel_qualification && !activeStep.panel_qualification.qualified && (
+                        <div className="panel-operation-warning"><span>{activeStep.panel_qualification.reasons.join(' ')}</span><button type="button" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}>{__('Authorize replacement')}</button></div>
+                    )}
+                    <div className="panel-step-zone panel-touch-step">
+                        <BatchStepList
+                            steps={[activeStep]}
+                            quantityUnit={product?.unit_of_measure}
+                            quantityPrecision={product?.quantity_precision}
+                            labelTemplates={labelTemplates}
+                            stepPhotos={stepPhotos}
+                            stepMedia={stepMedia}
+                            stepChecklists={stepChecklists}
+                            scrapReasons={scrapReasons}
+                            canOverrideOperationHold={canOverrideOperationHold}
+                            routeBase="/panel"
+                            panelMode
+                        />
+                    </div>
+                </section>
+                <aside className="panel-operation-side">
+                    <OperationTimer step={activeStep} now={now} />
+                    <div className="grid grid-cols-2 gap-2">
+                        <button type="button" className="panel-secondary" onClick={() => window.dispatchEvent(new CustomEvent('panel:help'))}><AlertTriangle size={20} />{__('Problem')}</button>
+                        <button type="button" className="panel-secondary" onClick={() => document.querySelector('[data-panel-instructions]')?.scrollIntoView({ block: 'center' })}><FileText size={20} />{__('Instruction')}</button>
+                        <button type="button" className="panel-secondary" onClick={() => document.querySelector('.panel-touch-step button[title="Label"]')?.click()}><Printer size={20} />{__('Label')}</button>
+                        <button type="button" className="panel-secondary" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}><ShieldCheck size={20} />{__('Supervisor')}</button>
+                    </div>
+                </aside>
+            </div>}
+        </div>
     );
 }
 
-function OperationHero({ batch, step, now, product }) {
+function OperationSummary({ batch, step, product }) {
     if (!step) return null;
-    const running = step.status === 'IN_PROGRESS';
+    return <div className="panel-operation-summary"><Fact label={__('Batch')} value={`#${batch.batch_number || batch.id}`} /><Fact label={__('Input quantity')} value={productQuantity(step.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Carrier')} value={step.transport_unit_no || '—'} /><Fact label={__('Next operation')} value={step.next_step_name || '—'} /></div>;
+}
+
+function OperationTimer({ step, now }) {
+    if (!step) return null;
     const fixedHold = step.execution_mode === 'fixed_hold';
     const remaining = fixedHold ? holdRemainingSeconds(step.hold_release_at, now) : null;
     const elapsed = elapsedSeconds(step.started_at, now);
     const standard = fixedHold ? step.min_duration_minutes : step.estimated_duration_minutes;
-
-    return (
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_25rem]">
-            <div className="rounded-om border border-om-line bg-om-card p-5 md:p-6">
-                <span className="panel-label">{running ? __('Current operation') : __('Next operation')}</span>
-                <h2 className="text-3xl font-bold">{step.name}</h2>
-                <p className="mt-1 text-lg text-om-muted">{__('Batch')} #{batch.batch_number || batch.id} · {product?.name}</p>
-                <div className="mt-6 grid gap-4 border-t border-om-line pt-5 sm:grid-cols-3"><Fact label={__('Input quantity')} value={productQuantity(step.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Started')} value={step.started_at ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(step.started_at)) : '—'} /><Fact label={__('Status')} value={running ? __('In progress') : __('Ready to start')} /></div>
-            </div>
-            <div className={`rounded-om border p-5 md:p-6 ${remaining === 0 && fixedHold ? 'border-om-downtime/40 bg-om-downtime-bg' : 'border-om-line bg-om-card'}`}>
-                <div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Time since start')}</span></div>
-                <strong className="mt-2 block font-mono text-5xl">{fixedHold && remaining > 0 ? formatHoldCountdown(remaining) : formatDuration(elapsed)}</strong>
-                <p className="mt-2 text-sm text-om-muted">{standard ? `${__('Planned time')}: ${standard} min` : __('Time is recorded automatically.')}</p>
-            </div>
-        </section>
-    );
+    return <div className={`panel-timer ${remaining === 0 && fixedHold ? 'panel-timer-ready' : ''}`}><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Time since start')}</span></div><strong>{fixedHold && remaining > 0 ? formatHoldCountdown(remaining) : formatDuration(elapsed)}</strong><p>{standard ? `${__('Planned time')}: ${standard} min` : __('Time is recorded automatically.')}</p></div>;
 }
 
 function Fact({ label, value }) {

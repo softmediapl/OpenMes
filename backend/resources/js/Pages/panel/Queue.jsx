@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, LockKeyhole, Play } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock3, Play } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import PanelLayout from '../../layouts/PanelLayout';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
@@ -44,59 +44,61 @@ export default function Queue({ workstationQueue = [], selectedWorkstation }) {
     const occupied = groups.progress.length + groups.ready.length;
 
     return (
-        <>
+        <div className="panel-station-screen">
             <Head title={__('Production panel')} />
-            <nav className="mb-6 grid grid-cols-3 border-b border-om-line bg-om-card">
+            <nav className="panel-tabs">
                 <Tab active={tab === 'todo'} onClick={() => setTab('todo')} label={__('To do')} count={groups.todo.length} />
                 <Tab active={tab === 'progress'} onClick={() => setTab('progress')} label={__('In progress')} count={groups.progress.length} />
-                <Tab active={tab === 'ready'} onClick={() => setTab('ready')} label={__('Ready')} count={groups.ready.length} alert={groups.ready.length > 0} />
+                <Tab active={tab === 'ready'} onClick={() => setTab('ready')} label={__('Ready to transfer')} count={groups.ready.length} alert={groups.ready.length > 0} />
             </nav>
-
-            {capacity > 1 && (
-                <section className="mb-6 grid gap-4 rounded-om border border-om-line bg-om-card p-5 sm:grid-cols-3">
-                    <Metric label={__('Occupied capacity')} value={`${occupied} / ${capacity}`} />
-                    <Metric label={__('Available places')} value={Math.max(capacity - occupied, 0)} />
-                    <Metric label={__('Ready to release')} value={groups.ready.length} alert={groups.ready.length > 0} />
-                </section>
-            )}
-
-            <div className="mb-4 flex items-end justify-between gap-3">
-                <div><span className="panel-label">{tab === 'todo' ? __('To do') : tab === 'progress' ? __('In progress') : __('Ready')}</span><h1 className="text-3xl font-bold">{tab === 'todo' ? __('Workstation queue') : selectedWorkstation?.name}</h1></div>
-                <span className="text-sm text-om-muted">{__('Operator')}: <strong className="text-om-ink">{panelOperator?.name || '—'}</strong></span>
+            <div className="panel-station-content">
+                {capacity > 1 && tab === 'progress' && <CapacitySummary occupied={occupied} capacity={capacity} ready={groups.ready.length} />}
+                <div className="mb-3 flex items-end justify-between gap-3">
+                    <div><span className="panel-label">{tab === 'todo' ? __('To do') : tab === 'progress' ? __('Capacity workstation') : __('Completed operations')}</span><h1 className="text-2xl font-bold">{tab === 'todo' ? __('Workstation queue') : selectedWorkstation?.name}</h1></div>
+                    <span className="hidden text-sm text-om-muted sm:block">{__('Operator')}: <strong className="text-om-ink">{panelOperator?.name || '—'}</strong></span>
+                </div>
+                <div className="panel-task-list">
+                    {groups[tab].map((task, index) => <TaskCard key={`${task.batch.id}:${task.step.id}`} task={task} state={tab} now={now} featured={tab === 'todo' && index === 0} />)}
+                    {groups[tab].length === 0 && <div className="panel-empty"><CheckCircle2 size={34} />{__('No tasks in this state.')}</div>}
+                </div>
             </div>
-
-            <div className="space-y-3">
-                {groups[tab].map((task, index) => <TaskCard key={`${task.batch.id}:${task.step.id}`} task={task} state={tab} now={now} featured={index === 0} />)}
-                {groups[tab].length === 0 && <div className="rounded-om border border-dashed border-om-line bg-om-card py-16 text-center text-lg text-om-muted"><CheckCircle2 className="mx-auto mb-3 text-om-running" size={36} />{__('No tasks in this state.')}</div>}
-            </div>
-        </>
+        </div>
     );
 }
 
 function Tab({ active, onClick, label, count, alert }) {
-    return <button type="button" onClick={onClick} className={`min-h-16 border-b-4 px-3 text-base font-bold ${active ? 'border-om-ink text-om-ink' : 'border-transparent text-om-muted'}`}>{label}<span className={`ml-2 rounded-full px-2.5 py-1 text-sm ${alert ? 'bg-om-downtime-bg text-om-downtime' : 'bg-om-chip'}`}>{count}</span></button>;
+    return <button type="button" onClick={onClick} className={`panel-tab ${active ? 'panel-tab-active' : ''}`}>{label}<span className={`panel-tab-count ${alert ? 'panel-tab-count-alert' : ''}`}>{count}</span></button>;
 }
 
 function TaskCard({ task, state, now, featured }) {
     const { order, batch, step } = task;
     const remaining = step.execution_mode === 'fixed_hold' ? holdRemainingSeconds(step.hold_release_at, now) : null;
     const blocked = step.status === 'PENDING';
+    const quantity = step.input_quantity ?? batch.target_qty;
     return (
-        <article className={`grid items-center gap-4 rounded-om border bg-om-card p-5 md:grid-cols-[minmax(0,1fr)_auto] ${featured ? 'border-2 border-om-ink' : 'border-om-line'}`}>
+        <article className={`panel-task ${featured ? 'panel-task-featured' : ''} ${state === 'ready' ? 'panel-task-ready' : ''}`}>
             <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap gap-2">
-                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${state === 'ready' ? 'bg-om-downtime-bg text-om-downtime' : state === 'progress' ? 'bg-om-running-bg text-om-running' : 'bg-om-accepted-bg text-om-accepted'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className={`panel-status ${state === 'ready' ? 'panel-status-ready' : state === 'progress' ? 'panel-status-running' : blocked ? 'panel-status-blocked' : 'panel-status-ready'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
+                    {remaining !== null && <span className="font-mono text-sm font-bold">{remaining > 0 ? formatHoldCountdown(remaining) : __('Ready now')}</span>}
                 </div>
                 <h2 className="truncate text-xl font-bold">{step.name} · {__('Batch')} #{batch.batch_number || batch.id}</h2>
-                <p className="mt-1 truncate text-om-muted">{order.product_type?.name} · {order.order_no}</p>
-                <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={step.input_quantity ?? batch.target_qty} /><Fact label={__('Step')} value={step.step_number} />{remaining !== null && <Fact label={remaining > 0 ? __('Time remaining') : __('Status')} value={remaining > 0 ? formatHoldCountdown(remaining) : __('Ready now')} />}</div>
+                <p className="mt-1 truncate text-sm text-om-muted">{order.product_type?.name} · {order.order_no}</p>
+                <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={quantity} /><Fact label={__('Operation')} value={step.step_number} />{step.transport_unit_no && <Fact label={__('Carrier')} value={step.transport_unit_no} />}</div>
             </div>
-            <Link href={`/panel/work-order/${order.id}`} className="panel-primary min-w-64">{state === 'todo' ? <Play size={24} /> : state === 'ready' ? <ArrowRight size={24} /> : <Clock3 size={24} />}{state === 'todo' ? __('Open and start') : state === 'ready' ? __('Release batch') : __('Open operation')}</Link>
+            <div className="panel-task-side">
+                <strong className="font-mono text-3xl">{quantity}</strong>
+                <Link href={`/panel/work-order/${order.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>
+            </div>
         </article>
     );
 }
 
 function Fact({ label, value }) { return <span><span className="panel-label mb-0">{label}</span><strong>{value}</strong></span>; }
 function Metric({ label, value, alert }) { return <div><span className="panel-label">{label}</span><strong className={`text-3xl ${alert ? 'text-om-downtime' : ''}`}>{value}</strong></div>; }
+function CapacitySummary({ occupied, capacity, ready }) {
+    const percent = capacity > 0 ? Math.min(100, (occupied / capacity) * 100) : 0;
+    return <section className="panel-capacity"><Metric label={__('Occupied capacity')} value={`${occupied} / ${capacity}`} /><Metric label={__('Available places')} value={Math.max(capacity - occupied, 0)} /><Metric label={__('Ready to release')} value={ready} alert={ready > 0} /><div className="col-span-full h-3 overflow-hidden rounded-full bg-om-chip"><span className="block h-full bg-om-accepted" style={{ width: `${percent}%` }} /></div></section>;
+}
 
 Queue.layout = (page) => <PanelLayout>{page}</PanelLayout>;

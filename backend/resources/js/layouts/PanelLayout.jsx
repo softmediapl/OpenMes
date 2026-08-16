@@ -1,5 +1,5 @@
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, Pause, ShieldCheck, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { __ } from '../lib/i18n';
 import { pinDigits, replacePinGroup, splitGroupedPin } from '../lib/groupedPin';
@@ -13,32 +13,44 @@ export default function PanelLayout({ children }) {
     const context = useMemo(() => panelContext(props), [props.workOrder, props.workstationQueue, selectedWorkstation?.id]);
     useEffect(() => {
         const open = (event) => setSupervisorRequest({ ...context, ...event.detail });
+        const openHelp = () => setHelpOpen(true);
         window.addEventListener('panel:supervisor', open);
-        return () => window.removeEventListener('panel:supervisor', open);
+        window.addEventListener('panel:help', openHelp);
+        return () => {
+            window.removeEventListener('panel:supervisor', open);
+            window.removeEventListener('panel:help', openHelp);
+        };
     }, [context]);
 
     return (
-        <div className="min-h-screen bg-om-bg text-om-ink">
-            <header className="sticky top-0 z-30 flex min-h-18 items-center gap-3 border-b border-om-line bg-om-card px-4 py-3 md:px-6">
-                <Link href="/panel" className="min-w-0 flex-1">
-                    <strong className="block truncate text-xl">{selectedWorkstation?.name || __('Production panel')}</strong>
-                    <span className="block truncate text-sm text-om-muted">{line?.name}</span>
+        <div className="panel-shell bg-om-bg text-om-ink">
+            <header className="panel-topbar">
+                <Link href="/panel" className="min-w-0 flex-1 border-r border-white/10 pr-4 sm:flex-none sm:min-w-40">
+                    <strong className="block truncate text-lg leading-tight text-white">{selectedWorkstation?.name || __('Production panel')}</strong>
+                    <span className="block truncate text-xs text-white/65">{line?.name}</span>
                 </Link>
-                <span className="hidden items-center gap-2 rounded-full border border-om-running/30 bg-om-running-bg px-3 py-2 text-sm font-semibold text-om-running sm:flex">
+                <span className="hidden items-center gap-2 rounded-full bg-emerald-900/70 px-3 py-2 text-sm font-bold text-emerald-300 sm:flex">
                     <span className="h-2 w-2 rounded-full bg-om-running" />{__('Online')}
                 </span>
-                <Link href="/panel/materials" className="panel-header-button" title={__('Materials')}>
-                    <PackageOpen size={21} /><span className="hidden lg:inline">{__('Materials')}</span>
-                </Link>
-                <button type="button" className="panel-header-button" onClick={() => setIdentityOpen(true)}>
-                    <UserRound size={21} /><span className="hidden sm:inline">{panelOperator?.name || __('Identify operator')}</span>
+                <div className="ml-auto hidden text-right md:block">
+                    <strong className="block max-w-52 truncate text-sm text-white">{panelOperator?.name || __('Identify operator')}</strong>
+                    <span className="block text-[11px] text-white/60">{__('Operator')}</span>
+                </div>
+                <button type="button" className="panel-topbar-button panel-topbar-button-warn" onClick={() => setHelpOpen(true)} title={__('Downtime')}>
+                    <Pause size={19} /><span className="hidden sm:inline">{__('Downtime')}</span>
                 </button>
-                <button type="button" className="panel-header-button" title={__('Help')} onClick={() => setHelpOpen(true)}>
-                    <CircleHelp size={21} /><span className="hidden lg:inline">{__('Help')}</span>
+                <Link href="/panel/materials" className="panel-topbar-button" title={__('Materials')}>
+                    <PackageOpen size={19} /><span className="hidden lg:inline">{__('Materials')}</span>
+                </Link>
+                <button type="button" className="panel-topbar-button" title={__('Help')} onClick={() => setHelpOpen(true)}>
+                    <CircleHelp size={20} /><span className="sr-only">{__('Help')}</span>
+                </button>
+                <button type="button" className="panel-topbar-button" onClick={() => setIdentityOpen(true)} title={__('Change operator')}>
+                    <UserRound size={20} /><span className="hidden xl:inline">{__('Change operator')}</span>
                 </button>
             </header>
             {flash && <Flash flash={flash} />}
-            <main className="mx-auto max-w-[1440px] p-4 md:p-6">{children}</main>
+            <main className="panel-main">{children}</main>
             {identityOpen && <IdentityModal operator={panelOperator} identity={panelIdentity} onClose={() => panelOperator && setIdentityOpen(false)} />}
             {helpOpen && <HelpModal support={panelSupport} context={context} onClose={() => setHelpOpen(false)} onAuthorize={(request) => { setHelpOpen(false); setSupervisorRequest(request); }} />}
             {supervisorRequest && <SupervisorModal support={panelSupport} identity={panelIdentity} request={supervisorRequest} operator={panelOperator} onClose={() => setSupervisorRequest(null)} onChangeOperator={() => { setSupervisorRequest(null); setIdentityOpen(true); }} />}

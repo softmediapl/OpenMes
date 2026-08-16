@@ -5869,5 +5869,11 @@
     "Time since start": "Czas od rozpoczęcia",
     "To do": "Do wykonania",
     "Waiting for previous step": "Oczekuje na poprzedni krok",
-    "Workstation queue": "Kolejka stanowiska"
+    "Workstation queue": "Kolejka stanowiska",
+    "Ready to transfer": "Gotowe do przekazania",
+    "Capacity workstation": "Stanowisko pojemnościowe",
+    "Completed operations": "Zakończone operacje",
+    "Carrier": "Nośnik",
+    "Decrease": "Zmniejsz",
+    "Increase": "Zwiększ"
 }

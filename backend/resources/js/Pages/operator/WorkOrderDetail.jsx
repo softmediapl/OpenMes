@@ -94,13 +94,13 @@ function ChevronIcon({ open }) {
 // subtitle, panel footer supplied by callers inside their <form>).
 // ---------------------------------------------------------------------------
 
-function ModalShell({ title, subtitle, onClose, children }) {
+function ModalShell({ title, subtitle, onClose, children, wide = false }) {
     return (
         <div className="fixed inset-0 z-50 overflow-y-auto">
             <div className="fixed inset-0 bg-[rgba(10,9,8,0.4)]" onClick={onClose} />
             <div className="flex min-h-full items-center justify-center p-4">
                 <div
-                    className="relative w-full max-w-md overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)]"
+                    className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'max-w-5xl' : 'max-w-md'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className="flex items-center justify-between border-b border-om-line2 px-[18px] py-4">
@@ -113,7 +113,7 @@ function ModalShell({ title, subtitle, onClose, children }) {
                         <button
                             type="button"
                             onClick={onClose}
-                            className="cursor-pointer text-[18px] leading-none text-om-faint hover:text-om-muted"
+                            className="flex h-12 w-12 cursor-pointer items-center justify-center rounded-om-sm border border-om-line text-2xl leading-none text-om-muted hover:text-om-ink"
                         >
                             ×
                         </button>
@@ -123,6 +123,21 @@ function ModalShell({ title, subtitle, onClose, children }) {
             </div>
         </div>
     );
+}
+
+function TouchNumberControl({ value, onChange, step = 1, min = 0, className = '' }) {
+    const changeBy = (direction) => {
+        const current = Number(value) || 0;
+        const next = Math.max(min, current + (Number(step) || 1) * direction);
+        const decimals = String(step).includes('.') ? String(step).split('.')[1].length : 0;
+        onChange(decimals > 0 ? next.toFixed(decimals) : String(Math.round(next)));
+    };
+
+    return <div className={`grid grid-cols-[3.5rem_minmax(0,1fr)_3.5rem] gap-2 ${className}`}>
+        <button type="button" className="panel-quantity-button" onClick={() => changeBy(-1)} aria-label={__('Decrease')}>−</button>
+        <input type="number" min={min} step={step} inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-card px-3 text-center font-mono text-xl font-bold" />
+        <button type="button" className="panel-quantity-button" onClick={() => changeBy(1)} aria-label={__('Increase')}>+</button>
+    </div>;
 }
 
 const modalFooterCls = 'flex justify-end gap-[9px] border-t border-om-line2 bg-om-panel px-[18px] py-[14px]';
@@ -770,7 +785,7 @@ function CompactHoldCountdown({ step }) {
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator' }) {
+export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
@@ -869,8 +884,8 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
     };
 
     return (
-        <div>
-            <h4 className={`${sectionLabelCls} mb-2`}>{__('Steps')}</h4>
+        <div className={panelMode ? 'panel-step-controller' : ''}>
+            {!panelMode && <h4 className={`${sectionLabelCls} mb-2`}>{__('Steps')}</h4>}
             <div className="space-y-2">
                 {steps.map((step) => {
                     const isInflight = inflightStepId === step.id;
@@ -895,8 +910,8 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     const qualityBlocked = !!qualityGate?.required && !qualityGate.fulfilled;
                     const activeMaterialAllocations = (step.material_allocations ?? []).filter((allocation) => allocation.status === 'allocated');
                     return (
-                        <div key={step.id} className="bg-om-panel border border-om-line2 rounded-om-sm">
-                        <div className="flex items-center gap-3 p-3">
+                        <div key={step.id} className={`bg-om-panel border border-om-line2 rounded-om-sm ${panelMode ? 'panel-current-step' : ''}`}>
+                        <div className={`flex items-center gap-3 p-3 ${panelMode ? 'panel-current-step-heading' : ''}`}>
                             <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full font-mono text-[11px] bg-om-chip text-om-muted">
                                 {step.step_number}
                             </span>
@@ -1036,7 +1051,9 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                         )}
 
                         {(step.instruction?.trim() || media.length > 0) && (
-                            <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
+                            <div data-panel-instructions>
+                                <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
+                            </div>
                         )}
 
                         {step.requires_confirmation && hasInstructionContent && (
@@ -1676,8 +1693,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
     const labelCls = 'block font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint mb-1';
 
     return (
-        <ModalShell title={__('Complete operation')} subtitle={step.name} onClose={onClose}>
-            <div className="max-h-[70vh] space-y-5 overflow-y-auto px-[18px] py-4">
+        <ModalShell title={__('Complete operation')} subtitle={step.name} onClose={onClose} wide={routeBase === '/panel'}>
+            <div className={routeBase === '/panel' ? 'panel-complete-content' : 'max-h-[70vh] space-y-5 overflow-y-auto px-[18px] py-4'}>
                 {reportsQuantity && (
                     <section className="space-y-3">
                         <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
@@ -1691,7 +1708,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Rework quantity')}</label>
-                                <input type="number" min="0" step={quantityInput.step} inputMode={quantityInput.inputMode} value={form.data.rework_quantity} onChange={(e) => form.setData('rework_quantity', e.target.value)} className={inputCls} />
+                                <TouchNumberControl step={quantityInput.step} value={form.data.rework_quantity} onChange={(value) => form.setData('rework_quantity', value)} />
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
@@ -1721,7 +1738,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 </button>
                             </div>
                             {form.data.scrap_entries.map((entry, index) => (
-                                <div key={index} className="grid grid-cols-[minmax(0,1fr)_7rem_2.5rem] items-end gap-2">
+                                <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(0,1fr)_18rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
                                     <div>
                                         <label className={labelCls}>{__('Scrap reason')}</label>
                                         <Dropdown
@@ -1740,15 +1757,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                     </div>
                                     <div>
                                         <label className={labelCls}>{__('Quantity')}</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            step={quantityInput.step}
-                                            inputMode={quantityInput.inputMode}
-                                            value={entry.quantity}
-                                            onChange={(event) => updateScrapEntry(index, 'quantity', event.target.value)}
-                                            className={inputCls}
-                                        />
+                                        <TouchNumberControl step={quantityInput.step} value={entry.quantity} onChange={(value) => updateScrapEntry(index, 'quantity', value)} />
                                     </div>
                                     <button
                                         type="button"
@@ -1883,7 +1892,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className={labelCls}>{__('Actual setup (minutes)')}</label>
-                                <input type="number" min="0" value={form.data.actual_setup_minutes} onChange={(e) => form.setData('actual_setup_minutes', e.target.value)} className={inputCls} placeholder={__('optional')} />
+                                <TouchNumberControl value={form.data.actual_setup_minutes} onChange={(value) => form.setData('actual_setup_minutes', value)} />
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Actual run (minutes)')}</label>
