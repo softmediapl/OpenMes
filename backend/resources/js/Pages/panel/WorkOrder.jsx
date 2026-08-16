@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import PanelLayout from '../../layouts/PanelLayout';
 import { BatchStepList } from '../operator/WorkOrderDetail';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
+import { compactQuantity } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
 
 function elapsedSeconds(startedAt, now) {
@@ -24,6 +25,13 @@ function currentStep(batch) {
     return (batch.steps || []).find((step) => step.status === 'IN_PROGRESS')
         || (batch.steps || []).find((step) => ['READY', 'PENDING'].includes(step.status))
         || (batch.steps || [])[0];
+}
+
+function productQuantity(value, product, withUnit = false) {
+    if (value == null || value === '') return '—';
+
+    const quantity = compactQuantity(value, product?.quantity_precision, product?.unit_of_measure);
+    return withUnit ? `${quantity} ${product.unit_of_measure}` : quantity;
 }
 
 export default function WorkOrder({
@@ -70,7 +78,7 @@ export default function WorkOrder({
                             <article key={batch.id} className="rounded-om border border-om-line bg-om-card p-4 md:p-5">
                                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-om-line2 pb-4">
                                     <div><span className="panel-label">{__('Batch')}</span><strong className="text-xl">#{batch.batch_number || batch.id}</strong></div>
-                                    <div className="flex flex-wrap gap-6"><Fact label={__('Input quantity')} value={step?.input_quantity ?? batch.target_qty} /><Fact label={__('Operation')} value={`${step?.step_number ?? '—'} · ${step?.name ?? '—'}`} /></div>
+                                    <div className="flex flex-wrap gap-6"><Fact label={__('Input quantity')} value={productQuantity(step?.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Operation')} value={`${step?.step_number ?? '—'} · ${step?.name ?? '—'}`} /></div>
                                 </div>
                                 {step?.panel_qualification && !step.panel_qualification.qualified && (
                                     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-4 py-3 text-sm font-semibold text-om-blocked">
@@ -115,7 +123,7 @@ function OperationHero({ batch, step, now, product }) {
                 <span className="panel-label">{running ? __('Current operation') : __('Next operation')}</span>
                 <h2 className="text-3xl font-bold">{step.name}</h2>
                 <p className="mt-1 text-lg text-om-muted">{__('Batch')} #{batch.batch_number || batch.id} · {product?.name}</p>
-                <div className="mt-6 grid gap-4 border-t border-om-line pt-5 sm:grid-cols-3"><Fact label={__('Input quantity')} value={`${step.input_quantity ?? batch.target_qty} ${product?.unit_of_measure || ''}`} /><Fact label={__('Started')} value={step.started_at ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(step.started_at)) : '—'} /><Fact label={__('Status')} value={running ? __('In progress') : __('Ready to start')} /></div>
+                <div className="mt-6 grid gap-4 border-t border-om-line pt-5 sm:grid-cols-3"><Fact label={__('Input quantity')} value={productQuantity(step.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Started')} value={step.started_at ? new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(step.started_at)) : '—'} /><Fact label={__('Status')} value={running ? __('In progress') : __('Ready to start')} /></div>
             </div>
             <div className={`rounded-om border p-5 md:p-6 ${remaining === 0 && fixedHold ? 'border-om-downtime/40 bg-om-downtime-bg' : 'border-om-line bg-om-card'}`}>
                 <div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Time since start')}</span></div>
