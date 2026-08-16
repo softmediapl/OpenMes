@@ -1722,16 +1722,16 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             <span className={labelCls}>{__('Input quantity')}</span>
                             <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, quantityInput.precision)}</span>
                         </div>
-                        <div className={routeBase === '/panel' ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-3 gap-3'}>
-                            <div className={routeBase === '/panel' ? 'col-start-1 row-start-1' : ''}>
+                        <div className={routeBase === '/panel' ? 'grid grid-cols-[0.75fr_1.7fr_0.75fr] gap-3' : 'grid grid-cols-3 gap-3'}>
+                            <div>
                                 <label className={labelCls}>{__('Good quantity')}</label>
                                 <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(goodQuantity) ? goodQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
-                            <div className={routeBase === '/panel' ? 'col-span-2 row-start-2' : ''}>
+                            <div>
                                 <label className={labelCls}>{__('Rework quantity')}</label>
                                 <TouchNumberControl step={quantityInput.step} value={form.data.rework_quantity} onChange={(value) => form.setData('rework_quantity', value)} />
                             </div>
-                            <div className={routeBase === '/panel' ? 'col-start-2 row-start-1' : ''}>
+                            <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
                                 <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
