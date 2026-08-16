@@ -75,6 +75,7 @@ class PanelTerminalTest extends TestCase
                 ->where('selectedWorkstation.id', $this->workstation->id)
                 ->where('panelOperator', null)
                 ->has('workstationQueue', 1)
+                ->where('workstationQueue.0.product_type.quantity_precision', $this->workOrder->productType->quantityPrecision())
             );
 
         $this->actingAs($this->terminal)

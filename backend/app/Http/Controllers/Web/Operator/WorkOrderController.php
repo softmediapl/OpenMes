@@ -131,6 +131,7 @@ class WorkOrderController extends Controller
         }
 
         $workstationQueue->each(function (WorkOrder $workOrder): void {
+            $workOrder->productType?->append('quantity_precision');
             $workOrder->batches->each(function (Batch $batch): void {
                 $batch->steps->each(function (BatchStep $step): void {
                     $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());
