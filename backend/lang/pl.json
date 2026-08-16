@@ -4929,6 +4929,7 @@
     "External Reference": "Referencja zewnętrzna",
     "Product type cannot be changed after creation.": "Typu produktu nie można zmienić po utworzeniu.",
     "Revision": "Rewizja",
+    "Revision :code": "Rewizja :code",
     "Lifecycle": "Cykl życia",
     "Release revision \":code\"? It becomes immutable and selectable for production.": "Wydać rewizję \":code\"? Stanie się niezmienna i wybieralna do produkcji.",
     "Mark obsolete": "Oznacz jako wycofaną",
