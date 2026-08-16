@@ -26,7 +26,9 @@ trait ValidatesProcessTemplateBatchPolicy
                 return;
             }
 
-            $productType = $this->route('product_type');
+            $template = $this->route('process_template');
+            $productType = $this->route('product_type')
+                ?? ($template instanceof \App\Models\ProcessTemplate ? $template->productType : null);
             $precision = $productType?->quantity_precision;
             foreach (array_column($this->batchPolicyFields(), 0) as $field) {
                 $value = $this->input($field);

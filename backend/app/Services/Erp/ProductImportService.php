@@ -52,7 +52,10 @@ class ProductImportService
                 return $this->error('code', __("Product ':code' already exists", ['code' => $code]));
             }
 
-            $unit = trim((string) ($row['unit_of_measure'] ?? $existing?->unit_of_measure ?? ''));
+            // Keep the historical product default for ERP feeds that predate
+            // the explicit unit dictionary. An explicitly supplied unknown
+            // code is still rejected below.
+            $unit = trim((string) ($row['unit_of_measure'] ?? $existing?->unit_of_measure ?? 'pcs'));
             if ($unit === '' || ! UnitOfMeasure::query()->where('code', $unit)->where('is_active', true)->exists()) {
                 return $this->error('unit_of_measure', __('Unit of measure must be configured before import'));
             }

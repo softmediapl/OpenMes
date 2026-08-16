@@ -170,11 +170,18 @@ class BomService
     {
         $bom = $snapshot['bom'] ?? [];
         $outputPrecision = $snapshot['product_quantity_precision']
-            ?? \App\Models\ProductType::query()->findOrFail($snapshot['product_type_id'])->quantity_precision;
+            ?? (isset($snapshot['product_type_id'])
+                ? \App\Models\ProductType::query()->find($snapshot['product_type_id'])?->quantity_precision
+                : null)
+            ?? 4;
 
         return array_map(function ($item) use ($productionQty, $outputPrecision) {
+            $unitOfMeasure = $item['unit_of_measure']
+                ?? Material::query()->find($item['material_id'] ?? null)?->unit_of_measure;
+
             return array_merge($item, [
-                'quantity_precision' => \App\Models\UnitOfMeasure::precisionForCode($item['unit_of_measure']),
+                'unit_of_measure' => $unitOfMeasure,
+                'quantity_precision' => \App\Models\UnitOfMeasure::precisionForCode($unitOfMeasure),
                 'output_quantity_precision' => $outputPrecision,
             ], $this->quantities->calculate($item, $productionQty));
         }, $bom);

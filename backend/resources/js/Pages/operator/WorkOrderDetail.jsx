@@ -103,9 +103,9 @@ function ModalShell({ title, subtitle, onClose, children, wide = false }) {
                     className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'max-w-5xl' : 'max-w-md'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <div className="flex items-center justify-between border-b border-om-line2 px-[18px] py-4">
+                    <div className={`flex items-center justify-between border-b border-om-line2 ${wide ? 'px-5 py-4' : 'px-[18px] py-4'}`}>
                         <div>
-                            <div className="text-[15px] font-semibold text-om-ink">{title}</div>
+                            <div className={`${wide ? 'text-2xl' : 'text-[15px]'} font-semibold text-om-ink`}>{title}</div>
                             {subtitle != null && (
                                 <div className="mt-[3px] font-mono text-[9.5px] uppercase tracking-[0.08em] text-om-faint">{subtitle}</div>
                             )}
@@ -1909,9 +1909,9 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                     </div>
                 )}
             </div>
-            <div className={modalFooterCls}>
-                <Button variant="secondary" onClick={onClose}>{__('Cancel')}</Button>
-                <Button variant="primary" disabled={invalid || form.processing} onClick={submit}>
+            <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>
+                <Button variant="secondary" size={routeBase === '/panel' ? 'lg' : 'md'} onClick={onClose}>{__('Cancel')}</Button>
+                <Button variant="primary" size={routeBase === '/panel' ? 'lg' : 'md'} disabled={invalid || form.processing} onClick={submit}>
                     {form.processing ? '…' : __('Complete step')}
                 </Button>
             </div>
@@ -2172,11 +2172,11 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
     };
 
     return (
-        <ModalShell title={__('Prepare operation')} subtitle={step.name} onClose={onClose}>
+        <ModalShell title={__('Prepare operation')} subtitle={step.name} onClose={onClose} wide={routeBase === '/panel'}>
             <form onSubmit={submit}>
-                <div className="max-h-[60vh] space-y-5 overflow-y-auto px-[18px] py-4">
+                <div className={routeBase === '/panel' ? 'panel-start-content' : 'max-h-[60vh] space-y-5 overflow-y-auto px-[18px] py-4'}>
                     {transportUnitRequirement && (
-                        <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                        <div className={routeBase === '/panel' ? 'panel-start-card panel-start-card-wide' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
                             <div className="mb-3 flex items-start justify-between gap-3">
                                 <div>
                                     <span className="block text-sm font-medium text-om-ink">{transportUnitRequirement.name}</span>
@@ -2259,10 +2259,10 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                         const remaining = m.candidates.filter((c) => !lines.some((ln) => ln.material_lot_id === c.id));
                         const afterReservation = Math.max(0, Number(m.available_qty) - Number(m.required_qty));
                         return (
-                            <div key={m.material_id} className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                            <div key={m.material_id} className={routeBase === '/panel' ? 'panel-start-card' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
                                 <div className="mb-2 flex items-start justify-between gap-2">
                                     <div>
-                                        <span className="text-sm font-medium text-om-ink">{m.material_name}</span>
+                                        <span className={routeBase === '/panel' ? 'text-base font-bold text-om-ink' : 'text-sm font-medium text-om-ink'}>{m.material_name}</span>
                                         <span className="ml-1 font-mono text-[11px] text-om-faint">{m.material_code}</span>
                                     </div>
                                     <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-muted">
@@ -2298,7 +2298,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                         const cand = candById[m.material_id][ln.material_lot_id];
                                         const over = Number(ln.picked_qty) > (cand?.quantity_available ?? 0) + EPSILON;
                                         return (
-                                            <div key={ln.material_lot_id} className="flex items-center justify-between gap-3 border-b border-om-line2 pb-2.5 last:border-0 last:pb-0">
+                                            <div key={ln.material_lot_id} className={routeBase === '/panel' ? 'panel-start-lot-row' : 'flex items-center justify-between gap-3 border-b border-om-line2 pb-2.5 last:border-0 last:pb-0'}>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="font-mono text-[12px] font-semibold text-om-ink break-all leading-normal">
                                                         {cand?.lot_number ?? `#${ln.material_lot_id}`}
@@ -2308,20 +2308,31 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                                         {cand?.expiry_date ? ` · ${__('exp')}: ${formatDate(cand.expiry_date)}` : ''}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                                    <input
-                                                        type="number"
-                                                        step={materialQuantityInput.step}
-                                                        min="0"
-                                                        inputMode={materialQuantityInput.inputMode}
-                                                        value={ln.picked_qty}
-                                                        onChange={(e) => setLineQty(m.material_id, idx, e.target.value)}
-                                                        className="text-[12px] text-om-ink bg-om-bg border border-om-line rounded-om-sm px-2 py-1 outline-none w-20 text-right focus:border-om-accent transition-colors font-mono"
-                                                    />
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    {routeBase === '/panel' ? (
+                                                        <TouchNumberControl
+                                                            step={materialQuantityInput.step}
+                                                            value={ln.picked_qty}
+                                                            onChange={(value) => setLineQty(m.material_id, idx, value)}
+                                                            className="w-64"
+                                                        />
+                                                    ) : (
+                                                        <input
+                                                            type="number"
+                                                            step={materialQuantityInput.step}
+                                                            min="0"
+                                                            inputMode={materialQuantityInput.inputMode}
+                                                            value={ln.picked_qty}
+                                                            onChange={(e) => setLineQty(m.material_id, idx, e.target.value)}
+                                                            className="text-[12px] text-om-ink bg-om-bg border border-om-line rounded-om-sm px-2 py-1 outline-none w-20 text-right focus:border-om-accent transition-colors font-mono"
+                                                        />
+                                                    )}
                                                     <button
                                                         type="button"
                                                         onClick={() => removeLine(m.material_id, idx)}
-                                                        className="cursor-pointer p-1 text-[18px] leading-none text-om-faint hover:text-om-blocked"
+                                                        className={routeBase === '/panel'
+                                                            ? 'flex h-14 w-14 cursor-pointer items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl text-om-muted hover:border-om-blocked hover:text-om-blocked'
+                                                            : 'cursor-pointer p-1 text-[18px] leading-none text-om-faint hover:text-om-blocked'}
                                                         title={__('Remove lot')}
                                                     >
                                                         ×
@@ -2338,7 +2349,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                         onChange={(e) => {
                                             if (e.target.value) addLine(m.material_id, Number(e.target.value), m.required_qty);
                                         }}
-                                        className={`${inputCls} mt-2`}
+                                        className={routeBase === '/panel' ? 'panel-input mt-3' : `${inputCls} mt-2`}
                                     >
                                         <option value="">{__('+ Add lot…')}</option>
                                         {remaining.map((c) => (
@@ -2361,13 +2372,13 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                             </div>
                         );
                     })}
-                    {serverError && <p className={`${errorCls} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
+                    {serverError && <p className={`${errorCls} ${routeBase === '/panel' ? 'col-span-full' : ''} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
                 </div>
-                <div className={modalFooterCls}>
-                    <Button variant="secondary" type="button" onClick={onClose}>
+                <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>
+                    <Button variant="secondary" size={routeBase === '/panel' ? 'lg' : 'md'} type="button" onClick={onClose}>
                         {__('Cancel')}
                     </Button>
-                    <Button variant="accent" type="submit" disabled={!allValid || submitting}>
+                    <Button variant="accent" size={routeBase === '/panel' ? 'lg' : 'md'} type="submit" disabled={!allValid || submitting}>
                         {submitting ? '…' : __('Confirm & start')}
                     </Button>
                 </div>

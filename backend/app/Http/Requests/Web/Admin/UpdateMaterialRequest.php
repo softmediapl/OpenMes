@@ -29,6 +29,10 @@ class UpdateMaterialRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        if (! $this->exists('unit_of_measure') && $this->route('material')) {
+            $this->merge(['unit_of_measure' => $this->route('material')->unit_of_measure]);
+        }
+
         if ($this->input('default_scrap_percentage') === null || $this->input('default_scrap_percentage') === '') {
             $this->merge(['default_scrap_percentage' => 0]);
         }

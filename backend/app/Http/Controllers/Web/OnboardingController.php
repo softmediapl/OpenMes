@@ -92,6 +92,10 @@ class OnboardingController extends Controller
 
     public function storeStep2(Request $request)
     {
+        if (! $request->exists('unit_of_measure')) {
+            $request->merge(['unit_of_measure' => 'pcs']);
+        }
+
         $validated = $request->validate([
             'code' => 'required|string|max:50|unique:product_types,code',
             'name' => 'required|string|max:255',

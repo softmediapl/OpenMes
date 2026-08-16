@@ -305,6 +305,24 @@ html.dark {
     .panel-complete-content > section {
         @apply rounded-om-sm border border-om-line bg-om-card p-4;
     }
+    .panel-start-content {
+        @apply grid max-h-[68vh] grid-cols-2 gap-4 overflow-y-auto p-5;
+    }
+    .panel-start-card {
+        @apply rounded-om-sm border border-om-line bg-om-card p-4;
+    }
+    .panel-start-card-wide {
+        @apply col-span-2;
+    }
+    .panel-start-lot-row {
+        @apply grid grid-cols-[minmax(0,1fr)_22rem] items-center gap-4 border-b border-om-line2 pb-3 last:border-0 last:pb-0;
+    }
+    .panel-modal-footer {
+        @apply flex shrink-0 justify-end gap-3 border-t border-om-line2 bg-om-panel px-5 py-4;
+    }
+    .panel-modal-footer button {
+        @apply min-h-14 min-w-44 text-base;
+    }
     .panel-complete-content input,
     .panel-complete-content textarea,
     .panel-complete-content [role="combobox"] {
@@ -352,6 +370,15 @@ html.dark {
             @apply min-h-40;
         }
         .panel-complete-content {
+            @apply grid-cols-1;
+        }
+        .panel-start-content {
+            @apply grid-cols-1;
+        }
+        .panel-start-card-wide {
+            @apply col-span-1;
+        }
+        .panel-start-lot-row {
             @apply grid-cols-1;
         }
         .panel-material-row {
