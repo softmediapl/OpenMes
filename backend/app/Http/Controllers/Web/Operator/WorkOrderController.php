@@ -51,7 +51,7 @@ class WorkOrderController extends Controller
         // Get active and completed work orders for this line
         $activeWorkOrders = WorkOrder::where('line_id', $lineId)
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
-            ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit', 'lineStatus'])
+            ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit', 'lineStatus', 'issues.issueType'])
             ->orderBy('priority', 'desc')
             ->orderBy('due_date', 'asc')
             ->get();
@@ -99,7 +99,7 @@ class WorkOrderController extends Controller
             // across lines, e.g. a shared packing station); otherwise stay on this line.
             $queueSource = ($workstationLocked || $routingEnabled)
                 ? WorkOrder::whereIn('status', WorkOrder::ACTIVE_STATUSES)
-                    ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit'])
+                    ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit', 'issues.issueType'])
                     ->get()
                 : $activeWorkOrders;
 
@@ -144,6 +144,10 @@ class WorkOrderController extends Controller
 
         $workstationQueue->each(function (WorkOrder $workOrder): void {
             $workOrder->productType?->append('quantity_precision');
+            $workOrder->setAttribute('blocking_reasons', $workOrder->issues
+                ->filter(fn ($issue) => $issue->isBlocking())
+                ->pluck('title')
+                ->values());
             $workOrder->batches->each(function (Batch $batch): void {
                 $batch->steps->each(function (BatchStep $step): void {
                     $step->setAttribute('hold_release_at', $step->holdReleaseAt()?->toIso8601String());

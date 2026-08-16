@@ -88,7 +88,9 @@ function TaskCard({ task, state, now, featured }) {
     const remaining = isRunningFixedHold(step)
         ? holdRemainingSeconds(step.hold_release_at, now)
         : null;
-    const blocked = step.status === 'PENDING';
+    const blockingReasons = order.blocking_reasons || [];
+    const workOrderBlocked = blockingReasons.length > 0;
+    const blocked = step.status === 'PENDING' || workOrderBlocked;
     const rawQuantity = step.input_quantity ?? batch.target_qty;
     const product = order.product_type;
     const quantity = `${compactQuantity(rawQuantity, product?.quantity_precision, product?.unit_of_measure)}${product?.unit_of_measure ? ` ${product.unit_of_measure}` : ''}`;
@@ -96,16 +98,19 @@ function TaskCard({ task, state, now, featured }) {
         <article className={`panel-task ${featured ? 'panel-task-featured' : ''} ${state === 'ready' ? 'panel-task-ready' : ''}`}>
             <div className="min-w-0">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className={`panel-status ${state === 'ready' ? 'panel-status-ready' : state === 'progress' ? 'panel-status-running' : blocked ? 'panel-status-blocked' : 'panel-status-ready'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
+                    <span className={`panel-status ${state === 'ready' ? 'panel-status-ready' : state === 'progress' ? 'panel-status-running' : blocked ? 'panel-status-blocked' : 'panel-status-ready'}`}>{state === 'ready' ? __('Ready for release') : state === 'progress' ? __('In progress') : workOrderBlocked ? __('Blocked') : blocked ? __('Waiting for previous step') : __('Ready to start')}</span>
                     {remaining !== null && <span className="font-mono text-sm font-bold">{remaining > 0 ? formatHoldCountdown(remaining) : __('Ready now')}</span>}
                 </div>
                 <h2 className="truncate text-xl font-bold">{step.name} · {__('Batch')} #{batch.batch_number || batch.id}</h2>
                 <p className="mt-1 truncate text-sm text-om-muted">{order.product_type?.name} · {order.order_no}</p>
+                {workOrderBlocked && <p className="mt-3 rounded-om-sm bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked">{__('Reason')}: {blockingReasons.join(', ')}</p>}
                 <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={quantity} /><Fact label={__('From')} value={step.step_number > 1 ? (batch.steps || []).find((candidate) => Number(candidate.step_number) === Number(step.step_number) - 1)?.name || '—' : '—'} />{nextStepName(batch, step) && <Fact label={__('Next operation')} value={nextStepName(batch, step)} />}{carrierCode(step) && <Fact label={__('Carrier')} value={carrierCode(step)} />}</div>
             </div>
             <div className="panel-task-side">
                 <strong className="font-mono text-3xl">{quantity}</strong>
-                <Link href={`/panel/work-order/${order.id}?batch=${batch.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>
+                {workOrderBlocked
+                    ? <button type="button" disabled className="panel-task-action opacity-50"><Clock3 size={22} />{__('Unavailable')}</button>
+                    : <Link href={`/panel/work-order/${order.id}?batch=${batch.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>}
             </div>
         </article>
     );

@@ -5,6 +5,8 @@ namespace Tests\Feature\Web\Operator;
 use App\Models\Batch;
 use App\Models\BatchStep;
 use App\Models\Line;
+use App\Models\Issue;
+use App\Models\IssueType;
 use App\Models\PanelSupervisorAuthorization;
 use App\Models\User;
 use App\Models\Worker;
@@ -106,6 +108,24 @@ class PanelTerminalTest extends TestCase
                 ->where('selectedWorkstation.id', $this->workstation->id)
                 ->where('workOrder.product_type.unit_of_measure', $product->unit_of_measure)
                 ->where('workOrder.product_type.quantity_precision', $product->quantityPrecision())
+            );
+    }
+
+    public function test_panel_queue_exposes_open_blocking_issue_reasons(): void
+    {
+        $issueType = IssueType::factory()->blocking()->create();
+        $issue = Issue::factory()->create([
+            'work_order_id' => $this->workOrder->id,
+            'issue_type_id' => $issueType->id,
+            'status' => Issue::STATUS_OPEN,
+            'title' => 'Quality decision required',
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('workstationQueue.0.blocking_reasons', [$issue->title])
             );
     }
 
