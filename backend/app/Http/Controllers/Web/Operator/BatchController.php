@@ -180,16 +180,25 @@ class BatchController extends Controller
             $this->batchService->completeStep($batchStep, $request->user(), $data);
             $this->panelAuthorizations->consume($authorization);
 
+            if ($request->routeIs('panel.*')) {
+                $workOrder = $batchStep->batch->workOrder->fresh(['batches.steps']);
+                $workstation = $this->workstationContext->currentWorkstation($request);
+                $canContinueAtWorkstation = $workstation
+                    && $workOrder->batches->contains(function ($batch) use ($workstation) {
+                        $step = $batch->currentStep();
+
+                        return $step && $this->workstationContext->workstationCanOperateStep($workstation, $step);
+                    });
+
+                return redirect()->route('panel.index')
+                    ->with('success', $canContinueAtWorkstation
+                        ? __('Step completed.')
+                        : __('Step completed and the batch was transferred to the next operation.'));
+            }
+
             if ($this->workstationContext->workstation($request)) {
                 $workOrder = $batchStep->batch->workOrder->fresh();
                 $canContinueAtWorkstation = $this->workstationContext->canAccessWorkOrder($request, $workOrder);
-
-                if ($request->routeIs('panel.*')) {
-                    return redirect()->route('panel.index')
-                        ->with('success', $canContinueAtWorkstation
-                            ? __('Step completed.')
-                            : __('Step completed and the batch was transferred to the next operation.'));
-                }
 
                 if ($canContinueAtWorkstation) {
                     return redirect()->route('operator.work-order.detail', $workOrder)
