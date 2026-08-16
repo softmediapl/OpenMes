@@ -373,12 +373,24 @@ class WorkOrderController extends Controller
         }
 
         if ($workstationLocked) {
+            $requestedBatchId = $request->routeIs('panel.*') ? $request->integer('batch') : 0;
             $visibleBatches = $workOrder->batches
                 ->filter(function ($batch) use ($lockedWorkstation) {
                     $step = $this->currentLoadedStep($batch);
 
                     return $step && $this->workstationContext->workstationCanOperateStep($lockedWorkstation, $step);
-                })
+                });
+
+            if ($requestedBatchId > 0) {
+                $visibleBatches = $visibleBatches->where('id', $requestedBatchId);
+
+                if ($visibleBatches->isEmpty()) {
+                    return redirect()->route('panel.index')
+                        ->with('error', 'The selected batch is not actionable at this workstation.');
+                }
+            }
+
+            $visibleBatches = $visibleBatches
                 ->map(function ($batch) {
                     $currentStep = $this->currentLoadedStep($batch);
                     $nextStep = $currentStep

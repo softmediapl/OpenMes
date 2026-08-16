@@ -105,7 +105,7 @@ function TaskCard({ task, state, now, featured }) {
             </div>
             <div className="panel-task-side">
                 <strong className="font-mono text-3xl">{quantity}</strong>
-                <Link href={`/panel/work-order/${order.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>
+                <Link href={`/panel/work-order/${order.id}?batch=${batch.id}`} className="panel-task-action">{state === 'todo' ? <Play size={22} /> : state === 'ready' ? <ArrowRight size={22} /> : <Clock3 size={22} />}{state === 'todo' ? __('Start') : state === 'ready' ? __('Transfer') : __('Open')}</Link>
             </div>
         </article>
     );

@@ -109,6 +109,48 @@ class PanelTerminalTest extends TestCase
             );
     }
 
+    public function test_panel_can_open_a_specific_actionable_batch_from_the_station_queue(): void
+    {
+        $firstBatch = $this->step->batch;
+        $this->step->update(['status' => BatchStep::STATUS_IN_PROGRESS]);
+        $selectedBatch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $selectedBatch->id,
+            'workstation_id' => $this->workstation->id,
+            'step_number' => 1,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.work-order', $this->workOrder).'?batch='.$selectedBatch->id)
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('panel/WorkOrder')
+                ->has('workOrder.batches', 1)
+                ->where('workOrder.batches.0.id', $selectedBatch->id)
+                ->missing('workOrder.batches.1')
+            );
+
+        $this->assertNotSame($firstBatch->id, $selectedBatch->id);
+    }
+
+    public function test_panel_rejects_a_requested_batch_from_another_workstation(): void
+    {
+        $otherStation = Workstation::factory()->create(['line_id' => $this->workstation->line_id]);
+        $foreignBatch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);
+        BatchStep::factory()->create([
+            'batch_id' => $foreignBatch->id,
+            'workstation_id' => $otherStation->id,
+            'step_number' => 1,
+            'status' => BatchStep::STATUS_READY,
+        ]);
+
+        $this->actingAs($this->terminal)
+            ->get(route('panel.work-order', $this->workOrder).'?batch='.$foreignBatch->id)
+            ->assertRedirect(route('panel.index'))
+            ->assertSessionHas('error');
+    }
+
     public function test_human_device_panel_only_receives_batches_for_the_selected_workstation(): void
     {
         Role::create(['name' => 'Admin', 'guard_name' => 'web']);
