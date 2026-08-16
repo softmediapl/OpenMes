@@ -315,7 +315,7 @@ html.dark {
         @apply col-span-2;
     }
     .panel-start-lot-row {
-        @apply grid grid-cols-[minmax(0,1fr)_22rem] items-center gap-4 border-b border-om-line2 pb-3 last:border-0 last:pb-0;
+        @apply grid grid-cols-1 gap-3 border-b border-om-line2 pb-3 last:border-0 last:pb-0;
     }
     .panel-modal-footer {
         @apply flex shrink-0 justify-end gap-3 border-t border-om-line2 bg-om-panel px-5 py-4;
@@ -377,9 +377,6 @@ html.dark {
         }
         .panel-start-card-wide {
             @apply col-span-1;
-        }
-        .panel-start-lot-row {
-            @apply grid-cols-1;
         }
         .panel-material-row {
             @apply grid-cols-1;

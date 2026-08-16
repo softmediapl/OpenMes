@@ -2314,7 +2314,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                                             step={materialQuantityInput.step}
                                                             value={ln.picked_qty}
                                                             onChange={(value) => setLineQty(m.material_id, idx, value)}
-                                                            className="w-64"
+                                                            className="w-full"
                                                         />
                                                     ) : (
                                                         <input
