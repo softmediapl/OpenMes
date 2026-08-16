@@ -15,6 +15,7 @@ import { formatQuantityRule } from '../../lib/bomQuantityRule';
 import { __, formatDate, formatDateTime, formatNumber } from '../../lib/i18n';
 import { operationDerivedOutput, operationQuantityInput, operationScrapBreakdownValid, quantityInputValue } from '../../lib/operationQuantity';
 import { operationActualRunMinutes, operationActualTimeDefaults, shouldReportOperationTime } from '../../lib/operationActualTime';
+import { hasPendingRequiredChecklist } from '../../lib/operationChecklist';
 import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHold';
 import { suggestTransportUnitLoads, validateTransportUnitLoads } from '../../lib/transportUnitLoads';
 import { assertQuantityPrecision, compactQuantity } from '../../lib/configuredQuantity';
@@ -900,6 +901,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     const checklist = stepChecklists[step.step_number] || [];
                     const completions = step.checklist_completions || [];
                     const completedItemIds = new Set(completions.map((c) => c.checklist_item_id));
+                    const checklistBlocked = hasPendingRequiredChecklist(checklist, completions);
                     const canCheck = step.status === 'IN_PROGRESS' || step.status === 'READY' || step.status === 'PENDING';
                     const isFixedHold = step.execution_mode === 'fixed_hold';
                     const remainingHoldSeconds = isFixedHold
@@ -976,7 +978,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                             {step.status === 'IN_PROGRESS' && (
                                 <Button
                                     variant="primary"
-                                    disabled={isInflight || isDocBlocked || needsConfirm || qualityBlocked || (holdIsActive && !canOverrideOperationHold)}
+                                    disabled={isInflight || isDocBlocked || needsConfirm || checklistBlocked || qualityBlocked || (holdIsActive && !canOverrideOperationHold)}
                                     onClick={() => (
                                         step.quantity_reporting_required
                                             || step.setup_time_minutes != null
@@ -992,6 +994,8 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                                             ? __('Validate the mandatory document(s) before completing this step.')
                                             : needsConfirm
                                               ? __('Confirm you have read the instructions before completing this step.')
+                                              : checklistBlocked
+                                                ? __('Complete the required checklist before completing this step.')
                                               : holdIsActive && !canOverrideOperationHold
                                                 ? __('This operation is still within its minimum hold time.')
                                               : undefined

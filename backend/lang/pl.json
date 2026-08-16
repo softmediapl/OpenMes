@@ -5690,6 +5690,7 @@
     "Record quality check": "Zapisz kontrolę jakości",
     "Start the operation before recording quality results.": "Rozpocznij operację przed zapisaniem wyników jakościowych.",
     "Complete the required quality gate before completing this step.": "Wykonaj wymaganą bramkę jakościową przed zakończeniem tego kroku.",
+    "Complete the required checklist before completing this step.": "Uzupełnij wymaganą listę kontrolną przed zakończeniem tego kroku.",
     "Operation quality check passed.": "Kontrola jakości operacji zakończyła się wynikiem pozytywnym.",
     "Operation quality check failed and a blocking non-conformance was raised.": "Kontrola jakości operacji zakończyła się wynikiem negatywnym i utworzono blokującą niezgodność.",
     "This operation has an invalid quality-gate configuration. Release a new work-order revision after correcting the process template.": "Ta operacja ma nieprawidłową konfigurację bramki jakościowej. Popraw szablon procesu i zwolnij nową rewizję zlecenia.",

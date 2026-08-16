@@ -5684,6 +5684,7 @@
     "Record quality check": "Record quality check",
     "Start the operation before recording quality results.": "Start the operation before recording quality results.",
     "Complete the required quality gate before completing this step.": "Complete the required quality gate before completing this step.",
+    "Complete the required checklist before completing this step.": "Complete the required checklist before completing this step.",
     "Operation quality check passed.": "Operation quality check passed.",
     "Operation quality check failed and a blocking non-conformance was raised.": "Operation quality check failed and a blocking non-conformance was raised.",
     "This operation has an invalid quality-gate configuration. Release a new work-order revision after correcting the process template.": "This operation has an invalid quality-gate configuration. Release a new work-order revision after correcting the process template.",
