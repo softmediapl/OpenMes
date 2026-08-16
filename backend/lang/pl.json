@@ -5875,5 +5875,7 @@
     "Completed operations": "Zakończone operacje",
     "Carrier": "Nośnik",
     "Decrease": "Zmniejsz",
-    "Increase": "Zwiększ"
+    "Increase": "Zwiększ",
+    "Operation status": "Status operacji",
+    "Actual operation time": "Rzeczywisty czas operacji"
 }
