@@ -53,6 +53,7 @@ export default function Queue({ workstationQueue = [], selectedWorkstation }) {
     };
     const capacity = Number(selectedWorkstation?.capacity_slots || 1);
     const occupied = groups.progress.length + groups.ready.length;
+    const isHoldStation = tasks.some((task) => task.step.execution_mode === 'fixed_hold');
 
     return (
         <div className="panel-station-screen">
@@ -63,9 +64,9 @@ export default function Queue({ workstationQueue = [], selectedWorkstation }) {
                 <Tab active={tab === 'ready'} onClick={() => setTab('ready')} label={__('Ready to transfer')} count={groups.ready.length} alert={groups.ready.length > 0} />
             </nav>
             <div className="panel-station-content">
-                {capacity > 1 && tab === 'progress' && <CapacitySummary occupied={occupied} capacity={capacity} ready={groups.ready.length} />}
+                {isHoldStation && capacity > 1 && tab === 'progress' && <CapacitySummary occupied={occupied} capacity={capacity} ready={groups.ready.length} />}
                 <div className="mb-3 flex items-end justify-between gap-3">
-                    <div><span className="panel-label">{tab === 'todo' ? __('To do') : tab === 'progress' ? __('Capacity workstation') : __('Completed operations')}</span><h1 className="text-2xl font-bold">{tab === 'todo' ? __('Workstation queue') : selectedWorkstation?.name}</h1></div>
+                    <div><span className="panel-label">{tab === 'todo' ? __('To do') : tab === 'progress' ? (isHoldStation ? __('Capacity workstation') : __('In progress')) : __('Completed operations')}</span><h1 className="text-2xl font-bold">{tab === 'todo' ? __('Workstation queue') : selectedWorkstation?.name}</h1></div>
                     <span className="hidden text-sm text-om-muted sm:block">{__('Operator')}: <strong className="text-om-ink">{panelOperator?.name || '—'}</strong></span>
                 </div>
                 <div className="panel-task-list">
