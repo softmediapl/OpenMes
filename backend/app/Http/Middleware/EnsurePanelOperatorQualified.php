@@ -3,8 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Models\BatchStep;
-use App\Services\Operator\PanelQualificationService;
 use App\Models\PanelSupervisorAuthorization;
+use App\Services\Operator\PanelQualificationService;
 use App\Services\Operator\PanelSupervisorAuthorizationService;
 use App\Services\Operator\WorkstationContext;
 use Closure;
@@ -21,7 +21,7 @@ class EnsurePanelOperatorQualified
 
     public function handle(Request $request, Closure $next): Response
     {
-        $workstation = $this->workstations->workstation($request);
+        $workstation = $this->workstations->currentWorkstation($request);
         $step = $request->route('batchStep');
         $result = $workstation
             ? $this->qualifications->evaluate($request->user(), $workstation, $step instanceof BatchStep ? $step : null)

@@ -115,6 +115,26 @@ class PanelTerminalTest extends TestCase
         $this->assertNotSame($this->terminal->id, $step->started_by_id);
     }
 
+    public function test_personal_operator_can_start_from_a_human_device_with_a_selected_workstation(): void
+    {
+        Role::create(['name' => 'Admin', 'guard_name' => 'web']);
+        $deviceUser = User::factory()->create(['account_type' => 'user']);
+        $deviceUser->assignRole('Admin');
+
+        $this->actingAs($deviceUser)
+            ->withSession([
+                'selected_line_id' => $this->workstation->line_id,
+                'selected_workstation_id' => $this->workstation->id,
+                PanelOperatorContext::SESSION_KEY => $this->operator->id,
+                'panel_operator_started_at' => now()->timestamp,
+            ])
+            ->post(route('panel.batch-step.start', $this->step), [])
+            ->assertSessionHas('success');
+
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $this->step->fresh()->status);
+        $this->assertSame($this->operator->id, $this->step->fresh()->started_by_id);
+    }
+
     public function test_personal_identity_does_not_weaken_terminal_isolation(): void
     {
         $otherStation = Workstation::factory()->create(['line_id' => $this->workstation->line_id]);
