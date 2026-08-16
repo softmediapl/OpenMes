@@ -51,7 +51,7 @@ class WorkOrderController extends Controller
         // Get active and completed work orders for this line
         $activeWorkOrders = WorkOrder::where('line_id', $lineId)
             ->whereIn('status', WorkOrder::ACTIVE_STATUSES)
-            ->with(['productType', 'batches.steps.workstation', 'lineStatus'])
+            ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit', 'lineStatus'])
             ->orderBy('priority', 'desc')
             ->orderBy('due_date', 'asc')
             ->get();
@@ -99,7 +99,7 @@ class WorkOrderController extends Controller
             // across lines, e.g. a shared packing station); otherwise stay on this line.
             $queueSource = ($workstationLocked || $routingEnabled)
                 ? WorkOrder::whereIn('status', WorkOrder::ACTIVE_STATUSES)
-                    ->with(['productType', 'batches.steps.workstation'])
+                    ->with(['productType', 'batches.steps.workstation', 'batches.steps.transportUnitLoads.transportUnit'])
                     ->get()
                 : $activeWorkOrders;
 
@@ -369,6 +369,13 @@ class WorkOrderController extends Controller
                 })
                 ->map(function ($batch) {
                     $currentStep = $this->currentLoadedStep($batch);
+                    $nextStep = $currentStep
+                        ? $batch->steps
+                            ->where('step_number', '>', $currentStep->step_number)
+                            ->sortBy('step_number')
+                            ->first()
+                        : null;
+                    $currentStep?->setAttribute('next_step_name', $nextStep?->name);
                     $batch->setRelation('steps', collect($currentStep ? [$currentStep] : []));
 
                     return $batch;

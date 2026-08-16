@@ -26,6 +26,16 @@ function taskState(task, now) {
     return 'todo';
 }
 
+function nextStepName(batch, step) {
+    return (batch.steps || [])
+        .filter((candidate) => Number(candidate.step_number) > Number(step.step_number))
+        .sort((left, right) => Number(left.step_number) - Number(right.step_number))[0]?.name;
+}
+
+function carrierCode(step) {
+    return (step.transport_unit_loads || []).find((load) => !load.released_at)?.transport_unit?.code;
+}
+
 export default function Queue({ workstationQueue = [], selectedWorkstation }) {
     const { panelOperator } = usePage().props;
     const [tab, setTab] = useState('todo');
@@ -87,7 +97,7 @@ function TaskCard({ task, state, now, featured }) {
                 </div>
                 <h2 className="truncate text-xl font-bold">{step.name} · {__('Batch')} #{batch.batch_number || batch.id}</h2>
                 <p className="mt-1 truncate text-sm text-om-muted">{order.product_type?.name} · {order.order_no}</p>
-                <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={quantity} /><Fact label={__('Operation')} value={step.step_number} />{step.transport_unit_no && <Fact label={__('Carrier')} value={step.transport_unit_no} />}</div>
+                <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-sm"><Fact label={__('Quantity')} value={quantity} /><Fact label={__('From')} value={step.step_number > 1 ? (batch.steps || []).find((candidate) => Number(candidate.step_number) === Number(step.step_number) - 1)?.name || '—' : '—'} />{nextStepName(batch, step) && <Fact label={__('Next operation')} value={nextStepName(batch, step)} />}{carrierCode(step) && <Fact label={__('Carrier')} value={carrierCode(step)} />}</div>
             </div>
             <div className="panel-task-side">
                 <strong className="font-mono text-3xl">{quantity}</strong>

@@ -103,7 +103,8 @@ export default function WorkOrder({
 
 function OperationSummary({ batch, step, product }) {
     if (!step) return null;
-    return <div className="panel-operation-summary"><Fact label={__('Batch')} value={`#${batch.batch_number || batch.id}`} /><Fact label={__('Input quantity')} value={productQuantity(step.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Carrier')} value={step.transport_unit_no || '—'} /><Fact label={__('Next operation')} value={step.next_step_name || '—'} /></div>;
+    const carrier = (step.transport_unit_loads || []).find((load) => !load.released_at)?.transport_unit?.code;
+    return <div className="panel-operation-summary"><Fact label={__('Batch')} value={`#${batch.batch_number || batch.id}`} /><Fact label={__('Input quantity')} value={productQuantity(step.input_quantity ?? batch.target_qty, product, true)} /><Fact label={__('Carrier')} value={carrier || '—'} /><Fact label={__('Next operation')} value={step.next_step_name || '—'} /></div>;
 }
 
 function OperationTimer({ step, now }) {
