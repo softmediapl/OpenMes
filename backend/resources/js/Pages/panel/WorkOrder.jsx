@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Clock3, FileText, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Clock3 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import PanelLayout from '../../layouts/PanelLayout';
 import { BatchStepList } from '../operator/WorkOrderDetail';
@@ -124,11 +124,6 @@ export default function WorkOrder({
                 </section>
                 <aside className="panel-operation-side">
                     <OperationTimer step={activeStep} now={now} />
-                    <div className="grid grid-cols-2 gap-2">
-                        <button type="button" className="panel-secondary" onClick={() => window.dispatchEvent(new CustomEvent('panel:help'))}><AlertTriangle size={20} />{__('Problem')}</button>
-                        <button type="button" className="panel-secondary" onClick={() => document.querySelector('[data-panel-instructions]')?.scrollIntoView({ block: 'center' })}><FileText size={20} />{__('Instruction')}</button>
-                        <button type="button" className="panel-secondary col-span-2" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}><ShieldCheck size={20} />{__('Supervisor')}</button>
-                    </div>
                 </aside>
             </div>}
         </div>
