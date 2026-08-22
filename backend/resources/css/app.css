@@ -467,6 +467,26 @@ html.dark {
         }
     }
 
+    @media (min-width: 700px) and (max-width: 820px) {
+        .panel-start-content {
+            @apply grid-cols-2;
+        }
+        .panel-start-overview {
+            grid-column: 1 / -1;
+            @apply grid-cols-[1.2fr_1fr_1fr];
+        }
+        .panel-start-resource-card {
+            grid-column: 1;
+        }
+        .panel-start-guidance {
+            grid-column: 2;
+            grid-row: 2;
+        }
+        .panel-start-card-wide {
+            grid-column: 1 / -1;
+        }
+    }
+
     @media (max-width: 620px) {
         .panel-station-content {
             @apply p-3;
