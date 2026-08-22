@@ -285,6 +285,9 @@ html.dark {
     .panel-touch-step {
         @apply p-3;
     }
+    .panel-flash {
+        @apply pointer-events-none fixed left-1/2 top-[4.75rem] z-40 w-[min(90vw,48rem)] -translate-x-1/2 text-center;
+    }
     .panel-current-step {
         @apply border-0 bg-transparent;
     }
@@ -322,6 +325,17 @@ html.dark {
     }
     .panel-modal-footer button {
         @apply min-h-14 min-w-44 text-base;
+    }
+    .panel-modal-shell {
+        @apply flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col;
+    }
+    .panel-modal-shell > :first-child,
+    .panel-modal-shell > .panel-modal-footer {
+        @apply shrink-0;
+    }
+    .panel-modal-shell > .panel-complete-content,
+    .panel-modal-shell > .panel-start-content {
+        @apply min-h-0 max-h-none flex-1;
     }
     .panel-topup-content {
         @apply grid grid-cols-2 items-center gap-5 p-5;
@@ -471,6 +485,106 @@ html.dark {
 
     .form-label {
         @apply block text-sm font-medium text-om-muted mb-2;
+    }
+
+    /* Landscape tablets often expose 900-1100 CSS pixels after browser chrome.
+       Keep the operation and its actions side-by-side at that real viewport,
+       instead of dropping the timer below a long, internally scrolling step. */
+    @media (min-width: 880px) and (max-width: 1199px) {
+        .panel-topbar {
+            @apply h-14 gap-2 px-3;
+        }
+        .panel-topbar-button {
+            @apply min-h-11 px-2.5;
+        }
+        .panel-operation-heading {
+            @apply h-14 px-3;
+        }
+        .panel-operation-grid {
+            grid-template-columns: minmax(0, 1fr) minmax(17rem, 20rem);
+            @apply gap-3 p-3;
+        }
+        .panel-operation-summary {
+            @apply gap-2 p-3;
+        }
+        .panel-operation-side {
+            @apply gap-2;
+        }
+        .panel-timer {
+            @apply min-h-0 p-4;
+        }
+        .panel-timer strong {
+            @apply mt-2 text-4xl;
+        }
+        .panel-touch-step {
+            @apply p-2;
+        }
+        .panel-current-step-heading {
+            @apply min-h-16 px-3;
+        }
+        .panel-current-step-heading > button {
+            @apply min-h-14 px-5 text-base;
+        }
+        .panel-complete-content,
+        .panel-start-content {
+            @apply gap-3 p-3;
+        }
+        .panel-complete-content > section,
+        .panel-start-card {
+            @apply p-3;
+        }
+        .panel-complete-content input,
+        .panel-complete-content textarea,
+        .panel-complete-content [role="combobox"] {
+            min-height: 48px;
+        }
+        .panel-quantity-button {
+            @apply h-12 w-12;
+        }
+        .panel-modal-footer {
+            @apply px-3 py-2.5;
+        }
+        .panel-modal-footer button {
+            @apply min-h-12 min-w-40;
+        }
+    }
+
+    @media (min-width: 880px) and (max-height: 650px) {
+        .panel-topbar,
+        .panel-operation-heading {
+            height: 52px;
+        }
+        .panel-operation-grid {
+            @apply gap-2 p-2;
+        }
+        .panel-operation-summary {
+            @apply py-2;
+        }
+        .panel-current-step-heading {
+            min-height: 56px;
+        }
+        .panel-timer {
+            @apply p-3;
+        }
+        .panel-timer strong {
+            @apply mt-1 text-4xl;
+        }
+        .panel-complete-content,
+        .panel-start-content {
+            @apply gap-2 p-2;
+        }
+        .panel-modal-shell {
+            max-height: calc(100dvh - 1rem);
+        }
+        .panel-modal-shell > :first-child {
+            @apply px-4 py-2.5;
+        }
+        .panel-modal-footer {
+            @apply py-2;
+        }
+        .panel-flash {
+            top: 3.75rem;
+        }
     }
 }
 

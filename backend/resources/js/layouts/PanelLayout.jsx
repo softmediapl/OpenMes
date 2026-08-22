@@ -196,5 +196,5 @@ function Flash({ flash }) {
     const message = flash.error || flash.warning || flash.success || flash.info;
     if (!message) return null;
     const tone = flash.error ? 'text-om-blocked' : flash.warning ? 'text-om-downtime' : 'text-om-running';
-    return <div className={`mx-auto mt-3 max-w-[1400px] rounded-om-sm border border-om-line bg-om-card px-4 py-3 text-sm font-semibold ${tone}`}>{message}</div>;
+    return <div className={`panel-flash rounded-om-sm border border-om-line bg-om-card px-4 py-3 text-sm font-semibold shadow-lg ${tone}`}>{message}</div>;
 }

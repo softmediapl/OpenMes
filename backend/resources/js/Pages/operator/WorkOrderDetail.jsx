@@ -97,11 +97,11 @@ function ChevronIcon({ open }) {
 
 function ModalShell({ title, subtitle, onClose, children, wide = false }) {
     return (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className={`fixed inset-0 z-50 ${wide ? 'overflow-hidden' : 'overflow-y-auto'}`}>
             <div className="fixed inset-0 bg-[rgba(10,9,8,0.4)]" onClick={onClose} />
-            <div className="flex min-h-full items-center justify-center p-4">
+            <div className={`flex min-h-full items-center justify-center ${wide ? 'h-full min-h-0 p-2 sm:p-4' : 'p-4'}`}>
                 <div
-                    className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'max-w-5xl' : 'max-w-md'}`}
+                    className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'panel-modal-shell max-w-5xl' : 'max-w-md'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className={`flex items-center justify-between border-b border-om-line2 ${wide ? 'px-5 py-4' : 'px-[18px] py-4'}`}>
