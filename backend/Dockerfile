@@ -1,3 +1,5 @@
+FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
+
 FROM php:8.3-fpm-alpine
 
 # Install system dependencies
@@ -50,10 +52,9 @@ COPY packages/ /var/www/packages/
 # Install PHP dependencies
 RUN composer install --no-dev --optimize-autoloader --no-interaction
 
-# Fetch the RoadRunner binary for Laravel Octane (concurrent app server).
-# Placed in the project root — where Octane's RoadRunner server discovers it.
-RUN ./vendor/bin/rr get-binary --location /var/www/html \
-    && chmod +x /var/www/html/rr
+# Copy the pinned RoadRunner binary without calling the GitHub API during each
+# deployment. Laravel Octane discovers it in the project root.
+COPY --from=roadrunner /usr/bin/rr /var/www/html/rr
 
 # Install Node dependencies and build assets
 RUN npm ci && npm run build
