@@ -590,9 +590,6 @@ html.dark {
         .panel-material-reconciliation-card > :first-child {
             @apply mb-2;
         }
-        .panel-material-reconciliation-card > :last-child {
-            @apply mt-2 px-2.5 py-1.5;
-        }
         .panel-modal-shell {
             max-height: calc(100dvh - 1rem);
         }

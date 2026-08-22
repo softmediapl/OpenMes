@@ -1885,8 +1885,13 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             <span className="block text-sm font-medium text-om-ink">{allocation.material?.name}</span>
                                             <span className="font-mono text-[10px] text-om-faint">{allocation.material?.code}</span>
                                         </div>
-                                        <span className="font-mono text-[11px] text-om-muted">
-                                            {__('Reserved')} {fmtQty(allocated, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}
+                                        <span className="flex shrink-0 flex-col items-end gap-1 font-mono text-[11px] text-om-muted">
+                                            <span>{__('Reserved')} {fmtQty(allocated, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}</span>
+                                            {panelMode && (
+                                                <strong className={consumed + materialScrap <= allocated + EPSILON ? 'text-om-running' : 'text-om-blocked'}>
+                                                    {usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}: {fmtQty(remaining, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}
+                                                </strong>
+                                            )}
                                         </span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
@@ -1915,10 +1920,12 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             />
                                         </div>
                                     </div>
-                                    <div className={`mt-3 flex items-center justify-between rounded-om-sm px-3 py-2 text-xs ${consumed + materialScrap <= allocated + EPSILON ? 'bg-om-done-bg text-om-running' : 'bg-om-blocked-bg text-om-blocked'}`}>
-                                        <span>{usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}</span>
-                                        <strong className="font-mono">{fmtQty(remaining, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}</strong>
-                                    </div>
+                                    {!panelMode && (
+                                        <div className={`mt-3 flex items-center justify-between rounded-om-sm px-3 py-2 text-xs ${consumed + materialScrap <= allocated + EPSILON ? 'bg-om-done-bg text-om-running' : 'bg-om-blocked-bg text-om-blocked'}`}>
+                                            <span>{usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}</span>
+                                            <strong className="font-mono">{fmtQty(remaining, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}</strong>
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })}
