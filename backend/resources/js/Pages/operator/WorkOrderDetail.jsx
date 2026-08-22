@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Badge, Button, Checkbox, Dropdown, ProgressBar, StatusPill } from '@openmes/ui';
 import { DataTable } from '@openmes/ui/table';
@@ -786,13 +787,14 @@ function CompactHoldCountdown({ step }) {
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false, startBlockedReason = null, autoPrepare = false, preparationContext = null }) {
+export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false, panelActionsTargetId = null, startBlockedReason = null, autoPrepare = false, preparationContext = null }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
     const [completeModal, setCompleteModal] = useState(null);
     const [materialTopUpModal, setMaterialTopUpModal] = useState(null);
     const [clock, setClock] = useState(Date.now());
+    const [panelActionsTarget, setPanelActionsTarget] = useState(null);
     const autoPreparedStepId = useRef(null);
     const hasRunningFixedHold = steps?.some((step) => (
         step.status === 'IN_PROGRESS'
@@ -807,6 +809,13 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
 
         return () => window.clearInterval(timer);
     }, [hasRunningFixedHold]);
+
+    useEffect(() => {
+        if (!panelActionsTargetId) return undefined;
+
+        setPanelActionsTarget(document.getElementById(panelActionsTargetId));
+        return () => setPanelActionsTarget(null);
+    }, [panelActionsTargetId]);
 
     const openStartPreparation = async (step, startWhenEmpty) => {
         setInflightStepId(step.id);
@@ -953,8 +962,62 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     const qualityGate = step.quality_gate_status;
                     const qualityBlocked = !!qualityGate?.required && !qualityGate.fulfilled;
                     const activeMaterialAllocations = (step.material_allocations ?? []).filter((allocation) => allocation.status === 'allocated');
+                    const stepActions = <>
+                        {(step.status === 'PENDING' || step.status === 'READY') && (
+                            <Button
+                                variant="accent"
+                                disabled={isInflight || !!startBlockedReason}
+                                onClick={() => handleStart(step)}
+                                title={startBlockedReason || undefined}
+                                className="px-6 py-3.5 text-[15px] whitespace-nowrap"
+                            >
+                                {isInflight ? '…' : __('Start')}
+                            </Button>
+                        )}
+                        {step.status === 'IN_PROGRESS' && (
+                            <Button
+                                variant="primary"
+                                disabled={isInflight || isDocBlocked || needsConfirm || checklistBlocked || qualityBlocked || (holdIsActive && !canOverrideOperationHold)}
+                                onClick={() => (
+                                    step.quantity_reporting_required
+                                        || step.setup_time_minutes != null
+                                        || step.run_time_per_unit_minutes != null
+                                        || isFixedHold
+                                        ? setCompleteModal({ step })
+                                        : handleStepAction(step, 'complete')
+                                )}
+                                title={
+                                    qualityBlocked
+                                        ? __('Complete the required quality gate before completing this step.')
+                                        : isDocBlocked
+                                        ? __('Validate the mandatory document(s) before completing this step.')
+                                        : needsConfirm
+                                          ? __('Confirm you have read the instructions before completing this step.')
+                                          : checklistBlocked
+                                            ? __('Complete the required checklist before completing this step.')
+                                          : holdIsActive && !canOverrideOperationHold
+                                            ? __('This operation is still within its minimum hold time.')
+                                          : undefined
+                                }
+                                className="px-6 py-3.5 text-[15px] whitespace-nowrap"
+                            >
+                                {isInflight ? '…' : __('Complete')}
+                            </Button>
+                        )}
+                        <LabelPrintMenu
+                            kind="workstation-step"
+                            id={step.id}
+                            templates={labelTemplates}
+                            label={__('Label')}
+                        />
+                    </>;
                     return (
                         <div key={step.id} className={`bg-om-panel border border-om-line2 rounded-om-sm ${panelMode ? 'panel-current-step' : ''}`}>
+                        {panelMode && panelActionsTarget && createPortal(
+                            <div className="panel-operation-actions">{stepActions}</div>,
+                            panelActionsTarget,
+                        )}
+                        {(!panelMode || !panelActionsTargetId) && (
                         <div className={`flex items-center gap-3 p-3 ${panelMode ? 'panel-current-step-heading justify-end' : ''}`}>
                             {!panelMode && (
                                 <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full font-mono text-[11px] bg-om-chip text-om-muted">
@@ -1005,59 +1068,9 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                                 </span>
                             )}
 
-                            {/* Action buttons — READY (the next-in-line step
-                                promoted by promoteReadySteps) is startable too;
-                                the backend accepts PENDING and READY alike. */}
-                            {(step.status === 'PENDING' || step.status === 'READY') && (
-                                <Button
-                                    variant="accent"
-                                    disabled={isInflight || !!startBlockedReason}
-                                    onClick={() => handleStart(step)}
-                                    title={startBlockedReason || undefined}
-                                    className="px-6 py-3.5 text-[15px] whitespace-nowrap"
-                                >
-                                    {isInflight ? '…' : __('Start')}
-                                </Button>
-                            )}
-                            {step.status === 'IN_PROGRESS' && (
-                                <Button
-                                    variant="primary"
-                                    disabled={isInflight || isDocBlocked || needsConfirm || checklistBlocked || qualityBlocked || (holdIsActive && !canOverrideOperationHold)}
-                                    onClick={() => (
-                                        step.quantity_reporting_required
-                                            || step.setup_time_minutes != null
-                                            || step.run_time_per_unit_minutes != null
-                                            || isFixedHold
-                                            ? setCompleteModal({ step })
-                                            : handleStepAction(step, 'complete')
-                                    )}
-                                    title={
-                                        qualityBlocked
-                                            ? __('Complete the required quality gate before completing this step.')
-                                            : isDocBlocked
-                                            ? __('Validate the mandatory document(s) before completing this step.')
-                                            : needsConfirm
-                                              ? __('Confirm you have read the instructions before completing this step.')
-                                              : checklistBlocked
-                                                ? __('Complete the required checklist before completing this step.')
-                                              : holdIsActive && !canOverrideOperationHold
-                                                ? __('This operation is still within its minimum hold time.')
-                                              : undefined
-                                    }
-                                    className="px-6 py-3.5 text-[15px] whitespace-nowrap"
-                                >
-                                    {isInflight ? '…' : __('Complete')}
-                                </Button>
-                            )}
-
-                            {/* Per-step label print (compact) */}
-                            <LabelPrintMenu
-                                kind="workstation-step"
-                                id={step.id}
-                                templates={labelTemplates}
-                                label={__('Label')}
-                            />
+                            {stepActions}
                         </div>
+                        )}
 
                         {isFixedHold && step.started_at && (
                             <div className={`border-t border-om-line2 px-3 py-2.5 ${holdIsActive ? 'bg-om-downtime-bg' : 'bg-om-done-bg'}`}>

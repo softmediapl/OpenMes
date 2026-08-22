@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeft, Clock3, FileText, Printer, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Clock3, FileText, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import PanelLayout from '../../layouts/PanelLayout';
 import { BatchStepList } from '../operator/WorkOrderDetail';
@@ -80,9 +80,12 @@ export default function WorkOrder({
                     <Link href="/panel" className="panel-icon-button" title={__('Back to queue')}><ArrowLeft /></Link>
                     <div className="min-w-0"><h1 className="truncate text-xl font-bold">{activeStep?.name || workOrder.order_no}</h1><p className="truncate text-sm text-om-muted">{product?.name} · {workOrder.order_no}</p></div>
                 </div>
-                {activeStep?.status !== 'IN_PROGRESS' && (
-                    <span className="panel-status panel-status-ready">{__('Ready to start')}</span>
-                )}
+                <div className="flex shrink-0 items-center gap-2">
+                    {activeStep?.status !== 'IN_PROGRESS' && (
+                        <span className="panel-status panel-status-ready">{__('Ready to start')}</span>
+                    )}
+                    <div id="panel-operation-actions" />
+                </div>
             </div>
 
             {active && <div className="panel-operation-grid">
@@ -106,6 +109,7 @@ export default function WorkOrder({
                             canOverrideOperationHold={canOverrideOperationHold}
                             routeBase="/panel"
                             panelMode
+                            panelActionsTargetId="panel-operation-actions"
                             startBlockedReason={startBlockedReason}
                             autoPrepare={['PENDING', 'READY'].includes(activeStep?.status)}
                             preparationContext={{
@@ -123,8 +127,7 @@ export default function WorkOrder({
                     <div className="grid grid-cols-2 gap-2">
                         <button type="button" className="panel-secondary" onClick={() => window.dispatchEvent(new CustomEvent('panel:help'))}><AlertTriangle size={20} />{__('Problem')}</button>
                         <button type="button" className="panel-secondary" onClick={() => document.querySelector('[data-panel-instructions]')?.scrollIntoView({ block: 'center' })}><FileText size={20} />{__('Instruction')}</button>
-                        <button type="button" className="panel-secondary" onClick={() => document.querySelector('.panel-touch-step button[title="Label"]')?.click()}><Printer size={20} />{__('Label')}</button>
-                        <button type="button" className="panel-secondary" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}><ShieldCheck size={20} />{__('Supervisor')}</button>
+                        <button type="button" className="panel-secondary col-span-2" onClick={() => window.dispatchEvent(new CustomEvent('panel:supervisor', { detail: { workOrderId: workOrder.id, batchStepId: activeStep.id, step: activeStep, action: 'start_unqualified' } }))}><ShieldCheck size={20} />{__('Supervisor')}</button>
                     </div>
                 </aside>
             </div>}

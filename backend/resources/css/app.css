@@ -252,6 +252,14 @@ html.dark {
     .panel-operation-heading {
         @apply flex h-16 shrink-0 items-center justify-between gap-3 border-b border-om-line bg-om-card px-4;
     }
+    .panel-operation-actions {
+        @apply flex shrink-0 items-center gap-2;
+    }
+    .panel-operation-actions > button,
+    .panel-operation-actions > a,
+    .panel-operation-actions > div > button {
+        @apply min-h-12;
+    }
     .panel-operation-grid {
         @apply grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_20rem];
     }

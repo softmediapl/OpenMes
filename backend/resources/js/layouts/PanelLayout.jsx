@@ -9,6 +9,7 @@ export default function PanelLayout({ children }) {
     const { line, selectedWorkstation, panelOperator, panelIdentity, panelSupport, flash } = props;
     const [identityOpen, setIdentityOpen] = useState(!panelOperator);
     const [helpOpen, setHelpOpen] = useState(false);
+    const [downtimeOpen, setDowntimeOpen] = useState(false);
     const [supervisorRequest, setSupervisorRequest] = useState(null);
     const context = useMemo(() => panelContext(props), [props.workOrder, props.workstationQueue, selectedWorkstation?.id]);
     useEffect(() => {
@@ -36,7 +37,7 @@ export default function PanelLayout({ children }) {
                     <strong className="block max-w-52 truncate text-sm text-white">{panelOperator?.name || __('Identify operator')}</strong>
                     <span className="block text-[11px] text-white/60">{__('Operator')}</span>
                 </div>
-                <button type="button" className="panel-topbar-button panel-topbar-button-warn" onClick={() => setHelpOpen(true)} title={__('Downtime')}>
+                <button type="button" className="panel-topbar-button panel-topbar-button-warn" onClick={() => setDowntimeOpen(true)} title={__('Downtime')}>
                     <Pause size={19} /><span className="hidden sm:inline">{__('Downtime')}</span>
                 </button>
                 <Link href="/panel/materials" className="panel-topbar-button" title={__('Materials')}>
@@ -53,6 +54,7 @@ export default function PanelLayout({ children }) {
             <main className="panel-main">{children}</main>
             {identityOpen && <IdentityModal operator={panelOperator} identity={panelIdentity} onClose={() => panelOperator && setIdentityOpen(false)} />}
             {helpOpen && <HelpModal support={panelSupport} context={context} onClose={() => setHelpOpen(false)} onAuthorize={(request) => { setHelpOpen(false); setSupervisorRequest(request); }} />}
+            {downtimeOpen && <HelpModal initialView="downtime" support={panelSupport} context={context} onClose={() => setDowntimeOpen(false)} onAuthorize={(request) => { setDowntimeOpen(false); setSupervisorRequest(request); }} />}
             {supervisorRequest && <SupervisorModal support={panelSupport} identity={panelIdentity} request={supervisorRequest} operator={panelOperator} onClose={() => setSupervisorRequest(null)} onChangeOperator={() => { setSupervisorRequest(null); setIdentityOpen(true); }} />}
         </div>
     );
@@ -65,10 +67,11 @@ function panelContext(props) {
     return { workOrderId: order?.id || null, batchStepId: step?.id || null, step };
 }
 
-function HelpModal({ support = {}, context, onClose, onAuthorize }) {
-    const [view, setView] = useState('menu');
+function HelpModal({ support = {}, context, onClose, onAuthorize, initialView = 'menu' }) {
+    const [view, setView] = useState(initialView);
     const issue = useForm({ work_order_id: context.workOrderId || '', issue_type_id: '', title: '', description: '' });
     const downtime = useForm({ reason_id: '', notes: '' });
+    const stopDowntime = useForm({});
     const supervisor = useForm({ work_order_id: context.workOrderId || '', batch_step_id: context.batchStepId || '', description: '' });
     const activeDowntime = support?.activeDowntime;
     const action = context.step?.status === 'IN_PROGRESS' && context.step?.execution_mode === 'fixed_hold'
@@ -79,10 +82,18 @@ function HelpModal({ support = {}, context, onClose, onAuthorize }) {
         window.setTimeout(() => document.getElementById('panel-operation-details')?.scrollIntoView({ behavior: 'smooth' }), 0);
     };
 
-    return <Modal title={__('Help')} onClose={onClose}>
+    const title = view === 'issue'
+        ? __('Report a problem')
+        : view === 'downtime'
+            ? (activeDowntime ? __('Stop downtime') : __('Start downtime'))
+            : view === 'supervisor'
+                ? __('Call supervisor')
+                : __('Help');
+
+    return <Modal title={title} onClose={onClose}>
         {view === 'menu' && <div className="grid gap-3 sm:grid-cols-2">
             <HelpAction icon={AlertTriangle} label={__('Report a problem')} onClick={() => setView('issue')} disabled={!context.workOrderId} />
-            <HelpAction icon={Clock3} label={activeDowntime ? __('Stop downtime') : __('Start downtime')} onClick={() => activeDowntime ? router.post(`/panel/downtime/${activeDowntime.id}/stop`) : setView('downtime')} />
+            <HelpAction icon={Clock3} label={activeDowntime ? __('Stop downtime') : __('Start downtime')} onClick={() => setView('downtime')} />
             <HelpAction icon={ShieldCheck} label={__('Call supervisor')} onClick={() => setView('supervisor')} disabled={!context.workOrderId} />
             <HelpAction icon={FileText} label={__('Instruction')} onClick={instructions} disabled={!context.batchStepId} />
             {context.batchStepId && support?.supervisorMode !== 'remote_only' && <button type="button" className="panel-primary sm:col-span-2" onClick={() => onAuthorize({ ...context, action })}><ShieldCheck size={22} />{action === 'release_fixed_hold' ? __('Authorize early release') : __('Authorize replacement')}</button>}
@@ -94,7 +105,14 @@ function HelpModal({ support = {}, context, onClose, onAuthorize }) {
             <FormErrors form={issue} />
             <Submit form={issue} label={__('Report problem')} />
         </form>}
-        {view === 'downtime' && <form onSubmit={(event) => { event.preventDefault(); downtime.post('/panel/downtime/start', { onSuccess: onClose }); }} className="space-y-4">
+        {view === 'downtime' && activeDowntime && <form onSubmit={(event) => { event.preventDefault(); stopDowntime.post(`/panel/downtime/${activeDowntime.id}/stop`, { onSuccess: onClose }); }} className="space-y-4">
+            <div className="rounded-om-sm bg-om-downtime-bg p-4 text-om-downtime">
+                <strong className="block text-base">{activeDowntime.reason?.name || __('Downtime in progress')}</strong>
+                {activeDowntime.notes && <p className="mt-2 text-sm">{activeDowntime.notes}</p>}
+            </div>
+            <Submit form={stopDowntime} label={__('Stop downtime')} />
+        </form>}
+        {view === 'downtime' && !activeDowntime && <form onSubmit={(event) => { event.preventDefault(); downtime.post('/panel/downtime/start', { onSuccess: onClose }); }} className="space-y-4">
             <FieldSelect label={__('Downtime reason')} value={downtime.data.reason_id} onChange={(value) => downtime.setData('reason_id', value)} options={support.downtimeReasons || []} />
             <Field label={__('Notes')} value={downtime.data.notes} onChange={(value) => downtime.setData('notes', value)} multiline />
             <FormErrors form={downtime} />
