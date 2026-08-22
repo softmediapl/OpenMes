@@ -1577,6 +1577,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
     const panelMode = routeBase === '/panel';
     const reportsTime = shouldReportOperationTime(step, panelMode);
     const [clock, setClock] = useState(Date.now());
+    const [scrapEditorOpen, setScrapEditorOpen] = useState(false);
     const actualTimeDefaults = operationActualTimeDefaults(step, clock);
     const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
     const earlyRelease = remainingHoldSeconds > 0;
@@ -1636,7 +1637,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         reworkQuantity,
         scrapQuantity,
     } = derivedOutput;
-    const showsScrapBreakdown = scrapQuantity > EPSILON;
+    const showsScrapBreakdown = scrapEditorOpen || scrapQuantity > EPSILON;
     const scrapBreakdownInvalid = !operationScrapBreakdownValid(
         form.data.scrap_entries,
         quantityInput.precision,
@@ -1741,7 +1742,18 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
-                                <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
+                                <div className="grid grid-cols-[minmax(0,1fr)_3rem] gap-2">
+                                    <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
+                                    <button
+                                        type="button"
+                                        onClick={() => setScrapEditorOpen(true)}
+                                        className="flex h-12 w-12 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent"
+                                        aria-label={__('Add scrap reason')}
+                                        title={__('Add scrap reason')}
+                                    >
+                                        +
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div className={`rounded-om-sm border px-3 py-2 text-xs ${derivedOutput.valid && !scrapBreakdownInvalid ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
