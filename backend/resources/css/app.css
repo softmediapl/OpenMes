@@ -369,6 +369,9 @@ html.dark {
     .panel-modal-footer button {
         @apply min-h-14 min-w-44 text-base;
     }
+    .panel-start-blocked-reason {
+        @apply mr-auto max-w-xl self-center text-sm font-semibold text-om-blocked;
+    }
     .panel-modal-shell {
         @apply flex max-h-[calc(100dvh-2rem)] min-h-0 flex-col;
     }
@@ -660,6 +663,27 @@ html.dark {
         .panel-complete-content,
         .panel-start-content {
             @apply gap-2 p-2;
+        }
+        .panel-start-overview {
+            @apply gap-3 p-2.5;
+        }
+        .panel-start-overview strong {
+            @apply text-base;
+        }
+        .panel-start-overview > :first-child strong {
+            @apply text-2xl;
+        }
+        .panel-start-resource-card {
+            @apply p-2;
+        }
+        .panel-start-resource-card > :first-child {
+            @apply mb-1;
+        }
+        .panel-start-resource-card > .mb-3 {
+            @apply mb-1 px-2 py-1.5;
+        }
+        .panel-material-lot-details {
+            @apply mt-1;
         }
         .panel-complete-content {
             padding-bottom: 0.25rem;

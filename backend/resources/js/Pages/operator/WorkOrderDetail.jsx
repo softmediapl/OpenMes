@@ -2406,9 +2406,11 @@ function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto =
                                         <span className={routeBase === '/panel' ? 'text-base font-bold text-om-ink' : 'text-sm font-medium text-om-ink'}>{m.material_name}</span>
                                         <span className="ml-1 font-mono text-[11px] text-om-faint">{m.material_code}</span>
                                     </div>
-                                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-muted">
-                                        {m.is_workstation_stock ? __('Workstation stock') : m.strategy}
-                                    </span>
+                                    {routeBase !== '/panel' && (
+                                        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-om-muted">
+                                            {m.is_workstation_stock ? __('Workstation stock') : m.strategy}
+                                        </span>
+                                    )}
                                 </div>
 
                                 {m.is_workstation_stock && (
@@ -2526,14 +2528,12 @@ function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto =
                             <StepInstructions instruction={step.instruction} media={media} photo={stepPhoto} panel onZoom={onZoom} />
                         </div>
                     )}
-                    {startBlockedReason && (
-                        <p className="col-span-full rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked">
-                            {startBlockedReason}
-                        </p>
-                    )}
                     {serverError && <p className={`${errorCls} ${routeBase === '/panel' ? 'col-span-full' : ''} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
                 </div>
                 <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>
+                    {startBlockedReason && (
+                        <span className="panel-start-blocked-reason">{startBlockedReason}</span>
+                    )}
                     <Button variant="secondary" size={routeBase === '/panel' ? 'lg' : 'md'} type="button" onClick={onClose}>
                         {__('Cancel')}
                     </Button>
