@@ -573,6 +573,26 @@ html.dark {
         .panel-start-content {
             @apply gap-2 p-2;
         }
+        .panel-complete-content > .panel-quantity-reconciliation,
+        .panel-complete-content > .panel-material-reconciliation {
+            padding: 0.625rem;
+        }
+        .panel-quantity-reconciliation > :not([hidden]) ~ :not([hidden]),
+        .panel-material-reconciliation > :not([hidden]) ~ :not([hidden]) {
+            margin-top: 0.5rem;
+        }
+        .panel-input-quantity {
+            @apply px-2.5 py-2;
+        }
+        .panel-material-reconciliation-card {
+            @apply p-2.5;
+        }
+        .panel-material-reconciliation-card > :first-child {
+            @apply mb-2;
+        }
+        .panel-material-reconciliation-card > :last-child {
+            @apply mt-2 px-2.5 py-1.5;
+        }
         .panel-modal-shell {
             max-height: calc(100dvh - 1rem);
         }

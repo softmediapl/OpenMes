@@ -1636,6 +1636,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         reworkQuantity,
         scrapQuantity,
     } = derivedOutput;
+    const showsScrapBreakdown = scrapQuantity > EPSILON;
     const scrapBreakdownInvalid = !operationScrapBreakdownValid(
         form.data.scrap_entries,
         quantityInput.precision,
@@ -1724,8 +1725,8 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         <ModalShell title={__('Complete operation')} subtitle={step.name} onClose={onClose} wide={routeBase === '/panel'}>
             <div className={routeBase === '/panel' ? 'panel-complete-content' : 'max-h-[70vh] space-y-5 overflow-y-auto px-[18px] py-4'}>
                 {reportsQuantity && (
-                    <section className="space-y-3">
-                        <div className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                    <section className="panel-quantity-reconciliation space-y-3">
+                        <div className="panel-input-quantity rounded-om-sm border border-om-line2 bg-om-panel p-3">
                             <span className={labelCls}>{__('Input quantity')}</span>
                             <span className="font-mono text-[22px] font-semibold text-om-ink">{fmtQty(inputQuantity, quantityInput.precision)}</span>
                         </div>
@@ -1763,56 +1764,58 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 onSetupChange={(value) => form.setData('actual_setup_minutes', value)}
                             />
                         )}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-3">
-                                <span className={labelCls}>{__('Scrap breakdown')}</span>
-                                <button
-                                    type="button"
-                                    onClick={addScrapEntry}
-                                    className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent ${routeBase === '/panel' ? 'h-12 w-12' : 'h-9 w-9'}`}
-                                    aria-label={__('Add scrap reason')}
-                                    title={__('Add scrap reason')}
-                                >
-                                    +
-                                </button>
-                            </div>
-                            {form.data.scrap_entries.map((entry, index) => (
-                                <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(10rem,1fr)_12rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
-                                    <div>
-                                        <label className={labelCls}>{__('Scrap reason')}</label>
-                                        <Dropdown
-                                            options={applicableScrapReasons.map((reason) => ({
-                                                value: String(reason.id),
-                                                label: `${reason.code} — ${reason.name}`,
-                                            }))}
-                                            value={String(entry.scrap_reason_id || '')}
-                                            onChange={(value) => updateScrapEntry(index, 'scrap_reason_id', value)}
-                                            placeholder={__('— Select reason —')}
-                                            searchable
-                                            searchPlaceholder={__('Search reasons…')}
-                                            noResultsLabel={__('No results')}
-                                            className="w-full"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className={labelCls}>{__('Quantity')}</label>
-                                        <TouchNumberControl step={quantityInput.step} value={entry.quantity} onChange={(value) => updateScrapEntry(index, 'quantity', value)} />
-                                    </div>
+                        {showsScrapBreakdown && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <span className={labelCls}>{__('Scrap breakdown')}</span>
                                     <button
                                         type="button"
-                                        onClick={() => removeScrapEntry(index)}
-                                        className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked ${routeBase === '/panel' ? 'h-14 w-14' : 'h-10 w-10'}`}
-                                        aria-label={__('Remove scrap reason')}
-                                        title={__('Remove scrap reason')}
+                                        onClick={addScrapEntry}
+                                        className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent ${routeBase === '/panel' ? 'h-12 w-12' : 'h-9 w-9'}`}
+                                        aria-label={__('Add scrap reason')}
+                                        title={__('Add scrap reason')}
                                     >
-                                        ×
+                                        +
                                     </button>
                                 </div>
-                            ))}
-                            {(form.errors.scrap_entries || form.errors.scrap_reason_id) && (
-                                <p className={errorCls}>{form.errors.scrap_entries || form.errors.scrap_reason_id}</p>
-                            )}
-                        </div>
+                                {form.data.scrap_entries.map((entry, index) => (
+                                    <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(10rem,1fr)_12rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
+                                        <div>
+                                            <label className={labelCls}>{__('Scrap reason')}</label>
+                                            <Dropdown
+                                                options={applicableScrapReasons.map((reason) => ({
+                                                    value: String(reason.id),
+                                                    label: `${reason.code} — ${reason.name}`,
+                                                }))}
+                                                value={String(entry.scrap_reason_id || '')}
+                                                onChange={(value) => updateScrapEntry(index, 'scrap_reason_id', value)}
+                                                placeholder={__('— Select reason —')}
+                                                searchable
+                                                searchPlaceholder={__('Search reasons…')}
+                                                noResultsLabel={__('No results')}
+                                                className="w-full"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className={labelCls}>{__('Quantity')}</label>
+                                            <TouchNumberControl step={quantityInput.step} value={entry.quantity} onChange={(value) => updateScrapEntry(index, 'quantity', value)} />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => removeScrapEntry(index)}
+                                            className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked ${routeBase === '/panel' ? 'h-14 w-14' : 'h-10 w-10'}`}
+                                            aria-label={__('Remove scrap reason')}
+                                            title={__('Remove scrap reason')}
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                ))}
+                                {(form.errors.scrap_entries || form.errors.scrap_reason_id) && (
+                                    <p className={errorCls}>{form.errors.scrap_entries || form.errors.scrap_reason_id}</p>
+                                )}
+                            </div>
+                        )}
                         <div>
                             <label className={labelCls}>{__('Quantity notes')}</label>
                             <textarea
@@ -1858,7 +1861,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                 )}
 
                 {materialAllocations.length > 0 && (
-                    <section className="space-y-3 border-t border-om-line2 pt-4">
+                    <section className="panel-material-reconciliation space-y-3 border-t border-om-line2 pt-4">
                         <div>
                             <span className={labelCls}>{__('Material reconciliation')}</span>
                             <p className="text-xs text-om-muted">{__('Enter actual use. The unused reserved quantity remains at the workstation.')}</p>
@@ -1876,7 +1879,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             const usesWorkstationStock = !!allocation.workstation_material_stock_id
                                 || allocation.lot_picks?.some((pick) => !!pick.workstation_material_stock_id);
                             return (
-                                <div key={allocation.id} className="rounded-om-sm border border-om-line2 bg-om-panel p-3">
+                                <div key={allocation.id} className="panel-material-reconciliation-card rounded-om-sm border border-om-line2 bg-om-panel p-3">
                                     <div className="mb-3 flex items-start justify-between gap-3">
                                         <div>
                                             <span className="block text-sm font-medium text-om-ink">{allocation.material?.name}</span>
