@@ -671,7 +671,7 @@ html.dark {
             @apply gap-2 p-2;
         }
         .panel-start-overview {
-            @apply gap-3 p-2.5;
+            @apply gap-3 px-2.5 py-1.5;
         }
         .panel-start-overview strong {
             @apply text-base;
