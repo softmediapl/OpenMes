@@ -5370,6 +5370,8 @@
     "Read-confirmation requires an instruction, photo, or media attachment.": "Potwierdzenie przeczytania wymaga instrukcji, zdjęcia lub załącznika multimedialnego.",
     "This step has no instruction content to acknowledge.": "Ten krok nie zawiera instrukcji, którą można potwierdzić.",
     "Work instruction": "Instrukcja robocza",
+    "Reference image": "Zdjęcie wzorca",
+    "No material or carrier confirmation is required for this operation.": "Ta operacja nie wymaga potwierdzenia materiału ani nośnika.",
     "Step completed and the batch was transferred to the next operation.": "Krok zakończony, a partia została przekazana do kolejnej operacji.",
     "Step started. Materials have been allocated.": "Krok rozpoczęto. Materiały zostały zarezerwowane.",
     "Input": "Wejście",

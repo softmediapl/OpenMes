@@ -12,4 +12,19 @@ describe('StepInstructions', () => {
         expect(html).toContain('Work instruction');
         expect(html).toContain('Heat the tube to 800 C before forming.');
     });
+
+    it('renders the tablet reference image beside the instruction', () => {
+        const html = renderToStaticMarkup(
+            <StepInstructions
+                panel
+                instruction="Apply an even coat."
+                photo={{ id: 7, url: '/reference/red-mini.png', caption: 'Red finish' }}
+            />
+        );
+
+        expect(html).toContain('panel-instruction-reference');
+        expect(html).toContain('Reference image');
+        expect(html).toContain('/reference/red-mini.png');
+        expect(html).toContain('Red finish');
+    });
 });

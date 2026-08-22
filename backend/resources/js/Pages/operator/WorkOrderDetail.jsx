@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react';
 import { Badge, Button, Checkbox, Dropdown, ProgressBar, StatusPill } from '@openmes/ui';
 import { DataTable } from '@openmes/ui/table';
@@ -101,7 +101,7 @@ function ModalShell({ title, subtitle, onClose, children, wide = false }) {
             <div className="fixed inset-0 bg-[rgba(10,9,8,0.4)]" onClick={onClose} />
             <div className={`flex min-h-full items-center justify-center ${wide ? 'h-full min-h-0 p-2 sm:p-4' : 'p-4'}`}>
                 <div
-                    className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'panel-modal-shell max-w-5xl' : 'max-w-md'}`}
+                    className={`relative w-full overflow-hidden rounded-om border border-om-line bg-om-card shadow-[0_20px_50px_-20px_rgba(0,0,0,.35)] ${wide ? 'panel-modal-shell max-w-[96rem]' : 'max-w-md'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                     <div className={`flex items-center justify-between border-b border-om-line2 ${wide ? 'px-5 py-4' : 'px-[18px] py-4'}`}>
@@ -786,13 +786,14 @@ function CompactHoldCountdown({ step }) {
 // Batch Steps list (replaces the Livewire component)
 // ---------------------------------------------------------------------------
 
-export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false, startBlockedReason = null }) {
+export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTemplates = [], stepPhotos = {}, stepMedia = {}, stepChecklists = {}, scrapReasons = [], canOverrideOperationHold = false, routeBase = '/operator', panelMode = false, startBlockedReason = null, autoPrepare = false, preparationContext = null }) {
     const [inflightStepId, setInflightStepId] = useState(null);
     const [photoZoom, setPhotoZoom] = useState(null);
     const [pickModal, setPickModal] = useState(null);
     const [completeModal, setCompleteModal] = useState(null);
     const [materialTopUpModal, setMaterialTopUpModal] = useState(null);
     const [clock, setClock] = useState(Date.now());
+    const autoPreparedStepId = useRef(null);
     const hasRunningFixedHold = steps?.some((step) => (
         step.status === 'IN_PROGRESS'
         && step.execution_mode === 'fixed_hold'
@@ -806,6 +807,70 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
 
         return () => window.clearInterval(timer);
     }, [hasRunningFixedHold]);
+
+    const openStartPreparation = async (step, startWhenEmpty) => {
+        setInflightStepId(step.id);
+        try {
+            const res = await fetch(`${routeBase}/batch-step/${step.id}/pick-preview`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                credentials: 'same-origin',
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const materials = data.materials ?? [];
+                const transportUnitRequirement = data.transport_unit_requirement ?? null;
+                if (materials.length > 0 || transportUnitRequirement || !startWhenEmpty) {
+                    setInflightStepId(null);
+                    setPickModal({
+                        step,
+                        materials,
+                        transportUnitRequirement,
+                        stepPhoto: stepPhotos[step.step_number] ?? null,
+                        media: stepMedia[step.step_number] ?? [],
+                    });
+                    return;
+                }
+            } else if (!startWhenEmpty) {
+                setInflightStepId(null);
+                setPickModal({
+                    step,
+                    materials: [],
+                    transportUnitRequirement: null,
+                    stepPhoto: stepPhotos[step.step_number] ?? null,
+                    media: stepMedia[step.step_number] ?? [],
+                });
+                return;
+            }
+        } catch {
+            if (!startWhenEmpty) {
+                setInflightStepId(null);
+                setPickModal({
+                    step,
+                    materials: [],
+                    transportUnitRequirement: null,
+                    stepPhoto: stepPhotos[step.step_number] ?? null,
+                    media: stepMedia[step.step_number] ?? [],
+                });
+                return;
+            }
+            // The explicit start still falls through to the server, which
+            // remains authoritative for material and carrier validation.
+        }
+        router.post(
+            `${routeBase}/batch-step/${step.id}/start`,
+            {},
+            { preserveScroll: true, onFinish: () => setInflightStepId(null) }
+        );
+    };
+
+    useEffect(() => {
+        if (!autoPrepare || pickModal || startBlockedReason) return;
+        const step = steps?.find((candidate) => ['PENDING', 'READY'].includes(candidate.status));
+        if (!step || autoPreparedStepId.current === step.id) return;
+
+        autoPreparedStepId.current = step.id;
+        openStartPreparation(step, false);
+    }, [autoPrepare, pickModal, startBlockedReason, steps]);
 
     if (!steps || steps.length === 0) return null;
 
@@ -856,33 +921,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
 
     // Resolve all controlled inputs before starting the operation. The backend
     // remains authoritative and repeats each material and transport-unit check.
-    const handleStart = async (step) => {
-        setInflightStepId(step.id);
-        try {
-            const res = await fetch(`${routeBase}/batch-step/${step.id}/pick-preview`, {
-                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-                credentials: 'same-origin',
-            });
-            if (res.ok) {
-                const data = await res.json();
-                const materials = data.materials ?? [];
-                const transportUnitRequirement = data.transport_unit_requirement ?? null;
-                if (materials.length > 0 || transportUnitRequirement) {
-                    setInflightStepId(null);
-                    setPickModal({ step, materials, transportUnitRequirement });
-                    return;
-                }
-            }
-        } catch {
-            // Preview failed → fall through and start directly; the server
-            // still auto-picks lots and surfaces any real error.
-        }
-        router.post(
-            `${routeBase}/batch-step/${step.id}/start`,
-            {},
-            { preserveScroll: true, onFinish: () => setInflightStepId(null) }
-        );
-    };
+    const handleStart = (step) => openStartPreparation(step, true);
 
     return (
         <div className={panelMode ? 'panel-step-controller' : ''}>
@@ -913,11 +952,13 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     const activeMaterialAllocations = (step.material_allocations ?? []).filter((allocation) => allocation.status === 'allocated');
                     return (
                         <div key={step.id} className={`bg-om-panel border border-om-line2 rounded-om-sm ${panelMode ? 'panel-current-step' : ''}`}>
-                        <div className={`flex items-center gap-3 p-3 ${panelMode ? 'panel-current-step-heading' : ''}`}>
-                            <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full font-mono text-[11px] bg-om-chip text-om-muted">
-                                {step.step_number}
-                            </span>
-                            {photo && (
+                        <div className={`flex items-center gap-3 p-3 ${panelMode ? 'panel-current-step-heading justify-end' : ''}`}>
+                            {!panelMode && (
+                                <span className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-full font-mono text-[11px] bg-om-chip text-om-muted">
+                                    {step.step_number}
+                                </span>
+                            )}
+                            {photo && !panelMode && (
                                 <button
                                     type="button"
                                     onClick={() => setPhotoZoom(photo)}
@@ -932,9 +973,8 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                                     />
                                 </button>
                             )}
-                            <span className="flex-1 text-sm font-medium text-om-ink">
-                                {step.name}
-                            </span>
+                            {!panelMode && <span className="flex-1 text-sm font-medium text-om-ink">{step.name}</span>}
+                            {panelMode && <span className="flex-1" />}
 
                              {/* Status label for terminal states */}
                             {step.status === 'DONE' && (
@@ -945,7 +985,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                             {step.status === 'SKIPPED' && (
                                 <span className="font-mono text-[11px] text-om-faint whitespace-nowrap">{__('Skipped')}</span>
                             )}
-                            {step.status === 'IN_PROGRESS' && !inflightStepId && (
+                            {step.status === 'IN_PROGRESS' && !inflightStepId && !panelMode && (
                                 <span className="font-mono text-[11px] text-om-running whitespace-nowrap">
                                     {step.started_by ? __('In progress by :name', { name: step.started_by.name }) : __('In progress')}
                                 </span>
@@ -1032,11 +1072,11 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                             </div>
                         )}
 
-                        {(step.quantity_reporting_required || step.quantity_reported_at) && (
+                        {(step.quantity_reported_at || step.status === 'DONE') && (
                             <OperationQuantitySummary step={step} quantityPrecision={quantityPrecision} />
                         )}
 
-                        {step.status === 'IN_PROGRESS' && activeMaterialAllocations.length > 0 && (
+                        {step.status === 'IN_PROGRESS' && activeMaterialAllocations.length > 0 && !panelMode && (
                             <OperationMaterialSummary
                                 allocations={activeMaterialAllocations}
                                 onIncrease={(allocation) => setMaterialTopUpModal({ step, allocation })}
@@ -1061,10 +1101,8 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                             <TransportUnitLoadSummary loads={step.transport_unit_loads} quantityPrecision={quantityPrecision} />
                         )}
 
-                        {(step.instruction?.trim() || media.length > 0) && (
-                            <div data-panel-instructions>
-                                <StepInstructions instruction={step.instruction} media={media} onZoom={setPhotoZoom} />
-                            </div>
+                        {(step.instruction?.trim() || photo || media.length > 0) && (
+                            <StepInstructions instruction={step.instruction} media={media} photo={photo} panel={panelMode} onZoom={setPhotoZoom} />
                         )}
 
                         {step.requires_confirmation && hasInstructionContent && (
@@ -1119,8 +1157,12 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     step={pickModal.step}
                     materials={pickModal.materials}
                     transportUnitRequirement={pickModal.transportUnitRequirement}
+                    stepPhoto={pickModal.stepPhoto}
+                    media={pickModal.media}
                     quantityPrecision={quantityPrecision}
                     routeBase={routeBase}
+                    preparationContext={preparationContext}
+                    onZoom={setPhotoZoom}
                     onClose={() => setPickModal(null)}
                 />
             )}
@@ -2138,7 +2180,7 @@ function StepChecklist({ step, items = [], completedItemIds, completions = [], c
 
 const EPSILON = 0.0001;
 
-function StepStartModal({ step, materials, transportUnitRequirement, quantityPrecision, routeBase = '/operator', onClose }) {
+function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto = null, media = [], quantityPrecision, routeBase = '/operator', preparationContext = null, onZoom = () => {}, onClose }) {
     const [submitting, setSubmitting] = useState(false);
     const [serverError, setServerError] = useState('');
     const transportQuantityInput = operationQuantityInput(
@@ -2252,8 +2294,26 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
         <ModalShell title={__('Prepare operation')} subtitle={step.name} onClose={onClose} wide={routeBase === '/panel'}>
             <form onSubmit={submit}>
                 <div className={routeBase === '/panel' ? 'panel-start-content' : 'max-h-[60vh] space-y-5 overflow-y-auto px-[18px] py-4'}>
+                    {routeBase === '/panel' && (
+                        <div className="panel-start-overview">
+                            <div>
+                                <span className="panel-label">{__('Input quantity')}</span>
+                                <strong className="font-mono text-3xl text-om-ink">
+                                    {fmtQty(step.input_quantity ?? preparationContext?.quantity, quantityPrecision)} {preparationContext?.unit || ''}
+                                </strong>
+                            </div>
+                            <div>
+                                <span className="panel-label">{__('Carrier')}</span>
+                                <strong className="font-mono text-lg text-om-ink">{preparationContext?.carrier || '—'}</strong>
+                            </div>
+                            <div>
+                                <span className="panel-label">{__('Order')}</span>
+                                <strong className="font-mono text-lg text-om-ink">{preparationContext?.orderNumber || '—'}</strong>
+                            </div>
+                        </div>
+                    )}
                     {transportUnitRequirement && (
-                        <div className={routeBase === '/panel' ? 'panel-start-card panel-start-card-wide' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
+                        <div className={routeBase === '/panel' ? 'panel-start-card panel-start-resource-card' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
                             <div className="mb-3 flex items-start justify-between gap-3">
                                 <div>
                                     <span className="block text-sm font-medium text-om-ink">{transportUnitRequirement.name}</span>
@@ -2336,7 +2396,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                         const remaining = m.candidates.filter((c) => !lines.some((ln) => ln.material_lot_id === c.id));
                         const afterReservation = Math.max(0, Number(m.available_qty) - Number(m.required_qty));
                         return (
-                            <div key={m.material_id} className={routeBase === '/panel' ? 'panel-start-card' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
+                            <div key={m.material_id} className={routeBase === '/panel' ? 'panel-start-card panel-start-resource-card' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
                                 <div className="mb-2 flex items-start justify-between gap-2">
                                     <div>
                                         <span className={routeBase === '/panel' ? 'text-base font-bold text-om-ink' : 'text-sm font-medium text-om-ink'}>{m.material_name}</span>
@@ -2370,85 +2430,98 @@ function StepStartModal({ step, materials, transportUnitRequirement, quantityPre
                                     </p>
                                 )}
 
-                                <div className="space-y-3">
-                                    {lines.map((ln, idx) => {
-                                        const cand = candById[m.material_id][ln.material_lot_id];
-                                        const over = Number(ln.picked_qty) > (cand?.quantity_available ?? 0) + EPSILON;
-                                        return (
-                                            <div key={ln.material_lot_id} className={routeBase === '/panel' ? 'panel-start-lot-row' : 'flex items-center justify-between gap-3 border-b border-om-line2 pb-2.5 last:border-0 last:pb-0'}>
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="font-mono text-[12px] font-semibold text-om-ink break-all leading-normal">
-                                                        {cand?.lot_number ?? `#${ln.material_lot_id}`}
+                                <details
+                                    className={routeBase === '/panel' ? 'panel-material-lot-details' : 'mt-3'}
+                                    {...(routeBase === '/panel'
+                                        ? { defaultOpen: !balanced || Number(m.shortage_qty) > EPSILON }
+                                        : { open: true })}
+                                >
+                                    <summary className={routeBase === '/panel' ? 'panel-material-lot-summary' : 'cursor-pointer text-xs font-semibold text-om-muted'}>
+                                        <span>{__('Material lots')}</span>
+                                        <span className={balanced ? 'text-om-done' : 'text-om-blocked'}>
+                                            {fmtQty(allocated, materialQuantityInput.precision)} / {fmtQty(m.required_qty, materialQuantityInput.precision)} {m.unit_of_measure}
+                                        </span>
+                                    </summary>
+                                    <div className="mt-3 space-y-3">
+                                        {lines.map((ln, idx) => {
+                                            const cand = candById[m.material_id][ln.material_lot_id];
+                                            return (
+                                                <div key={ln.material_lot_id} className={routeBase === '/panel' ? 'panel-start-lot-row' : 'flex items-center justify-between gap-3 border-b border-om-line2 pb-2.5 last:border-0 last:pb-0'}>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="font-mono text-[12px] font-semibold text-om-ink break-all leading-normal">
+                                                            {cand?.lot_number ?? `#${ln.material_lot_id}`}
+                                                        </div>
+                                                        <div className="font-mono text-[11px] text-om-faint mt-0.5">
+                                                            {m.is_workstation_stock ? __('Available at workstation') : __('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, materialQuantityInput.precision)}</span>
+                                                            {cand?.expiry_date ? ` · ${__('exp')}: ${formatDate(cand.expiry_date)}` : ''}
+                                                        </div>
                                                     </div>
-                                                    <div className="font-mono text-[11px] text-om-faint mt-0.5">
-                                                        {m.is_workstation_stock ? __('Available at workstation') : __('avail')}: <span className="text-om-muted font-medium">{fmtQty(cand?.quantity_available, materialQuantityInput.precision)}</span>
-                                                        {cand?.expiry_date ? ` · ${__('exp')}: ${formatDate(cand.expiry_date)}` : ''}
+                                                    <div className="flex items-center gap-2 flex-shrink-0">
+                                                        {routeBase === '/panel' ? (
+                                                            <TouchNumberControl
+                                                                step={materialQuantityInput.step}
+                                                                value={ln.picked_qty}
+                                                                onChange={(value) => setLineQty(m.material_id, idx, value)}
+                                                                className="w-full"
+                                                            />
+                                                        ) : (
+                                                            <input
+                                                                type="number"
+                                                                step={materialQuantityInput.step}
+                                                                min="0"
+                                                                inputMode={materialQuantityInput.inputMode}
+                                                                value={ln.picked_qty}
+                                                                onChange={(e) => setLineQty(m.material_id, idx, e.target.value)}
+                                                                className="text-[12px] text-om-ink bg-om-bg border border-om-line rounded-om-sm px-2 py-1 outline-none w-20 text-right focus:border-om-accent transition-colors font-mono"
+                                                            />
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeLine(m.material_id, idx)}
+                                                            className={routeBase === '/panel'
+                                                                ? 'flex h-14 w-14 cursor-pointer items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl text-om-muted hover:border-om-blocked hover:text-om-blocked'
+                                                                : 'cursor-pointer p-1 text-[18px] leading-none text-om-faint hover:text-om-blocked'}
+                                                            title={__('Remove lot')}
+                                                        >
+                                                            ×
+                                                        </button>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-2 flex-shrink-0">
-                                                    {routeBase === '/panel' ? (
-                                                        <TouchNumberControl
-                                                            step={materialQuantityInput.step}
-                                                            value={ln.picked_qty}
-                                                            onChange={(value) => setLineQty(m.material_id, idx, value)}
-                                                            className="w-full"
-                                                        />
-                                                    ) : (
-                                                        <input
-                                                            type="number"
-                                                            step={materialQuantityInput.step}
-                                                            min="0"
-                                                            inputMode={materialQuantityInput.inputMode}
-                                                            value={ln.picked_qty}
-                                                            onChange={(e) => setLineQty(m.material_id, idx, e.target.value)}
-                                                            className="text-[12px] text-om-ink bg-om-bg border border-om-line rounded-om-sm px-2 py-1 outline-none w-20 text-right focus:border-om-accent transition-colors font-mono"
-                                                        />
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => removeLine(m.material_id, idx)}
-                                                        className={routeBase === '/panel'
-                                                            ? 'flex h-14 w-14 cursor-pointer items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl text-om-muted hover:border-om-blocked hover:text-om-blocked'
-                                                            : 'cursor-pointer p-1 text-[18px] leading-none text-om-faint hover:text-om-blocked'}
-                                                        title={__('Remove lot')}
-                                                    >
-                                                        ×
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
 
-                                {remaining.length > 0 && (
-                                    <select
-                                        value=""
-                                        onChange={(e) => {
-                                            if (e.target.value) addLine(m.material_id, Number(e.target.value), m.required_qty);
-                                        }}
-                                        className={routeBase === '/panel' ? 'panel-input mt-3' : `${inputCls} mt-2`}
-                                    >
-                                        <option value="">{__('+ Add lot…')}</option>
-                                        {remaining.map((c) => (
-                                            <option key={c.id} value={c.id}>
-                                                {c.lot_number} — {__('avail')} {fmtQty(c.quantity_available, materialQuantityInput.precision)}
-                                                {c.expiry_date ? ` (${__('exp')} ${formatDate(c.expiry_date)})` : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                )}
-
-                                <div className="mt-2 flex justify-between font-mono text-[11px]">
-                                    <span className="text-om-faint">
-                                        {__('Required')} {fmtQty(m.required_qty, materialQuantityInput.precision)} {m.unit_of_measure}
-                                    </span>
-                                    <span className={balanced ? 'text-om-done' : 'text-om-blocked'}>
-                                        {m.is_workstation_stock ? __('Reserved for operation') : __('Allocated')} {fmtQty(allocated, materialQuantityInput.precision)}
-                                    </span>
-                                </div>
+                                    {remaining.length > 0 && (
+                                        <select
+                                            value=""
+                                            onChange={(e) => {
+                                                if (e.target.value) addLine(m.material_id, Number(e.target.value), m.required_qty);
+                                            }}
+                                            className={routeBase === '/panel' ? 'panel-input mt-3' : `${inputCls} mt-2`}
+                                        >
+                                            <option value="">{__('+ Add lot…')}</option>
+                                            {remaining.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.lot_number} — {__('avail')} {fmtQty(c.quantity_available, materialQuantityInput.precision)}
+                                                    {c.expiry_date ? ` (${__('exp')} ${formatDate(c.expiry_date)})` : ''}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    )}
+                                </details>
                             </div>
                         );
                     })}
+                    {routeBase === '/panel' && materials.length === 0 && !transportUnitRequirement && (
+                        <div className="panel-start-card panel-start-resource-card flex items-center justify-center text-sm font-semibold text-om-running">
+                            {__('No material or carrier confirmation is required for this operation.')}
+                        </div>
+                    )}
+                    {routeBase === '/panel' && (
+                        <div className="panel-start-guidance">
+                            <StepInstructions instruction={step.instruction} media={media} photo={stepPhoto} panel onZoom={onZoom} />
+                        </div>
+                    )}
                     {serverError && <p className={`${errorCls} ${routeBase === '/panel' ? 'col-span-full' : ''} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
                 </div>
                 <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>

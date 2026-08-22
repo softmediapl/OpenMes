@@ -5365,6 +5365,8 @@
     "Read-confirmation requires an instruction, photo, or media attachment.": "Read-confirmation requires an instruction, photo, or media attachment.",
     "This step has no instruction content to acknowledge.": "This step has no instruction content to acknowledge.",
     "Work instruction": "Work instruction",
+    "Reference image": "Reference image",
+    "No material or carrier confirmation is required for this operation.": "No material or carrier confirmation is required for this operation.",
     "Step completed and the batch was transferred to the next operation.": "Step completed and the batch was transferred to the next operation.",
     "Input": "Input",
     "Complete operation": "Complete operation",

@@ -253,7 +253,7 @@ html.dark {
         @apply flex h-16 shrink-0 items-center justify-between gap-3 border-b border-om-line bg-om-card px-4;
     }
     .panel-operation-grid {
-        @apply grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_24rem];
+        @apply grid min-h-0 flex-1 gap-4 overflow-hidden p-4 lg:grid-cols-[minmax(0,1fr)_20rem];
     }
     .panel-operation-body {
         @apply min-h-0 overflow-y-auto rounded-om-sm border border-om-line bg-om-card;
@@ -265,10 +265,10 @@ html.dark {
         @apply flex min-h-0 flex-col gap-3;
     }
     .panel-timer {
-        @apply flex min-h-52 flex-1 flex-col rounded-om-sm border border-om-line bg-om-card p-5;
+        @apply flex min-h-0 shrink-0 flex-col rounded-om-sm border border-om-line bg-om-card p-4;
     }
     .panel-timer strong {
-        @apply mt-3 block font-mono text-5xl;
+        @apply mt-2 block font-mono text-4xl;
     }
     .panel-timer p {
         @apply mt-2 text-sm text-om-muted;
@@ -292,7 +292,7 @@ html.dark {
         @apply border-0 bg-transparent;
     }
     .panel-current-step-heading {
-        @apply min-h-20 rounded-om-sm bg-om-panel px-4;
+        @apply min-h-16 rounded-om-sm bg-om-panel px-3;
     }
     .panel-current-step-heading > button {
         @apply min-h-16 px-7 text-lg;
@@ -311,14 +311,57 @@ html.dark {
     .panel-start-content {
         @apply grid max-h-[68vh] grid-cols-2 gap-4 overflow-y-auto p-5;
     }
+    .panel-start-overview {
+        @apply col-span-2 grid grid-cols-[1.2fr_1fr_1fr] items-center gap-5 rounded-om-sm border border-om-line bg-om-card p-4;
+    }
     .panel-start-card {
         @apply rounded-om-sm border border-om-line bg-om-card p-4;
+    }
+    .panel-start-resource-card {
+        @apply col-start-1;
+    }
+    .panel-start-guidance {
+        grid-column: 2;
+        grid-row: 2 / span 30;
+        @apply self-start rounded-om-sm border border-om-line bg-om-card;
+    }
+    .panel-start-guidance .panel-instruction-reference {
+        @apply grid-cols-1 border-0 p-0;
+    }
+    .panel-instruction-reference {
+        @apply grid grid-cols-[minmax(0,1fr)_minmax(13rem,18rem)] gap-3 border-t border-om-line2 p-3;
+    }
+    .panel-instruction-reference-single {
+        @apply grid-cols-1;
+    }
+    .panel-instruction-copy,
+    .panel-instruction-media {
+        @apply min-w-0 rounded-om-sm bg-om-panel p-3;
+    }
+    .panel-instruction-media img {
+        @apply max-h-44;
     }
     .panel-start-card-wide {
         @apply col-span-2;
     }
     .panel-start-lot-row {
         @apply grid grid-cols-1 gap-3 border-b border-om-line2 pb-3 last:border-0 last:pb-0;
+    }
+    .panel-material-lot-details {
+        @apply mt-2 border-t border-om-line2 pt-1;
+    }
+    .panel-material-lot-summary {
+        @apply flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 rounded-om-sm px-2 text-sm font-bold text-om-ink hover:bg-om-chip;
+    }
+    .panel-material-lot-summary::-webkit-details-marker {
+        display: none;
+    }
+    .panel-material-lot-summary::before {
+        content: '+';
+        @apply mr-1 text-lg text-om-muted;
+    }
+    .panel-material-lot-details[open] > .panel-material-lot-summary::before {
+        content: '−';
     }
     .panel-modal-footer {
         @apply flex shrink-0 justify-end gap-3 border-t border-om-line2 bg-om-panel px-5 py-4;
@@ -390,6 +433,15 @@ html.dark {
             @apply grid-cols-1;
         }
         .panel-start-content {
+            @apply grid-cols-1;
+        }
+        .panel-start-overview,
+        .panel-start-resource-card,
+        .panel-start-guidance {
+            grid-column: 1;
+            grid-row: auto;
+        }
+        .panel-start-overview {
             @apply grid-cols-1;
         }
         .panel-start-card-wide {
@@ -546,6 +598,42 @@ html.dark {
         }
         .panel-modal-footer button {
             @apply min-h-12 min-w-40;
+        }
+    }
+
+    @media (min-width: 1200px) and (min-height: 700px) {
+        .panel-operation-grid {
+            grid-template-columns: minmax(0, 1fr) 22rem;
+            @apply gap-5 p-5;
+        }
+        .panel-operation-heading {
+            @apply h-[4.5rem] px-5;
+        }
+        .panel-operation-summary {
+            @apply gap-5 p-5;
+        }
+        .panel-current-step-heading {
+            @apply min-h-[4.5rem] px-4;
+        }
+        .panel-current-step-heading > button,
+        .panel-modal-footer button {
+            @apply min-h-16 px-7 text-lg;
+        }
+        .panel-timer {
+            @apply p-5;
+        }
+        .panel-timer strong {
+            @apply text-5xl;
+        }
+        .panel-instruction-reference {
+            grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+            @apply gap-5 p-4;
+        }
+        .panel-instruction-media img {
+            @apply max-h-56;
+        }
+        .panel-start-content {
+            @apply gap-5 p-5;
         }
     }
 

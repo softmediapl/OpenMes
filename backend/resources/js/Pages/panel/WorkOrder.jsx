@@ -55,6 +55,7 @@ export default function WorkOrder({
     const active = useMemo(() => batches.find((batch) => currentStep(batch)?.status === 'IN_PROGRESS') || batches[0], [batches]);
     const activeStep = active ? currentStep(active) : null;
     const product = workOrder.product_type;
+    const activeCarrier = (activeStep?.transport_unit_loads || []).find((load) => !load.released_at)?.transport_unit?.code || null;
     const capacityState = workstationCapacityState(selectedWorkstation);
     const capacityBlocked = isStepStartCapacityBlocked(activeStep, selectedWorkstation);
     const capacityReason = capacityBlocked
@@ -79,9 +80,9 @@ export default function WorkOrder({
                     <Link href="/panel" className="panel-icon-button" title={__('Back to queue')}><ArrowLeft /></Link>
                     <div className="min-w-0"><h1 className="truncate text-xl font-bold">{activeStep?.name || workOrder.order_no}</h1><p className="truncate text-sm text-om-muted">{product?.name} · {workOrder.order_no}</p></div>
                 </div>
-                <span className={`panel-status ${activeStep?.status === 'IN_PROGRESS' ? 'panel-status-running' : 'panel-status-ready'}`}>
-                    {activeStep?.status === 'IN_PROGRESS' ? __('In progress') : __('Ready to start')}
-                </span>
+                {activeStep?.status !== 'IN_PROGRESS' && (
+                    <span className="panel-status panel-status-ready">{__('Ready to start')}</span>
+                )}
             </div>
 
             {active && <div className="panel-operation-grid">
@@ -106,6 +107,14 @@ export default function WorkOrder({
                             routeBase="/panel"
                             panelMode
                             startBlockedReason={startBlockedReason}
+                            autoPrepare={['PENDING', 'READY'].includes(activeStep?.status)}
+                            preparationContext={{
+                                orderNumber: workOrder.order_no,
+                                batchNumber: active.batch_number || active.id,
+                                quantity: activeStep?.input_quantity ?? active.target_qty,
+                                unit: product?.unit_of_measure,
+                                carrier: activeCarrier,
+                            }}
                         />
                     </div>
                 </section>
@@ -136,9 +145,7 @@ function OperationTimer({ step, now }) {
     const remaining = fixedHold ? holdRemainingSeconds(step.hold_release_at, now) : null;
     const elapsed = elapsedSeconds(step.started_at, now);
 
-    if (!running) {
-        return <div className="panel-timer"><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{__('Operation status')}</span></div><span className="mt-5 text-2xl font-bold text-om-running">{__('Ready to start')}</span></div>;
-    }
+    if (!running) return null;
 
     return <div className={`panel-timer ${remaining === 0 && fixedHold ? 'panel-timer-ready' : ''}`}><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Actual operation time')}</span></div><strong>{fixedHold && remaining > 0 ? formatHoldCountdown(remaining) : formatDuration(elapsed)}</strong><p>{fixedHold && step.min_duration_minutes ? `${__('Minimum hold')}: ${step.min_duration_minutes} min` : __('Time is recorded automatically.')}</p></div>;
 }
