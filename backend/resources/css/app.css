@@ -320,9 +320,15 @@ html.dark {
     .panel-start-resource-card {
         @apply col-start-1;
     }
+    .panel-start-resource-heading {
+        @apply mb-2 flex items-start justify-between gap-2;
+    }
+    .panel-start-stock-summary {
+        @apply mb-3 grid grid-cols-3 gap-2 rounded-om-sm px-3 py-2 font-mono text-[10px];
+    }
     .panel-start-guidance {
         grid-column: 2;
-        grid-row: 2 / span 30;
+        grid-row: 2;
         @apply self-start rounded-om-sm border border-om-line bg-om-card;
     }
     .panel-start-guidance .panel-instruction-reference {
@@ -676,10 +682,10 @@ html.dark {
         .panel-start-resource-card {
             @apply p-2;
         }
-        .panel-start-resource-card > :first-child {
+        .panel-start-resource-heading {
             @apply mb-1;
         }
-        .panel-start-resource-card > .mb-3 {
+        .panel-start-stock-summary {
             @apply mb-1 px-2 py-1.5;
         }
         .panel-material-lot-details {

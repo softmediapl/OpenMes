@@ -2401,7 +2401,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto =
                         const afterReservation = Math.max(0, Number(m.available_qty) - Number(m.required_qty));
                         return (
                             <div key={m.material_id} className={routeBase === '/panel' ? 'panel-start-card panel-start-resource-card' : 'rounded-om-sm border border-om-line2 bg-om-panel p-3'}>
-                                <div className="mb-2 flex items-start justify-between gap-2">
+                                <div className={routeBase === '/panel' ? 'panel-start-resource-heading' : 'mb-2 flex items-start justify-between gap-2'}>
                                     <div>
                                         <span className={routeBase === '/panel' ? 'text-base font-bold text-om-ink' : 'text-sm font-medium text-om-ink'}>{m.material_name}</span>
                                         <span className="ml-1 font-mono text-[11px] text-om-faint">{m.material_code}</span>
@@ -2414,7 +2414,7 @@ function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto =
                                 </div>
 
                                 {m.is_workstation_stock && (
-                                    <div className={`mb-3 grid grid-cols-3 gap-2 rounded-om-sm px-3 py-2 font-mono text-[10px] ${Number(m.shortage_qty) > EPSILON ? 'bg-om-blocked-bg text-om-blocked' : 'bg-om-done-bg text-om-muted'}`}>
+                                    <div className={`${routeBase === '/panel' ? 'panel-start-stock-summary' : 'mb-3 grid grid-cols-3 gap-2 rounded-om-sm px-3 py-2 font-mono text-[10px]'} ${Number(m.shortage_qty) > EPSILON ? 'bg-om-blocked-bg text-om-blocked' : 'bg-om-done-bg text-om-muted'}`}>
                                         <span>{__('At workstation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.available_qty, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
                                         <span>{__('Operation reserve')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(m.required_qty, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
                                         <span>{__('After reservation')}<strong className="mt-0.5 block text-[12px] text-om-ink">{fmtQty(afterReservation, materialQuantityInput.precision)} {m.unit_of_measure}</strong></span>
