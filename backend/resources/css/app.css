@@ -585,7 +585,7 @@ html.dark {
             @apply px-2.5 py-2;
         }
         .panel-material-reconciliation-card {
-            @apply p-2.5;
+            @apply p-2;
         }
         .panel-material-reconciliation-card > :first-child {
             @apply mb-2;
