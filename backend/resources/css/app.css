@@ -573,6 +573,9 @@ html.dark {
         .panel-start-content {
             @apply gap-2 p-2;
         }
+        .panel-complete-content {
+            padding-bottom: 0.25rem;
+        }
         .panel-complete-content > .panel-quantity-reconciliation,
         .panel-complete-content > .panel-material-reconciliation {
             padding: 0.625rem;
