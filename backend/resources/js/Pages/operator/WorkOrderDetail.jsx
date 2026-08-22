@@ -827,6 +827,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                         transportUnitRequirement,
                         stepPhoto: stepPhotos[step.step_number] ?? null,
                         media: stepMedia[step.step_number] ?? [],
+                        startBlockedReason,
                     });
                     return;
                 }
@@ -838,6 +839,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     transportUnitRequirement: null,
                     stepPhoto: stepPhotos[step.step_number] ?? null,
                     media: stepMedia[step.step_number] ?? [],
+                    startBlockedReason,
                 });
                 return;
             }
@@ -850,6 +852,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     transportUnitRequirement: null,
                     stepPhoto: stepPhotos[step.step_number] ?? null,
                     media: stepMedia[step.step_number] ?? [],
+                    startBlockedReason,
                 });
                 return;
             }
@@ -864,7 +867,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
     };
 
     useEffect(() => {
-        if (!autoPrepare || pickModal || startBlockedReason) return;
+        if (!autoPrepare || pickModal) return;
         const step = steps?.find((candidate) => ['PENDING', 'READY'].includes(candidate.status));
         if (!step || autoPreparedStepId.current === step.id) return;
 
@@ -1162,6 +1165,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                     quantityPrecision={quantityPrecision}
                     routeBase={routeBase}
                     preparationContext={preparationContext}
+                    startBlockedReason={pickModal.startBlockedReason}
                     onZoom={setPhotoZoom}
                     onClose={() => setPickModal(null)}
                 />
@@ -2180,7 +2184,7 @@ function StepChecklist({ step, items = [], completedItemIds, completions = [], c
 
 const EPSILON = 0.0001;
 
-function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto = null, media = [], quantityPrecision, routeBase = '/operator', preparationContext = null, onZoom = () => {}, onClose }) {
+function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto = null, media = [], quantityPrecision, routeBase = '/operator', preparationContext = null, startBlockedReason = null, onZoom = () => {}, onClose }) {
     const [submitting, setSubmitting] = useState(false);
     const [serverError, setServerError] = useState('');
     const transportQuantityInput = operationQuantityInput(
@@ -2522,13 +2526,18 @@ function StepStartModal({ step, materials, transportUnitRequirement, stepPhoto =
                             <StepInstructions instruction={step.instruction} media={media} photo={stepPhoto} panel onZoom={onZoom} />
                         </div>
                     )}
+                    {startBlockedReason && (
+                        <p className="col-span-full rounded-om-sm border border-om-blocked/30 bg-om-blocked-bg px-3 py-2 text-sm font-semibold text-om-blocked">
+                            {startBlockedReason}
+                        </p>
+                    )}
                     {serverError && <p className={`${errorCls} ${routeBase === '/panel' ? 'col-span-full' : ''} rounded-om-sm bg-om-blocked-bg px-3 py-2`}>{serverError}</p>}
                 </div>
                 <div className={routeBase === '/panel' ? 'panel-modal-footer' : modalFooterCls}>
                     <Button variant="secondary" size={routeBase === '/panel' ? 'lg' : 'md'} type="button" onClick={onClose}>
                         {__('Cancel')}
                     </Button>
-                    <Button variant="accent" size={routeBase === '/panel' ? 'lg' : 'md'} type="submit" disabled={!allValid || submitting}>
+                    <Button variant="accent" size={routeBase === '/panel' ? 'lg' : 'md'} type="submit" disabled={!allValid || submitting || !!startBlockedReason}>
                         {submitting ? '…' : __('Confirm & start')}
                     </Button>
                 </div>
