@@ -50,6 +50,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
     const [countedStock, setCountedStock] = useState(null);
     const [requestingPolicyId, setRequestingPolicyId] = useState(null);
     const [refillPolicyId, setRefillPolicyId] = useState(null);
+    const [cancelRequestId, setCancelRequestId] = useState(null);
     const rows = useMemo(
         () => buildMaterialRows(stocks, policies, replenishmentRequests),
         [stocks, policies, replenishmentRequests],
@@ -58,6 +59,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
     const openCount = rows.filter((row) => row.request).length;
     const displayQuantity = (value, unit) => quantity(value, unit, unitPrecisions);
     const refillRow = rows.find((row) => row.policy?.id === refillPolicyId);
+    const cancelRow = rows.find((row) => row.request?.id === cancelRequestId);
 
     return (
         <>
@@ -92,6 +94,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                 requesting={requestingPolicyId === row.policy?.id}
                                 onCount={setCountedStock}
                                 onRequest={() => setRefillPolicyId(row.policy.id)}
+                                onCancel={() => setCancelRequestId(row.request.id)}
                             />
                         ))}
                     </div>
@@ -197,12 +200,21 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                     routeBase={materialRouteBase()}
                     onClose={() => setRefillPolicyId(null)}
                 />}
+                {panelMode && cancelRow && <RefillConfirmation
+                    key={`cancel-${cancelRow.request.id}`}
+                    cancelling
+                    row={cancelRow}
+                    workstation={selectedWorkstation}
+                    displayQuantity={displayQuantity}
+                    routeBase={materialRouteBase()}
+                    onClose={() => setCancelRequestId(null)}
+                />}
             </div>
         </>
     );
 }
 
-function PanelMaterialRow({ row, displayQuantity, requesting, onCount, onRequest }) {
+function PanelMaterialRow({ row, displayQuantity, requesting, onCount, onRequest, onCancel }) {
     const primaryStock = row.stocks[0];
 
     return <article className={`panel-material-row ${row.level === 'low' ? 'panel-material-row-low' : ''}`}>
@@ -222,7 +234,7 @@ function PanelMaterialRow({ row, displayQuantity, requesting, onCount, onRequest
         <div className="grid grid-cols-2 gap-2">
             {primaryStock ? <button type="button" onClick={() => onCount(primaryStock)} className="panel-secondary">{__('Reconcile count')}</button> : <span />}
             {row.request ? (
-                <button type="button" onClick={() => cancelRequest(row.request.id)} className="panel-secondary text-om-blocked">{__('Cancel request')}</button>
+                <button type="button" onClick={onCancel} className="panel-secondary text-om-blocked">{__('Cancel request')}</button>
             ) : row.policy ? (
                 <button type="button" disabled={requesting} onClick={onRequest} className="panel-primary">{requesting ? '…' : __('Request refill')}</button>
             ) : null}

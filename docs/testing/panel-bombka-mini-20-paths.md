@@ -92,3 +92,21 @@ Frontend: 134 testy OK, build OK. Backend niezmieniony w tej poprawce;
 ostatni pelny przebieg przy poprawce przestoju: 2654 testy, 9240 asercji OK.
 Logika ilosci pozostaje wspolna: dodatni issue_increment albo null, gdy ilosc
 wylicza serwer wedlug docelowego zapasu. Stary /operator zachowuje swoje zachowanie.
+
+### Potwierdzenie anulowania uzupelnienia
+
+W karcie testera po wdrozeniu b6152d01 otwarto i zamknieto potwierdzenie zamowienia
+kapturkow: widoczny material, stanowisko i 250 szt.; po Anuluj pozostalo jedno
+istniejace zgloszenie srebrnych zawieszek. Nie wysylano dodatkowego zamowienia.
+Tester nastepnie zglosil niespojnosc: anulowanie wciaz otwieralo systemowe pytanie
+przegladarki. Panel korzysta teraz z tego samego modala dla obu akcji, z przyciskami
+Zostaw zgloszenie / Anuluj zgloszenie. Pokazuje material i zamowiona ilosc;
+zamkniecie nie wysyla zadania, wysylanie blokuje powtorzenia i zamkniecie,
+blad serwera pozostaje widoczny. Akcja dotyczy wybranego ID zgloszenia.
+Backend i starszy /operator pozostaja bez zmian.
+
+Testy: 141 frontendowych OK, build OK; izolowany Chrome sprawdzil oba tryby
+na 1024x768, 1280x800 i 768x1024 (odrzucenie, Escape, podwojne klikniecie,
+wysylanie, blad i ponowienie). Potwierdzono brak wyjscia modala poza ekran
+i cele dotykowe co najmniej 48 px. Faktyczne anulowanie przez testera po tej
+poprawce pozostaje do odbioru; nie deklarujemy ponownego pelnego Gate C.
