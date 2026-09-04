@@ -52,7 +52,7 @@ export default function PanelLayout({ children }) {
             </header>
             {flash && <Flash flash={flash} />}
             <main className="panel-main">{children}</main>
-            {identityOpen && <IdentityModal operator={panelOperator} identity={panelIdentity} onClose={() => panelOperator && setIdentityOpen(false)} />}
+            {identityOpen && <IdentityModal operator={panelOperator} identity={panelIdentity} onClose={() => setIdentityOpen(false)} />}
             {helpOpen && <HelpModal support={panelSupport} context={context} onClose={() => setHelpOpen(false)} onAuthorize={(request) => { setHelpOpen(false); setSupervisorRequest(request); }} />}
             {downtimeOpen && <HelpModal initialView="downtime" support={panelSupport} context={context} onClose={() => setDowntimeOpen(false)} onAuthorize={(request) => { setDowntimeOpen(false); setSupervisorRequest(request); }} />}
             {supervisorRequest && <SupervisorModal support={panelSupport} identity={panelIdentity} request={supervisorRequest} operator={panelOperator} onClose={() => setSupervisorRequest(null)} onChangeOperator={() => { setSupervisorRequest(null); setIdentityOpen(true); }} />}
