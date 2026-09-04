@@ -22,6 +22,8 @@ class CompleteBatchStepRequest extends FormRequest
         $quantityReportingRequired = (bool) $this->route('batchStep')?->quantity_reporting_required;
         $scrapEntries = $this->input('scrap_entries');
         $hasScrapBreakdown = is_array($scrapEntries) && count($scrapEntries) > 0;
+        $confirmMaterials = $this->is('panel/*') && $this->route('batchStep')?->materialAllocations()
+            ->where('status', 'allocated')->exists();
 
         return [
             'actual_elapsed_minutes' => ['nullable', 'integer', 'min:0'],
@@ -43,7 +45,8 @@ class CompleteBatchStepRequest extends FormRequest
             ],
             'scrap_entries.*.quantity' => ['required', 'numeric', 'gt:0', 'max:9999999999'],
             'quantity_notes' => ['nullable', 'string', 'max:2000'],
-            'material_consumptions' => ['nullable', 'array'],
+            'material_confirmation' => [Rule::requiredIf($confirmMaterials), 'nullable', Rule::in(['planned', 'difference'])],
+            'material_consumptions' => [Rule::requiredIf($confirmMaterials), 'nullable', 'array'],
             'material_consumptions.*.allocation_id' => [
                 'required',
                 'integer',
@@ -54,5 +57,10 @@ class CompleteBatchStepRequest extends FormRequest
             'material_consumptions.*.scrap_qty' => ['required', 'numeric', 'min:0'],
             'hold_override_reason' => ['nullable', 'string', 'min:10', 'max:1000'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['material_confirmation.required' => __('Confirm material use before completing the operation.')];
     }
 }

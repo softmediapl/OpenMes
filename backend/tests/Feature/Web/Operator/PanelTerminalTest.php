@@ -228,6 +228,58 @@ class PanelTerminalTest extends TestCase
         $this->assertSame(BatchStep::STATUS_DONE, $this->step->fresh()->status);
     }
 
+    #[\PHPUnit\Framework\Attributes\DataProvider('materialConfirmationCases')]
+    public function test_panel_requires_and_audits_material_confirmation(string $mode, float $scrap, float $remaining): void
+    {
+        $this->step->update([
+            'status' => BatchStep::STATUS_IN_PROGRESS,
+            'started_at' => now()->subMinute(),
+            'started_by_id' => $this->operator->id,
+        ]);
+        $material = \App\Models\Material::factory()->create([
+            'unit_of_measure' => 'pcs', 'stock_quantity' => 88, 'reserved_quantity' => 3,
+        ]);
+        $allocation = \App\Models\MaterialAllocation::factory()->create([
+            'batch_id' => $this->step->batch_id,
+            'batch_step_id' => $this->step->id,
+            'work_order_id' => $this->workOrder->id,
+            'material_id' => $material->id,
+            'allocated_qty' => 3, 'expected_qty' => 2,
+        ]);
+        $payload = ['material_consumptions' => [[
+            'allocation_id' => $allocation->id, 'consumed_qty' => 2, 'scrap_qty' => $scrap,
+        ]]];
+        $this->actingAs($this->terminal)->withSession([
+            PanelOperatorContext::SESSION_KEY => $this->operator->id,
+            'panel_operator_started_at' => now()->timestamp,
+        ])->post(route('panel.batch-step.complete', $this->step), $payload)
+            ->assertSessionHasErrors('material_confirmation');
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $this->step->fresh()->status);
+        $this->assertEquals(88, $material->fresh()->stock_quantity);
+
+        $forged = $payload;
+        $forged['material_confirmation'] = 'planned';
+        $forged['material_consumptions'][0]['consumed_qty'] = 3;
+        $forged['material_consumptions'][0]['scrap_qty'] = 0;
+        $this->post(route('panel.batch-step.complete', $this->step), $forged)->assertSessionHas('error');
+        $this->assertSame(BatchStep::STATUS_IN_PROGRESS, $this->step->fresh()->status);
+
+        $payload['material_confirmation'] = $mode;
+        $this->post(route('panel.batch-step.complete', $this->step), $payload)->assertSessionHas('success');
+        $this->assertSame(BatchStep::STATUS_DONE, $this->step->fresh()->status);
+        $this->assertEquals($remaining, $material->fresh()->stock_quantity);
+        $this->assertEquals(0, $material->fresh()->reserved_quantity);
+        $this->assertEquals(1 - $scrap, $allocation->fresh()->returned_qty);
+        $audit = \App\Models\AuditLog::where('action', 'material_use_confirmed')->sole();
+        $this->assertSame($this->operator->id, $audit->user_id);
+        $this->assertSame($mode, $audit->after_state['mode']);
+    }
+
+    public static function materialConfirmationCases(): array
+    {
+        return ['as planned' => ['planned', 0, 86], 'damaged hanger' => ['difference', 1, 85]];
+    }
+
     public function test_human_device_panel_only_receives_batches_for_the_selected_workstation(): void
     {
         Role::create(['name' => 'Admin', 'guard_name' => 'web']);

@@ -1646,6 +1646,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         actual_setup_minutes: reportsTime ? String(actualTimeDefaults.setup) : '',
         rework_quantity: reportsQuantity ? '0' : '',
         scrap_entries: reportsQuantity ? [{ scrap_reason_id: '', quantity: '0' }] : [],
+        material_confirmation: '',
         material_consumptions: materialAllocations.map((allocation) => ({
             allocation_id: allocation.id,
             consumed_qty: compactQuantity(
@@ -1722,7 +1723,20 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
             || consumed + scrap > Number(allocation.allocated_qty) + EPSILON;
     });
     const invalid = !elapsedValid || !setupValid || setupExceedsElapsed || quantityInvalid
-        || materialConsumptionInvalid || holdOverrideInvalid;
+        || materialConsumptionInvalid || holdOverrideInvalid
+        || (panelMode && materialAllocations.length > 0 && !form.data.material_confirmation);
+
+    const confirmMaterialUse = (mode) => {
+        form.setData((data) => ({
+            ...data,
+            material_confirmation: mode,
+            material_consumptions: mode === 'planned' ? materialAllocations.map((allocation) => ({
+                allocation_id: allocation.id,
+                consumed_qty: compactQuantity(allocation.expected_qty ?? allocation.allocated_qty, allocation.quantity_precision, allocation.material?.unit_of_measure),
+                scrap_qty: '0',
+            })) : data.material_consumptions,
+        }));
+    };
 
     const updateScrapEntry = (index, field, value) => {
         form.setData('scrap_entries', form.data.scrap_entries.map((entry, entryIndex) => (
@@ -1771,6 +1785,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                 consumed_qty: Number(row.consumed_qty),
                 scrap_qty: Number(row.scrap_qty),
             })),
+            material_confirmation: panelMode && materialAllocations.length > 0 ? data.material_confirmation : null,
             quantity_notes: reportsQuantity && data.quantity_notes.trim() !== '' ? data.quantity_notes.trim() : null,
             hold_override_reason: earlyRelease && canOverrideOperationHold
                 ? data.hold_override_reason.trim()
@@ -1958,10 +1973,14 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                             )}
                                         </span>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3">
+                                    {panelMode && form.data.material_confirmation !== 'difference' ? (
+                                        <p className="text-base font-semibold">
+                                            {__('Planned material use')}: {fmtQty(allocation.expected_qty ?? allocated, materialQuantityInput.precision)} {allocation.material?.unit_of_measure}
+                                        </p>
+                                    ) : <div className={`grid gap-3 ${panelMode ? 'grid-cols-1' : 'grid-cols-2'}`}>
                                         <div>
                                             <label className={labelCls}>{__('Actual material used')}</label>
-                                            <input
+                                            {panelMode ? <TouchNumberControl step={materialQuantityInput.step} value={row?.consumed_qty ?? ''} onChange={(value) => updateMaterialConsumption(allocation.id, 'consumed_qty', value)} /> : <input
                                                 type="number"
                                                 min="0"
                                                 step={materialQuantityInput.step}
@@ -1969,11 +1988,11 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                                 value={row?.consumed_qty ?? ''}
                                                 onChange={(event) => updateMaterialConsumption(allocation.id, 'consumed_qty', event.target.value)}
                                                 className={inputCls}
-                                            />
+                                            />}
                                         </div>
                                         <div>
                                             <label className={labelCls}>{__('Material loss')}</label>
-                                            <input
+                                            {panelMode ? <TouchNumberControl step={materialQuantityInput.step} value={row?.scrap_qty ?? ''} onChange={(value) => updateMaterialConsumption(allocation.id, 'scrap_qty', value)} /> : <input
                                                 type="number"
                                                 min="0"
                                                 step={materialQuantityInput.step}
@@ -1981,9 +2000,9 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                                 value={row?.scrap_qty ?? ''}
                                                 onChange={(event) => updateMaterialConsumption(allocation.id, 'scrap_qty', event.target.value)}
                                                 className={inputCls}
-                                            />
+                                            />}
                                         </div>
-                                    </div>
+                                    </div>}
                                     {!panelMode && (
                                         <div className={`mt-3 flex items-center justify-between rounded-om-sm px-3 py-2 text-xs ${consumed + materialScrap <= allocated + EPSILON ? 'bg-om-done-bg text-om-running' : 'bg-om-blocked-bg text-om-blocked'}`}>
                                             <span>{usesWorkstationStock ? __('Remains at workstation') : __('Unused quantity')}</span>
@@ -1993,6 +2012,16 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 </div>
                             );
                         })}
+                        {panelMode && (
+                            <div role="radiogroup" aria-label={__('Material use confirmation')} className="grid grid-cols-1 gap-2">
+                                {[['planned', __('Material use matches the plan')], ['difference', __('There was a difference')]].map(([mode, label]) => (
+                                    <label key={mode} className={`flex min-h-14 cursor-pointer items-center gap-3 rounded-om-sm border px-3 py-2 text-base font-semibold ${form.data.material_confirmation === mode ? 'border-om-running bg-om-done-bg' : 'border-om-line bg-om-card'}`}>
+                                        <input type="radio" name="material-confirmation" value={mode} checked={form.data.material_confirmation === mode} onChange={() => confirmMaterialUse(mode)} className="h-6 w-6 shrink-0" />
+                                        {label}
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                     </section>
                 )}
 

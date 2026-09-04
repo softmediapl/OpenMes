@@ -196,7 +196,21 @@ class BatchService
                 ? $scrapBreakdown[0]['scrap_reason_id']
                 : null;
             $this->guardPalletizedOutput($step, $quantityPayload);
-            $this->recordStepMaterialConsumption($step, $data['material_consumptions'] ?? null);
+            $this->recordStepMaterialConsumption($step, $data['material_consumptions'] ?? null, $data['material_confirmation'] ?? null);
+            if (isset($data['material_confirmation'])) {
+                \App\Models\AuditLog::create([
+                    'user_id' => $user->id,
+                    'entity_type' => BatchStep::class,
+                    'entity_id' => $step->id,
+                    'action' => 'material_use_confirmed',
+                    'after_state' => [
+                        'mode' => $data['material_confirmation'],
+                        'workstation_id' => $step->workstation_id,
+                        'batch_id' => $step->batch_id,
+                        'materials' => $data['material_consumptions'] ?? [],
+                    ],
+                ]);
+            }
 
             // Complete the step
             $step->update(array_merge([
@@ -265,7 +279,7 @@ class BatchService
     /**
      * @param  array<int, array{allocation_id: int, consumed_qty: int|float|string, scrap_qty: int|float|string}>|null  $reported
      */
-    private function recordStepMaterialConsumption(BatchStep $step, ?array $reported): void
+    private function recordStepMaterialConsumption(BatchStep $step, ?array $reported, ?string $confirmation = null): void
     {
         if ($reported === null) {
             return;
@@ -284,6 +298,13 @@ class BatchService
 
         foreach ($allocations as $allocation) {
             $row = $reportedById->get($allocation->id);
+            if ($confirmation === 'planned') {
+                $precision = \App\Models\UnitOfMeasure::precisionForCode($allocation->material->unit_of_measure);
+                $planned = round((float) ($allocation->expected_qty ?? $allocation->allocated_qty), $precision);
+                if (abs((float) $row['consumed_qty'] - $planned) > 0.00001 || (float) $row['scrap_qty'] !== 0.0) {
+                    throw new \DomainException(__('Reported material use differs from the plan. Select a difference.'));
+                }
+            }
             $this->allocationService->recordConsumption(
                 $allocation,
                 (float) $row['consumed_qty'],
