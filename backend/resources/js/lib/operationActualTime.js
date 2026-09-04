@@ -1,8 +1,24 @@
-export function operationActualTimeDefaults(step, nowMs = Date.now()) {
+export function operationElapsedSeconds(step, nowMs = Date.now()) {
     const startedAtMs = step?.started_at ? new Date(step.started_at).getTime() : null;
-    const elapsed = startedAtMs && Number.isFinite(startedAtMs)
-        ? Math.max(0, Math.ceil((nowMs - startedAtMs) / 60000))
+
+    return startedAtMs !== null && Number.isFinite(startedAtMs)
+        ? Math.max(0, Math.floor((nowMs - startedAtMs) / 1000))
         : 0;
+}
+
+export function formatOperationDuration(totalSeconds) {
+    const value = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const hours = Math.floor(value / 3600);
+    const minutes = Math.floor((value % 3600) / 60);
+    const seconds = value % 60;
+
+    return [hours, minutes, seconds]
+        .map((part) => String(part).padStart(2, '0'))
+        .join(':');
+}
+
+export function operationActualTimeDefaults(step, nowMs = Date.now()) {
+    const elapsed = Math.ceil(operationElapsedSeconds(step, nowMs) / 60);
     // The system only knows when the whole operation started. Without a
     // separate setup timer it must not present the standard as an actual.
     const setup = 0;

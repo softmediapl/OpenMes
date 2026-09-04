@@ -7,20 +7,7 @@ import { formatHoldCountdown, holdRemainingSeconds } from '../../lib/operationHo
 import { compactQuantity } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
 import { isStepStartCapacityBlocked, workstationCapacityState } from '../../lib/workstationQueue';
-
-function elapsedSeconds(startedAt, now) {
-    if (!startedAt) return 0;
-    const started = new Date(startedAt).getTime();
-    return Number.isFinite(started) ? Math.max(0, Math.floor((now - started) / 1000)) : 0;
-}
-
-function formatDuration(seconds) {
-    const value = Math.max(0, Number(seconds) || 0);
-    const hours = Math.floor(value / 3600);
-    const minutes = Math.floor((value % 3600) / 60);
-    const remainder = value % 60;
-    return [hours, minutes, remainder].map((part) => String(part).padStart(2, '0')).join(':');
-}
+import { formatOperationDuration, operationElapsedSeconds } from '../../lib/operationActualTime';
 
 function currentStep(batch) {
     return (batch.steps || []).find((step) => step.status === 'IN_PROGRESS')
@@ -141,11 +128,11 @@ function OperationTimer({ step, now }) {
     const fixedHold = step.execution_mode === 'fixed_hold';
     const running = step.status === 'IN_PROGRESS';
     const remaining = fixedHold ? holdRemainingSeconds(step.hold_release_at, now) : null;
-    const elapsed = elapsedSeconds(step.started_at, now);
+    const elapsed = operationElapsedSeconds(step, now);
 
     if (!running) return null;
 
-    return <div className={`panel-timer ${remaining === 0 && fixedHold ? 'panel-timer-ready' : ''}`}><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Actual operation time')}</span></div><strong>{fixedHold && remaining > 0 ? formatHoldCountdown(remaining) : formatDuration(elapsed)}</strong><p>{fixedHold && step.min_duration_minutes ? `${__('Minimum hold')}: ${step.min_duration_minutes} min` : __('Time is recorded automatically.')}</p></div>;
+    return <div className={`panel-timer ${remaining === 0 && fixedHold ? 'panel-timer-ready' : ''}`}><div className="flex items-center gap-2"><Clock3 size={20} /><span className="panel-label mb-0">{fixedHold ? (remaining > 0 ? __('Time remaining') : __('Ready for release')) : __('Actual operation time')}</span></div><strong>{fixedHold && remaining > 0 ? formatHoldCountdown(remaining) : formatOperationDuration(elapsed)}</strong><p>{fixedHold && step.min_duration_minutes ? `${__('Minimum hold')}: ${step.min_duration_minutes} min` : __('Time is recorded automatically.')}</p></div>;
 }
 
 function Fact({ label, value }) {

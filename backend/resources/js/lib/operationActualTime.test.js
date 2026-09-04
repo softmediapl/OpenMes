@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { operationActualRunMinutes, operationActualTimeDefaults, shouldReportOperationTime } from './operationActualTime';
+import { formatOperationDuration, operationActualRunMinutes, operationActualTimeDefaults, operationElapsedSeconds, shouldReportOperationTime } from './operationActualTime';
 
 describe('operationActualTimeDefaults', () => {
     it('prefills elapsed time from the step start timestamp', () => {
@@ -40,6 +40,19 @@ describe('operationActualTimeDefaults', () => {
             setup: 0,
             run: 0,
         });
+    });
+});
+
+describe('second-precision operation time', () => {
+    it('keeps the exact elapsed seconds for panel display', () => {
+        const step = { started_at: '2026-08-15T10:00:00.000Z' };
+
+        expect(operationElapsedSeconds(step, Date.parse('2026-08-15T10:39:07.000Z'))).toBe(2347);
+        expect(formatOperationDuration(2347)).toBe('00:39:07');
+    });
+
+    it('formats durations longer than one hour', () => {
+        expect(formatOperationDuration(7384)).toBe('02:03:04');
     });
 });
 
