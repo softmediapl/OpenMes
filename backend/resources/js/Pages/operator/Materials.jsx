@@ -1,5 +1,6 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
+import VoiceTextarea from '../../components/operator/VoiceTextarea';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import { assertQuantityPrecision, quantityInputConfig } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
@@ -274,7 +275,13 @@ function CountModal({ stock, unitPrecisions, onClose, panelMode = false }) {
                     <div>
                         <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Measured quantity')}</label>
                         {panelMode ? <MaterialCountStepper value={form.data.counted_quantity} step={inputConfig.step} onChange={(value) => form.setData('counted_quantity', value)} /> : <input type="number" min="0" step={inputConfig.step} inputMode={precision === 0 ? 'numeric' : 'decimal'} autoFocus value={form.data.counted_quantity} onChange={(event) => form.setData('counted_quantity', event.target.value)} className="w-full rounded-om-sm border border-om-line bg-om-bg px-3 py-3 font-mono text-lg text-om-ink" />}
-                        <p className="mt-1 text-xs text-om-muted">{__('The difference from the system quantity is settled as use to this point. The measured quantity becomes the new baseline.')}</p>
+                        <p className="mt-1 text-xs text-om-muted">
+                            {difference < 0
+                                ? __('The shortage is settled as use to this point. The measured quantity becomes the new baseline.')
+                                : difference > 0
+                                    ? __('The surplus is recorded as an inventory adjustment. The measured quantity becomes the new baseline.')
+                                    : __('The measured quantity confirms the system stock.')}
+                        </p>
                         {form.errors.counted_quantity && <p className="mt-1 text-xs text-om-blocked">{form.errors.counted_quantity}</p>}
                     </div>
                     <div className={`flex justify-between rounded-om-sm px-3 py-2 text-sm ${difference < 0 ? 'bg-om-downtime-bg text-om-downtime' : 'bg-om-done-bg text-om-running'}`}>
@@ -283,7 +290,14 @@ function CountModal({ stock, unitPrecisions, onClose, panelMode = false }) {
                     </div>
                     <div>
                         <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.08em] text-om-faint">{__('Notes')}</label>
-                        <textarea rows={2} maxLength={1000} value={form.data.notes} onChange={(event) => form.setData('notes', event.target.value)} className="w-full resize-none rounded-om-sm border border-om-line bg-om-bg px-3 py-2 text-sm text-om-ink" />
+                        <VoiceTextarea
+                            rows={2}
+                            maxLength={1000}
+                            value={form.data.notes}
+                            onChange={(value) => form.setData('notes', value)}
+                            panelMode={panelMode}
+                            className="w-full resize-none rounded-om-sm border border-om-line bg-om-bg px-3 py-2 text-sm text-om-ink"
+                        />
                     </div>
                 </div>
                 <div className="flex justify-end gap-2 border-t border-om-line px-5 py-4">
