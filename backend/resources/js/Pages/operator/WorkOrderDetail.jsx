@@ -1801,9 +1801,9 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
-                                <div className="grid grid-cols-[minmax(0,1fr)_3rem] gap-2">
+                                <div className={showsScrapBreakdown ? '' : 'grid grid-cols-[minmax(0,1fr)_3rem] gap-2'}>
                                     <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
-                                    <button
+                                    {!showsScrapBreakdown && <button
                                         type="button"
                                         onClick={() => setScrapEditorOpen(true)}
                                         className="flex h-12 w-12 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent"
@@ -1811,7 +1811,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                         title={__('Add scrap reason')}
                                     >
                                         +
-                                    </button>
+                                    </button>}
                                 </div>
                             </div>
                         </div>
