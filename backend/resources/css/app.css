@@ -435,16 +435,32 @@ html.dark {
             @apply min-h-14 text-sm;
         }
         .panel-operation-grid {
-            @apply grid-cols-1 overflow-y-auto p-3;
+            @apply flex flex-col overflow-y-auto p-3;
         }
         .panel-operation-body {
-            @apply overflow-visible;
+            @apply flex-none overflow-visible;
         }
         .panel-operation-side {
-            @apply grid grid-cols-1;
+            @apply order-first block;
         }
         .panel-timer {
-            @apply min-h-40;
+            grid-template-columns: minmax(0, 1fr) auto;
+            @apply grid min-h-0 items-center gap-x-4 p-3;
+        }
+        .panel-timer > div {
+            grid-column: 1;
+        }
+        .panel-timer strong {
+            grid-column: 2;
+            grid-row: 1 / span 2;
+            @apply m-0 text-3xl;
+        }
+        .panel-timer p {
+            grid-column: 1;
+            @apply mt-1;
+        }
+        .panel-operation-summary {
+            @apply gap-2 p-3;
         }
         .panel-complete-content {
             @apply grid-cols-1;

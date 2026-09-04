@@ -26,6 +26,7 @@ class FiniteSchedulePlanServiceTest extends TestCase
 
     public function test_it_commits_a_server_calculated_proposal_without_changing_customer_deadline(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-08-17 05:00'));
         Event::fake([WorkOrderScheduled::class]);
         [$line, $station, $worker, $workOrder] = $this->fixture();
         $scheduler = app(FiniteCapacityScheduler::class);

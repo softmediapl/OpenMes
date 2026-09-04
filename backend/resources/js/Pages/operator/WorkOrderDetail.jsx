@@ -1001,7 +1001,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                                 }
                                 className="px-6 py-3.5 text-[15px] whitespace-nowrap"
                             >
-                                {isInflight ? '…' : __('Complete')}
+                                {isInflight ? '…' : (panelMode && isFixedHold ? __('Remove and transfer') : __('Complete'))}
                             </Button>
                         )}
                         <LabelPrintMenu
@@ -1072,7 +1072,7 @@ export function BatchStepList({ steps, quantityUnit, quantityPrecision, labelTem
                         </div>
                         )}
 
-                        {isFixedHold && step.started_at && (
+                        {!panelMode && isFixedHold && step.started_at && (
                             <div className={`border-t border-om-line2 px-3 py-2.5 ${holdIsActive ? 'bg-om-downtime-bg' : 'bg-om-done-bg'}`}>
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div>

@@ -65,13 +65,13 @@ class WorkstationContext
 
     public function workstation(Request $request): ?Workstation
     {
+        if (! $this->isLocked($request->user())) {
+            return null;
+        }
+
         $bound = $request->attributes->get(self::REQUEST_ATTRIBUTE);
         if ($bound instanceof Workstation) {
             return $bound;
-        }
-
-        if (! $this->isLocked($request->user())) {
-            return null;
         }
 
         return $request->hasSession()
