@@ -1,10 +1,11 @@
 import { Head, router, useForm } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
 import VoiceTextarea from '../../components/operator/VoiceTextarea';
+import RefillConfirmation from './materials/RefillConfirmation';
 import OperatorLayout from '../../layouts/OperatorLayout';
 import { assertQuantityPrecision, quantityInputConfig } from '../../lib/configuredQuantity';
 import { __ } from '../../lib/i18n';
-import { buildMaterialRows, countInputValue } from './materials/helpers';
+import { buildMaterialRows, countInputValue, refillRequestData } from './materials/helpers';
 
 const levelStyles = {
     low: 'bg-om-blocked-bg text-om-blocked border-om-blocked/20',
@@ -31,11 +32,7 @@ function dateValue(value) {
 }
 
 function requestRefill(row, onFinish) {
-    const increment = Number(row.policy?.issue_increment);
-    router.post(`${materialRouteBase()}/materials/replenishments`, {
-        workstation_material_policy_id: row.policy.id,
-        quantity: Number.isFinite(increment) && increment > 0 ? increment : null,
-    }, { preserveScroll: true, onFinish });
+    router.post(`${materialRouteBase()}/materials/replenishments`, refillRequestData(row), { preserveScroll: true, onFinish });
 }
 
 function cancelRequest(requestId) {
@@ -52,6 +49,7 @@ function materialRouteBase() {
 export default function Materials({ stocks = [], policies = [], replenishmentRequests = [], selectedWorkstation, unitPrecisions = {}, panelMode = false }) {
     const [countedStock, setCountedStock] = useState(null);
     const [requestingPolicyId, setRequestingPolicyId] = useState(null);
+    const [refillPolicyId, setRefillPolicyId] = useState(null);
     const rows = useMemo(
         () => buildMaterialRows(stocks, policies, replenishmentRequests),
         [stocks, policies, replenishmentRequests],
@@ -59,6 +57,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
     const lowCount = rows.filter((row) => row.level === 'low').length;
     const openCount = rows.filter((row) => row.request).length;
     const displayQuantity = (value, unit) => quantity(value, unit, unitPrecisions);
+    const refillRow = rows.find((row) => row.policy?.id === refillPolicyId);
 
     return (
         <>
@@ -92,10 +91,7 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                                 displayQuantity={displayQuantity}
                                 requesting={requestingPolicyId === row.policy?.id}
                                 onCount={setCountedStock}
-                                onRequest={() => {
-                                    setRequestingPolicyId(row.policy.id);
-                                    requestRefill(row, () => setRequestingPolicyId(null));
-                                }}
+                                onRequest={() => setRefillPolicyId(row.policy.id)}
                             />
                         ))}
                     </div>
@@ -193,6 +189,14 @@ export default function Materials({ stocks = [], policies = [], replenishmentReq
                     </div>
                 )}
                 {countedStock && <CountModal stock={countedStock} unitPrecisions={unitPrecisions} panelMode={panelMode} onClose={() => setCountedStock(null)} />}
+                {panelMode && refillRow && <RefillConfirmation
+                    key={refillRow.policy.id}
+                    row={refillRow}
+                    workstation={selectedWorkstation}
+                    displayQuantity={displayQuantity}
+                    routeBase={materialRouteBase()}
+                    onClose={() => setRefillPolicyId(null)}
+                />}
             </div>
         </>
     );

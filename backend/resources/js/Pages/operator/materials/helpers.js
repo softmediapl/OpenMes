@@ -1,5 +1,13 @@
 const OPEN_STATUSES = new Set(['requested', 'assigned', 'partially_delivered']);
 
+export function refillRequestData(row) {
+    const increment = Number(row.policy?.issue_increment);
+    return {
+        workstation_material_policy_id: row.policy.id,
+        quantity: Number.isFinite(increment) && increment > 0 ? increment : null,
+    };
+}
+
 export function numberValue(value) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;

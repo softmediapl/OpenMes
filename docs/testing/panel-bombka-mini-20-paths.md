@@ -72,7 +72,8 @@ Stanowisko: Montaz zawieszki i kapturka. Material: `ZAW-MINI-SR`.
 |---|---|---|
 | Partia #3, zuzycie zgodne z planem | 4 dobre bombki; rezerwacja 5 zawieszek, zuzycie 4; przycisk zakonczenia nieaktywny przed potwierdzeniem. Po zakonczeniu stan 86 -> 82, rezerwacje 0, dostepne 82. Bez recznej korekty stanu. | OK |
 | Partia #4, roznica materialowa | 4 dobre bombki, zuzycie 4 zawieszek + strata materialowa 1; odpad wyrobu 0. Po zakonczeniu stan 82 -> 77, rezerwacje 0, dostepne 77. | OK |
-| Przestoj: czyszczenie | Zapisany aktywny przestoj, ale dotychczasowy pasek nie zmienial ikony ani napisu. Modal nie otrzymywal przyczyny i uwag. Dodano aktywny wskaznik z licznikiem i komplet danych modala. Reczne zakonczenie po wdrozeniu pozostaje do sprawdzenia. | W TOKU |
+| Przestoj: czyszczenie | Po poprawce widoczny aktywny wskaznik z rosnacym licznikiem, przyczyna i uwagi w modalu. Tester zakonczyl przestoj; odczyt Chrome potwierdzil powrot przycisku do Rozpocznij przestoj. | OK PO POPRAWCE |
+| Zamowienie uzupelnienia | Klikniecie Zamow uzupelnienie natychmiast wyslalo zgloszenie bez potwierdzenia. Dodano modal z materialem, stanowiskiem, iloscia, Anuluj i Potwierdz zamowienie. Istniejacego zgloszenia nie anulowano. Reczny odbior nowego potwierdzenia pozostaje do wykonania. | W TOKU |
 
 Poprawke przestoju sprawdzono testem backendu start/odczyt/stop (takze izolacja
 obcego stanowiska) oraz lokalnym testem komponentu w przegladarce z danymi
@@ -80,3 +81,14 @@ testowymi: licznik rosnie, wskaznik wraca do stanu poczatkowego po zakonczeniu.
 Pasek miesci sie w 1024x768, 1280x800 i 768x1024. W pionie podpis operatora jest
 ukryty, ale przycisk zmiany operatora pozostaje dostepny. Te sprawdzenia nie sa
 ponownym wykonaniem wszystkich 20 sciezek ani odbiorem Gate C.
+
+Potwierdzenie uzupelnienia sprawdzono lokalnie w Chrome z izolowanym adapterem
+formularza: otwarcie, Anuluj i Escape nie wysylaja zadania; zatwierdzenie wysyla
+wlasciwy identyfikator polityki i ilosc; podwojne klikniecie daje jedno zadanie;
+podczas wysylania zamkniecie jest zablokowane; blad walidacji pozostaje w modalu
+i umozliwia ponowienie. Modal miesci sie w 1024x768, 1280x800 i 768x1024,
+a przyciski maja cele dotykowe co najmniej 48 px. Test nie tworzy danych na serwerze.
+Frontend: 134 testy OK, build OK. Backend niezmieniony w tej poprawce;
+ostatni pelny przebieg przy poprawce przestoju: 2654 testy, 9240 asercji OK.
+Logika ilosci pozostaje wspolna: dodatni issue_increment albo null, gdy ilosc
+wylicza serwer wedlug docelowego zapasu. Stary /operator zachowuje swoje zachowanie.

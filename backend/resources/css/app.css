@@ -185,6 +185,9 @@ html.dark {
     .panel-topbar-button-warn {
         @apply border-amber-500/40 bg-amber-900/30 text-amber-200;
     }
+    .panel-refill-confirmation > div:first-child > button {
+        @apply min-h-12 min-w-12;
+    }
     .panel-main {
         @apply min-h-0 flex-1 overflow-hidden;
     }

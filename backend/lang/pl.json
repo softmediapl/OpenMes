@@ -5909,5 +5909,10 @@
     "Decrease": "Zmniejsz",
     "Increase": "Zwiększ",
     "Operation status": "Status operacji",
-    "Actual operation time": "Rzeczywisty czas operacji"
+    "Actual operation time": "Rzeczywisty czas operacji",
+    "Confirm material replenishment": "Potwierdź uzupełnienie materiału",
+    "Confirm replenishment request": "Potwierdź zamówienie",
+    "Replenishment quantity": "Ilość uzupełnienia",
+    "To the configured target": "Do poziomu docelowego",
+    "Sending…": "Wysyłanie…"
 }

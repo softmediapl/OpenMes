@@ -1,7 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { buildMaterialRows, countInputValue } from './helpers';
+import { buildMaterialRows, countInputValue, refillRequestData } from './helpers';
 
 const material = { id: 1, code: 'GLASS', name: 'Glass tube', unit_of_measure: 'pcs' };
+
+describe('refillRequestData', () => {
+    it('preserves the configured issue quantity for confirmation and submission', () => {
+        expect(refillRequestData({ policy: { id: 7, issue_increment: '100.0000' } }))
+            .toEqual({ workstation_material_policy_id: 7, quantity: 100 });
+        expect(refillRequestData({ policy: { id: 7, issue_increment: '0.2500' } }).quantity).toBe(0.25);
+    });
+
+    it.each([null, '', 0, -1, 'invalid'])('leaves automatic target calculation to the server for %s', (issue_increment) => {
+        expect(refillRequestData({ policy: { id: 7, issue_increment } }))
+            .toEqual({ workstation_material_policy_id: 7, quantity: null });
+    });
+});
 
 describe('buildMaterialRows', () => {
     it('aggregates lot balances and marks material below its reorder point', () => {
