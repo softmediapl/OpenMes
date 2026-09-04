@@ -8,4 +8,11 @@ describe('panel operator identity modal', () => {
         expect(source).toContain('onClose={() => setIdentityOpen(false)}');
         expect(source).not.toContain('onClose={() => panelOperator && setIdentityOpen(false)}');
     });
+
+    it('automatically dismisses transient panel messages', () => {
+        const source = fs.readFileSync(new URL('./PanelLayout.jsx', import.meta.url), 'utf8');
+
+        expect(source).toContain('window.setTimeout(() => setVisible(false), 4000)');
+        expect(source).toContain("role={flash.error ? 'alert' : 'status'}");
+    });
 });

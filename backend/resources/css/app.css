@@ -294,7 +294,7 @@ html.dark {
         @apply p-3;
     }
     .panel-flash {
-        @apply pointer-events-none fixed left-1/2 top-[4.75rem] z-40 w-[min(90vw,48rem)] -translate-x-1/2 text-center;
+        @apply fixed left-1/2 top-[4.75rem] z-40 w-[min(90vw,48rem)] -translate-x-1/2;
     }
     .panel-current-step {
         @apply border-0 bg-transparent;

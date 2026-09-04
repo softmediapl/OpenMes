@@ -212,7 +212,23 @@ function GroupedPinInput({ value, onChange, length, groupSize, autoFocus, firstI
 
 function Flash({ flash }) {
     const message = flash.error || flash.warning || flash.success || flash.info;
-    if (!message) return null;
+    const [visible, setVisible] = useState(Boolean(message));
+    const isTransient = Boolean(flash.success || flash.info) && !flash.error && !flash.warning;
+
+    useEffect(() => {
+        setVisible(Boolean(message));
+        if (!message || !isTransient) return undefined;
+
+        const timeout = window.setTimeout(() => setVisible(false), 4000);
+        return () => window.clearTimeout(timeout);
+    }, [message, isTransient]);
+
+    if (!message || !visible) return null;
     const tone = flash.error ? 'text-om-blocked' : flash.warning ? 'text-om-downtime' : 'text-om-running';
-    return <div className={`panel-flash rounded-om-sm border border-om-line bg-om-card px-4 py-3 text-sm font-semibold shadow-lg ${tone}`}>{message}</div>;
+    return <div role={flash.error ? 'alert' : 'status'} className={`panel-flash flex items-center justify-between gap-3 rounded-om-sm border border-om-line bg-om-card px-4 py-2 text-left text-sm font-semibold shadow-lg ${tone}`}>
+        <span>{message}</span>
+        <button type="button" onClick={() => setVisible(false)} className="grid min-h-10 min-w-10 shrink-0 place-items-center rounded-om-sm" title={__('Close')}>
+            <X size={18} />
+        </button>
+    </div>;
 }
