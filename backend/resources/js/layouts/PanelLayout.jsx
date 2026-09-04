@@ -1,8 +1,9 @@
 import { Link, router, useForm, usePage } from '@inertiajs/react';
-import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, Pause, ShieldCheck, UserRound, X } from 'lucide-react';
+import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { __ } from '../lib/i18n';
 import { pinDigits, replacePinGroup, splitGroupedPin } from '../lib/groupedPin';
+import PanelDowntimeButton, { DowntimeElapsed } from '../components/operator/PanelDowntime';
 
 export default function PanelLayout({ children }) {
     const props = usePage().props;
@@ -33,13 +34,11 @@ export default function PanelLayout({ children }) {
                 <span className="hidden items-center gap-2 rounded-full bg-emerald-900/70 px-3 py-2 text-sm font-bold text-emerald-300 sm:flex">
                     <span className="h-2 w-2 rounded-full bg-om-running" />{__('Online')}
                 </span>
-                <div className="ml-auto hidden text-right md:block">
+                <div className="ml-auto hidden text-right lg:block">
                     <strong className="block max-w-52 truncate text-sm text-white">{panelOperator?.name || __('Identify operator')}</strong>
                     <span className="block text-[11px] text-white/60">{__('Operator')}</span>
                 </div>
-                <button type="button" className="panel-topbar-button panel-topbar-button-warn" onClick={() => setDowntimeOpen(true)} title={__('Downtime')}>
-                    <Pause size={19} /><span className="hidden sm:inline">{__('Downtime')}</span>
-                </button>
+                <PanelDowntimeButton downtime={panelSupport?.activeDowntime} onClick={() => setDowntimeOpen(true)} />
                 <Link href="/panel/materials" className="panel-topbar-button" title={__('Materials')}>
                     <PackageOpen size={19} /><span className="hidden lg:inline">{__('Materials')}</span>
                 </Link>
@@ -108,8 +107,13 @@ function HelpModal({ support = {}, context, onClose, onAuthorize, initialView = 
         {view === 'downtime' && activeDowntime && <form onSubmit={(event) => { event.preventDefault(); stopDowntime.post(`/panel/downtime/${activeDowntime.id}/stop`, { onSuccess: onClose }); }} className="space-y-4">
             <div className="rounded-om-sm bg-om-downtime-bg p-4 text-om-downtime">
                 <strong className="block text-base">{activeDowntime.reason?.name || __('Downtime in progress')}</strong>
+                <p className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                    <span>{__('Time since start')}</span>
+                    <DowntimeElapsed startedAt={activeDowntime.started_at} className="text-2xl font-bold" />
+                </p>
                 {activeDowntime.notes && <p className="mt-2 text-sm">{activeDowntime.notes}</p>}
             </div>
+            <FormErrors form={stopDowntime} />
             <Submit form={stopDowntime} label={__('Stop downtime')} />
         </form>}
         {view === 'downtime' && !activeDowntime && <form onSubmit={(event) => { event.preventDefault(); downtime.post('/panel/downtime/start', { onSuccess: onClose }); }} className="space-y-4">

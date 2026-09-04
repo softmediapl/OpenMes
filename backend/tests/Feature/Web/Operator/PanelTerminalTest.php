@@ -97,6 +97,44 @@ class PanelTerminalTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('operator/Queue'));
     }
 
+    public function test_panel_shares_its_active_downtime_details_until_it_is_stopped(): void
+    {
+        $reason = \App\Models\DowntimeReason::factory()->create(['name' => 'Cleaning']);
+        $this->actingAs($this->terminal)->withSession([
+            PanelOperatorContext::SESSION_KEY => $this->operator->id,
+            'panel_operator_started_at' => now()->timestamp,
+        ])->get(route('panel.materials'))->assertOk();
+
+        $this->post(route('panel.downtime.start'), [
+            'reason_id' => $reason->id,
+            'notes' => 'Panel test: cleaning the workstation',
+        ])->assertSessionHas('success');
+
+        $downtime = \App\Models\ProductionDowntime::where('workstation_id', $this->workstation->id)->sole();
+        $other = \App\Models\ProductionDowntime::factory()->create([
+            'line_id' => $this->workstation->line_id,
+            'workstation_id' => Workstation::factory()->create(['line_id' => $this->workstation->line_id])->id,
+            'ended_at' => null,
+            'notes' => 'Another workstation',
+        ]);
+
+        foreach ([route('panel.materials'), route('panel.index'), route('panel.work-order', $this->workOrder)] as $url) {
+            $this->get($url)->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('panelSupport.activeDowntime.id', $downtime->id)
+                ->where('panelSupport.activeDowntime.started_at', $downtime->started_at->toJSON())
+                ->where('panelSupport.activeDowntime.reason.name', 'Cleaning')
+                ->where('panelSupport.activeDowntime.notes', 'Panel test: cleaning the workstation')
+            );
+        }
+
+        $this->post(route('panel.downtime.stop', $downtime))->assertSessionHas('success');
+        $this->get(route('panel.materials'))->assertInertia(fn (Assert $page) => $page
+            ->where('panelSupport.activeDowntime', null)
+        );
+        $this->assertNotNull($downtime->fresh()->ended_at);
+        $this->assertNull($other->fresh()->ended_at);
+    }
+
     public function test_panel_work_order_includes_the_configured_product_quantity_unit(): void
     {
         $product = $this->workOrder->productType;

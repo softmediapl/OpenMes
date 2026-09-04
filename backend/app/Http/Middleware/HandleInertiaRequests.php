@@ -82,10 +82,11 @@ class HandleInertiaRequests extends Middleware
                     'issueTypes' => \App\Models\IssueType::active()->orderBy('name')->get(['id', 'name', 'is_blocking']),
                     'downtimeReasons' => \App\Models\DowntimeReason::active()->orderBy('name')->get(['id', 'name']),
                     'activeDowntime' => $workstation ? \App\Models\ProductionDowntime::query()
+                        ->with('reason:id,name')
                         ->where('workstation_id', $workstation->id)
                         ->whereNull('ended_at')
                         ->latest('started_at')
-                        ->first(['id', 'started_at']) : null,
+                        ->first(['id', 'started_at', 'downtime_reason_id', 'notes']) : null,
                 ];
             },
             // Nav chrome needs the alert badge and a CSRF token for the

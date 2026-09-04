@@ -62,3 +62,21 @@ Statusy sa uzupelniane podczas testu: `NIEURUCHOMIONY`, `W TOKU`, `OK`, `BLAD`, 
 | Materialy stanowiska | 1024x768, 768x1024 | Stan, rezerwacje, dostepna ilosc, liczenie i uzupelnienie sa dostepne dotykowo; nazwa stanowiska wraca do kolejki |
 
 Wniosek: panel obsluguje pelny zakres demonstracyjny Bombki mini na tablecie. Listy o zmiennej liczbie rekordow przewijaja sie pionowo, natomiast ekran pojedynczej operacji i jego glowne akcje nie wymagaja przewijania calej strony.
+
+## Reczny odbior 2026-09-05
+
+Tester wykonywal akcje we wlasnej karcie Chrome, a agent odczytywal biezacy widok.
+Stanowisko: Montaz zawieszki i kapturka. Material: `ZAW-MINI-SR`.
+
+| Proba | Zaobserwowany wynik | Status |
+|---|---|---|
+| Partia #3, zuzycie zgodne z planem | 4 dobre bombki; rezerwacja 5 zawieszek, zuzycie 4; przycisk zakonczenia nieaktywny przed potwierdzeniem. Po zakonczeniu stan 86 -> 82, rezerwacje 0, dostepne 82. Bez recznej korekty stanu. | OK |
+| Partia #4, roznica materialowa | 4 dobre bombki, zuzycie 4 zawieszek + strata materialowa 1; odpad wyrobu 0. Po zakonczeniu stan 82 -> 77, rezerwacje 0, dostepne 77. | OK |
+| Przestoj: czyszczenie | Zapisany aktywny przestoj, ale dotychczasowy pasek nie zmienial ikony ani napisu. Modal nie otrzymywal przyczyny i uwag. Dodano aktywny wskaznik z licznikiem i komplet danych modala. Reczne zakonczenie po wdrozeniu pozostaje do sprawdzenia. | W TOKU |
+
+Poprawke przestoju sprawdzono testem backendu start/odczyt/stop (takze izolacja
+obcego stanowiska) oraz lokalnym testem komponentu w przegladarce z danymi
+testowymi: licznik rosnie, wskaznik wraca do stanu poczatkowego po zakonczeniu.
+Pasek miesci sie w 1024x768, 1280x800 i 768x1024. W pionie podpis operatora jest
+ukryty, ale przycisk zmiany operatora pozostaje dostepny. Te sprawdzenia nie sa
+ponownym wykonaniem wszystkich 20 sciezek ani odbiorem Gate C.
