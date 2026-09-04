@@ -923,7 +923,13 @@ class MaterialAllocationService
                     continue;
                 }
 
-                $requiredQty = $this->calculateRequiredQty($bomItem, $productionQuantity);
+                $calculatedQty = $this->bomQuantities->calculate($bomItem, $productionQuantity);
+                $requiredQty = $calculatedQty['required_qty'];
+                // Reserve the full BOM requirement (including scrap and package
+                // rounding), but default operator reconciliation to the base
+                // process consumption. Any unused buffer is then released on
+                // completion without an extra workstation stock count.
+                $expectedConsumptionQty = min($requiredQty, $calculatedQty['base_qty']);
                 $useWorkstationStock = $workstation
                     && WorkstationMaterialPolicy::query()
                         ->where('workstation_id', $workstation->id)
@@ -947,7 +953,7 @@ class MaterialAllocationService
                     'material_id' => $material->id,
                     'work_order_id' => $batch->work_order_id,
                     'allocated_qty' => $requiredQty,
-                    'expected_qty' => $requiredQty,
+                    'expected_qty' => $expectedConsumptionQty,
                     'status' => MaterialAllocation::STATUS_ALLOCATED,
                     'allocated_by' => $user->id,
                     'allocated_at' => now(),

@@ -76,6 +76,7 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertCount(1, $allocs);
         // 100 * 2.0 * (1 + 5%) = 210
         $this->assertEqualsWithDelta(210.0, (float) $allocs->first()->allocated_qty, 0.0001);
+        $this->assertEqualsWithDelta(200.0, (float) $allocs->first()->expected_qty, 0.0001);
         $this->assertEqualsWithDelta(1000.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(210.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
         $this->assertSame(MaterialAllocation::STATUS_ALLOCATED, $allocs->first()->status);
@@ -136,6 +137,24 @@ class MaterialAllocationServiceTest extends TestCase
         $this->assertSame(MaterialAllocation::STATUS_CONSUMED, $allocation->status);
         $this->assertNotNull($allocation->consumed_at);
         $this->assertEqualsWithDelta(790.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
+        $this->assertEqualsWithDelta(0.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
+    }
+
+    public function test_declared_base_consumption_releases_the_unused_scrap_allowance(): void
+    {
+        $allocation = $this->service->allocateForBatch($this->batch, $this->user)->firstOrFail();
+
+        $this->service->recordConsumption(
+            $allocation,
+            actualConsumed: (float) $allocation->expected_qty,
+            scrap: 0,
+        );
+        $this->service->consumeForBatch($this->batch);
+
+        $allocation->refresh();
+        $this->assertEqualsWithDelta(200.0, (float) $allocation->consumed_qty, 0.0001);
+        $this->assertEqualsWithDelta(10.0, (float) $allocation->returned_qty, 0.0001);
+        $this->assertEqualsWithDelta(800.0, (float) $this->material->fresh()->stock_quantity, 0.0001);
         $this->assertEqualsWithDelta(0.0, (float) $this->material->fresh()->reserved_quantity, 0.0001);
     }
 

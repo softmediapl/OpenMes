@@ -59,8 +59,9 @@ class MaterialAllocation extends Model
     }
 
     /**
-     * Difference between what was actually consumed and what was expected.
-     * Positive = used more than BOM said. Useful for scrap analysis.
+     * Difference between actual consumption and the BOM base quantity. The
+     * allocation itself may be higher because it includes scrap allowance and
+     * package rounding.
      */
     public function getVarianceQtyAttribute(): float
     {

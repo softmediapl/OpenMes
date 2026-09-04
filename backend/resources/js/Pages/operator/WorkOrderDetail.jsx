@@ -1649,7 +1649,9 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         material_consumptions: materialAllocations.map((allocation) => ({
             allocation_id: allocation.id,
             consumed_qty: compactQuantity(
-                allocation.consumption_recorded ? allocation.consumed_qty : allocation.allocated_qty,
+                allocation.consumption_recorded
+                    ? allocation.consumed_qty
+                    : (allocation.expected_qty ?? allocation.allocated_qty),
                 allocation.quantity_precision,
                 allocation.material?.unit_of_measure,
             ),
