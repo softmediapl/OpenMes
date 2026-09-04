@@ -1636,7 +1636,6 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
     const panelMode = routeBase === '/panel';
     const reportsTime = shouldReportOperationTime(step, panelMode);
     const [clock, setClock] = useState(Date.now());
-    const [scrapEditorOpen, setScrapEditorOpen] = useState(false);
     const actualTimeDefaults = operationActualTimeDefaults(step, clock);
     const remainingHoldSeconds = isFixedHold ? holdRemainingSeconds(step.hold_release_at, clock) : 0;
     const earlyRelease = remainingHoldSeconds > 0;
@@ -1696,7 +1695,6 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
         reworkQuantity,
         scrapQuantity,
     } = derivedOutput;
-    const showsScrapBreakdown = scrapEditorOpen || scrapQuantity > EPSILON;
     const scrapBreakdownInvalid = !operationScrapBreakdownValid(
         form.data.scrap_entries,
         quantityInput.precision,
@@ -1801,18 +1799,7 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                             </div>
                             <div>
                                 <label className={labelCls}>{__('Scrap quantity')}</label>
-                                <div className={showsScrapBreakdown ? '' : 'grid grid-cols-[minmax(0,1fr)_3rem] gap-2'}>
-                                    <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
-                                    {!showsScrapBreakdown && <button
-                                        type="button"
-                                        onClick={() => setScrapEditorOpen(true)}
-                                        className="flex h-12 w-12 items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent"
-                                        aria-label={__('Add scrap reason')}
-                                        title={__('Add scrap reason')}
-                                    >
-                                        +
-                                    </button>}
-                                </div>
+                                <input type="number" min="0" step={quantityInput.step} value={Number.isFinite(scrapQuantity) ? scrapQuantity : ''} readOnly className={`${inputCls} bg-om-panel`} />
                             </div>
                         </div>
                         <div className={`rounded-om-sm border px-3 py-2 text-xs ${derivedOutput.valid && !scrapBreakdownInvalid ? 'border-om-running/30 bg-om-done-bg text-om-running' : 'border-om-blocked/30 bg-om-blocked-bg text-om-blocked'}`}>
@@ -1835,58 +1822,56 @@ function CompleteOperationModal({ step, quantityUnit, quantityPrecision, scrapRe
                                 onSetupChange={(value) => form.setData('actual_setup_minutes', value)}
                             />
                         )}
-                        {showsScrapBreakdown && (
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className={labelCls}>{__('Scrap breakdown')}</span>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                                <span className={labelCls}>{__('Scrap breakdown')}</span>
+                                <button
+                                    type="button"
+                                    onClick={addScrapEntry}
+                                    className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent ${routeBase === '/panel' ? 'h-12 w-12' : 'h-9 w-9'}`}
+                                    aria-label={__('Add scrap reason')}
+                                    title={__('Add scrap reason')}
+                                >
+                                    +
+                                </button>
+                            </div>
+                            {form.data.scrap_entries.map((entry, index) => (
+                                <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(10rem,1fr)_12rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
+                                    <div>
+                                        <label className={labelCls}>{__('Scrap reason')}</label>
+                                        <Dropdown
+                                            options={applicableScrapReasons.map((reason) => ({
+                                                value: String(reason.id),
+                                                label: `${reason.code} — ${reason.name}`,
+                                            }))}
+                                            value={String(entry.scrap_reason_id || '')}
+                                            onChange={(value) => updateScrapEntry(index, 'scrap_reason_id', value)}
+                                            placeholder={__('— Select reason —')}
+                                            searchable
+                                            searchPlaceholder={__('Search reasons…')}
+                                            noResultsLabel={__('No results')}
+                                            className="w-full"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={labelCls}>{__('Quantity')}</label>
+                                        <TouchNumberControl step={quantityInput.step} value={entry.quantity} onChange={(value) => updateScrapEntry(index, 'quantity', value)} />
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={addScrapEntry}
-                                        className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-xl font-semibold text-om-ink hover:border-om-accent hover:text-om-accent ${routeBase === '/panel' ? 'h-12 w-12' : 'h-9 w-9'}`}
-                                        aria-label={__('Add scrap reason')}
-                                        title={__('Add scrap reason')}
+                                        onClick={() => removeScrapEntry(index)}
+                                        className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked ${routeBase === '/panel' ? 'h-14 w-14' : 'h-10 w-10'}`}
+                                        aria-label={__('Remove scrap reason')}
+                                        title={__('Remove scrap reason')}
                                     >
-                                        +
+                                        ×
                                     </button>
                                 </div>
-                                {form.data.scrap_entries.map((entry, index) => (
-                                    <div key={index} className={`grid items-end gap-2 ${routeBase === '/panel' ? 'grid-cols-[minmax(10rem,1fr)_12rem_3.5rem]' : 'grid-cols-[minmax(0,1fr)_7rem_2.5rem]'}`}>
-                                        <div>
-                                            <label className={labelCls}>{__('Scrap reason')}</label>
-                                            <Dropdown
-                                                options={applicableScrapReasons.map((reason) => ({
-                                                    value: String(reason.id),
-                                                    label: `${reason.code} — ${reason.name}`,
-                                                }))}
-                                                value={String(entry.scrap_reason_id || '')}
-                                                onChange={(value) => updateScrapEntry(index, 'scrap_reason_id', value)}
-                                                placeholder={__('— Select reason —')}
-                                                searchable
-                                                searchPlaceholder={__('Search reasons…')}
-                                                noResultsLabel={__('No results')}
-                                                className="w-full"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className={labelCls}>{__('Quantity')}</label>
-                                            <TouchNumberControl step={quantityInput.step} value={entry.quantity} onChange={(value) => updateScrapEntry(index, 'quantity', value)} />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => removeScrapEntry(index)}
-                                            className={`flex items-center justify-center rounded-om-sm border border-om-line bg-om-card text-lg text-om-muted hover:border-om-blocked hover:text-om-blocked ${routeBase === '/panel' ? 'h-14 w-14' : 'h-10 w-10'}`}
-                                            aria-label={__('Remove scrap reason')}
-                                            title={__('Remove scrap reason')}
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                ))}
-                                {(form.errors.scrap_entries || form.errors.scrap_reason_id) && (
-                                    <p className={errorCls}>{form.errors.scrap_entries || form.errors.scrap_reason_id}</p>
-                                )}
-                            </div>
-                        )}
+                            ))}
+                            {(form.errors.scrap_entries || form.errors.scrap_reason_id) && (
+                                <p className={errorCls}>{form.errors.scrap_entries || form.errors.scrap_reason_id}</p>
+                            )}
+                        </div>
                         <div>
                             <label className={labelCls}>{__('Quantity notes')}</label>
                             <textarea
