@@ -164,3 +164,28 @@ Formularz miesci sie na ekranie; przyciski maja co najmniej 48 px.
 PHP nie uruchamiano ponownie dla tej zmiany frontendowej (wynik powyzej).
 Nie rozwiazywano automatycznie zgloszen #4/#5. Reczny odbior nowego modalu
 oraz zapis rozwiazania pozostaja nastepnym krokiem testera po wdrozeniu.
+
+### Kompaktowe dzialania listy problemow (2026-09-05)
+
+Na prosbe testera cztery przyciski w wierszu zastapiono pojedynczym przyciskiem
+Opcje (ikona trzech kropek). Menu zachowuje Dyspozycje, Akcje oraz operacje
+dostepne dla aktualnego statusu: Potwierdz/Rozwiaz/Zamknij. Otwarcie menu niczego
+nie zapisuje, Rozwiaz nadal otwiera modal notatki. ResourceTable ma opcjonalny
+tryb actionsDisplay=menu; pozostale listy zachowuja przyciski.
+
+Wykorzystano ActionMenu z systemu UI, dodajac opcjonalny portal poza obszarem
+przewijania tabeli, pozycjonowanie przy krawedziach oraz dotykowe pozycje 48 px.
+Trigger ma 48x48 px, etykiete dostepnosci z tytulem zgloszenia i tooltip Opcje.
+Escape oddaje focus, klikniecie poza menu je zamyka; klawiatura obsluguje
+strzalki, Home/End i Enter. Na waskiej liscie zmniejszono tylko odstepy poziome
+komorek, bez usuwania kolumn i zmniejszania tekstu.
+
+Weryfikacja: 154 testy frontendu OK, build OK, diff --check OK. Izolowany Chrome
+z rzeczywistym IssuesIndex/ResourceTable/DataTable/ActionMenu, danymi testowymi
+i kontrolowanym transportem: 1024x600, 1024x768, 1280x800, 768x1024. Uwzgledniono
+szerokosc 256 px paska bocznego i padding aplikacji; tabela nie przewija sie
+poziomo (odpowiednio 702/702/958/718 px). Zweryfikowano menu wszystkich czterech
+statusow, anulowanie modalu, przyjecie wlasciwego ID, focus, Escape, zamykanie
+poza menu, brak obciecia i dotychczasowy nieportalowy ActionMenu. Wieksza liczba
+wierszy nadal wymaga przewijania pionowego/paginacji. Backend bez zmian;
+nie wysylano rzeczywistych akcji dla zgloszen testera.

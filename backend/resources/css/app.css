@@ -12,6 +12,17 @@
    both on the host and under the container mount (/var/www/packages). */
 @source '../../../packages/ui/src';
 
+.issues-list {
+    container: issues-list / inline-size;
+}
+
+@container issues-list (max-width: 900px) {
+    .issues-list table th,
+    .issues-list table td {
+        padding-inline: 6px;
+    }
+}
+
 @theme inline {
     --font-sans: 'Geist', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';

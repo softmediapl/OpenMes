@@ -5,6 +5,7 @@ import { StatusPill } from '@openmes/ui';
 import { DataTable } from '@openmes/ui/table';
 import { realtimeCollection } from '../lib/realtimeCollection';
 import { __ } from '../lib/i18n';
+import ResourceActionMenu from './ResourceActionMenu';
 
 // Shared "now" clock for columns flagged `live: true` (e.g. an elapsed-time
 // column). A single interval per table bumps this context; each live cell is a
@@ -66,6 +67,7 @@ function LiveClockProvider({ active, children }) {
  *   actions     — row → [{ label, href?, onClick?, variant?, className? }]
  *                 variant: 'secondary' (default) | 'primary' | 'danger' | 'warning'
  *                 className overrides the variant when you need a one-off style.
+ *   actionsDisplay — 'buttons' (default) or 'menu' for a touch-sized overflow menu.
  *   emptyText   — shown when no rows
  *   pageSize    — rows per page (default 12)
  *   transformRows — optional rows → rows projection before filtering/rendering
@@ -158,6 +160,7 @@ export default function ResourceTable({
     orderDir = 'asc',
     getKey = (row) => row.id,
     actions,
+    actionsDisplay = 'buttons',
     emptyText = 'Nothing here yet.',
     transformRows,
     filterFn,
@@ -237,13 +240,15 @@ export default function ResourceTable({
                 header: __('Actions'),
                 enableSorting: false,
                 enableHiding: false,
-                cell: ({ row }) => <RowActions actions={actions} row={row.original} />,
+                cell: ({ row }) => actionsDisplay === 'menu'
+                    ? <ResourceActionMenu actions={actions} row={row.original} />
+                    : <RowActions actions={actions} row={row.original} />,
                 meta: { align: 'right', menuLabel: __('Actions') },
             });
         }
         return defs;
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [columns, actions]);
+    }, [columns, actions, actionsDisplay]);
 
     return (
         <LiveClockProvider active={hasLiveColumn}>

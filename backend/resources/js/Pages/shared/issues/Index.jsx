@@ -108,7 +108,7 @@ export default function IssuesIndex() {
     };
 
     return (
-        <>
+        <div className="issues-list">
             <Head title={__('Issues')} />
             <ResourceTable
                 shape="issues_all"
@@ -117,6 +117,8 @@ export default function IssuesIndex() {
                 orderBy="reported_at"
                 orderDir="desc"
                 actions={actions}
+                actionsDisplay="menu"
+                fullWidth
                 emptyText={__('No issues.')}
             />
             {dispositionFor && (
@@ -143,7 +145,7 @@ export default function IssuesIndex() {
                     onClose={() => setActionsFor(null)}
                 />
             )}
-        </>
+        </div>
     );
 }
 

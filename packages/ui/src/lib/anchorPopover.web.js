@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'react';
  * is set. Outside-click handlers must check BOTH refs (the popover no longer
  * lives inside the trigger's subtree).
  */
-export function useAnchoredPopover(open, { estHeight = 340, gap = 4 } = {}) {
+export function useAnchoredPopover(open, { estHeight = 340, estWidth, gap = 4 } = {}) {
     const anchorRef = useRef(null);
     const popRef = useRef(null);
     const [style, setStyle] = useState(null);
@@ -27,7 +27,7 @@ export function useAnchoredPopover(open, { estHeight = 340, gap = 4 } = {}) {
             if (!el) return;
             const r = el.getBoundingClientRect();
             const height = popRef.current?.offsetHeight || estHeight;
-            const width = popRef.current?.offsetWidth || r.width;
+            const width = popRef.current?.offsetWidth || estWidth || r.width;
             const flip = r.bottom + gap + height > window.innerHeight && r.top - gap - height > 0;
             setStyle({
                 position: 'fixed',
@@ -47,7 +47,7 @@ export function useAnchoredPopover(open, { estHeight = 340, gap = 4 } = {}) {
             window.removeEventListener('resize', measure);
             window.removeEventListener('scroll', measure, true);
         };
-    }, [open, estHeight, gap]);
+    }, [open, estHeight, estWidth, gap]);
 
     return { anchorRef, popRef, style };
 }
