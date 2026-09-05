@@ -4,6 +4,7 @@ import { Button, IconButton, Dropdown, DatePicker, TextField, StatusPill, Modal,
 import AppLayout from '../../../layouts/AppLayout';
 import ResourceTable from '../../../components/ResourceTable';
 import { __ } from '../../../lib/i18n';
+import ResolveIssueModal from './ResolveIssueModal';
 
 const STATUS_STYLES = {
     OPEN: 'bg-om-blocked-bg text-om-blocked',
@@ -59,6 +60,7 @@ export default function IssuesIndex() {
 
     const [actionsFor, setActionsFor] = useState(null); // issue row whose actions modal is open
     const [dispositionFor, setDispositionFor] = useState(null); // issue row whose disposition modal is open
+    const [resolveFor, setResolveFor] = useState(null);
 
     const columns = [
         { key: 'title', label: __('Issue'), className: 'font-medium text-om-ink' },
@@ -86,10 +88,7 @@ export default function IssuesIndex() {
 
     const resolveAction = (r) => ({
         label: __('Resolve'),
-        onClick: () => {
-            const notes = prompt(__('Resolution notes:'));
-            if (notes !== null) post(r.id, 'resolve', { resolution_notes: notes });
-        },
+        onClick: () => setResolveFor(r),
     });
 
     const actions = (r) => {
@@ -125,6 +124,14 @@ export default function IssuesIndex() {
                     issue={dispositionFor}
                     base={base}
                     onClose={() => setDispositionFor(null)}
+                />
+            )}
+            {resolveFor && (
+                <ResolveIssueModal
+                    key={resolveFor.id}
+                    issue={resolveFor}
+                    base={base}
+                    onClose={() => setResolveFor(null)}
                 />
             )}
             {actionsFor && (

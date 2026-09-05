@@ -140,3 +140,27 @@ wyjatek. Formularze mieszcza sie w 1024x600, 1024x768, 1280x800 i 768x1024.
 Reczne wyslanie zgloszen w karcie testera pozostaje do wykonania po wdrozeniu.
 Pelna regresja backendu: 2668 testow / 9331 asercji OK (09:07), cztery istniejace
 ostrzezenia PHPUnit o przestarzalych zachowaniach. Nie wykonano ponownie Gate C.
+
+### Odbior pomocy i formularz rozwiazania (2026-09-05)
+
+Tester utworzyl przy pustej kolejce zgloszenia #4 (Test - pomoc przy pustej
+kolejce) i #5 (Wezwanie supervisora z panelu operatora). Odczyt serwera oraz
+zrzut ekranu administratora potwierdzily stanowisko 36, operatora 42, brak
+zlecenia/kroku i status OPEN. Zgloszenia sa widoczne w /admin/issues.
+
+Klikniecie Rozwiaz otwieralo natywny prompt przegladarki. Wspolna lista
+administratora/supervisora otwiera teraz modal MES z tytulem wybranego
+zgloszenia, notatka do 2000 znakow, Anuluj i Rozwiaz. Zachowano endpoint,
+uprawnienia i opcjonalnosc notatki. Brak zmian backendu lub danych.
+Zamkniecie/anulowanie nie wysyla zadania; zapis blokuje ponowne klikniecie
+i zamkniecie, a blad walidacji zachowuje notatke oraz pozwala ponowic zapis.
+
+Weryfikacja: 151 testow frontendu OK (6 nowych), build OK, diff --check OK.
+Izolowany Chrome z rzeczywistym modalem i kontrolowanym transportem:
+admin/supervisor x 1024x600, 1024x768, 1280x800, 768x1024. Sprawdzono focus,
+anulowanie, Escape, reset notatki po ponownym otwarciu, payload, podwojne
+klikniecie, stan zapisu, walidacje, ponowienie i zamkniecie po sukcesie.
+Formularz miesci sie na ekranie; przyciski maja co najmniej 48 px.
+PHP nie uruchamiano ponownie dla tej zmiany frontendowej (wynik powyzej).
+Nie rozwiazywano automatycznie zgloszen #4/#5. Reczny odbior nowego modalu
+oraz zapis rozwiazania pozostaja nastepnym krokiem testera po wdrozeniu.
