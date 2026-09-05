@@ -12,6 +12,7 @@ use App\Models\IssueType;
 use App\Models\Line;
 use App\Models\User;
 use App\Models\WorkOrder;
+use App\Models\Workstation;
 use App\Services\IssueService;
 use App\Services\Quality\IssueActionService;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class IssueManagementController extends Controller
             'lineNames' => Line::pluck('name', 'id'),
             'reporterNames' => User::pluck('name', 'id'),
             'workOrderNos' => WorkOrder::pluck('order_no', 'id'),
+            'workstationNames' => Workstation::pluck('name', 'id'),
         ]);
     }
 

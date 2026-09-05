@@ -2,6 +2,7 @@ import { Link, router, useForm, usePage } from '@inertiajs/react';
 import { AlertTriangle, CircleHelp, Clock3, FileText, LogOut, PackageOpen, ShieldCheck, UserRound, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { __ } from '../lib/i18n';
+import { panelHelpContext } from '../lib/panelHelp';
 import { pinDigits, replacePinGroup, splitGroupedPin } from '../lib/groupedPin';
 import PanelDowntimeButton, { DowntimeElapsed } from '../components/operator/PanelDowntime';
 
@@ -12,7 +13,7 @@ export default function PanelLayout({ children }) {
     const [helpOpen, setHelpOpen] = useState(false);
     const [downtimeOpen, setDowntimeOpen] = useState(false);
     const [supervisorRequest, setSupervisorRequest] = useState(null);
-    const context = useMemo(() => panelContext(props), [props.workOrder, props.workstationQueue, selectedWorkstation?.id]);
+    const context = useMemo(() => panelHelpContext(props), [props.workOrder, selectedWorkstation?.id, selectedWorkstation?.name]);
     useEffect(() => {
         const open = (event) => setSupervisorRequest({ ...context, ...event.detail });
         const openHelp = () => setHelpOpen(true);
@@ -59,19 +60,12 @@ export default function PanelLayout({ children }) {
     );
 }
 
-function panelContext(props) {
-    const order = props.workOrder || props.workstationQueue?.[0] || null;
-    const steps = (order?.batches || []).flatMap((batch) => (batch.steps || []).map((step) => ({ ...step, batch })));
-    const step = steps.find((item) => item.status === 'IN_PROGRESS') || steps.find((item) => item.status === 'READY') || null;
-    return { workOrderId: order?.id || null, batchStepId: step?.id || null, step };
-}
-
 function HelpModal({ support = {}, context, onClose, onAuthorize, initialView = 'menu' }) {
     const [view, setView] = useState(initialView);
-    const issue = useForm({ work_order_id: context.workOrderId || '', issue_type_id: '', title: '', description: '' });
+    const issue = useForm({ work_order_id: context.workOrderId, batch_step_id: context.batchStepId, issue_type_id: '', title: '', description: '' });
     const downtime = useForm({ reason_id: '', notes: '' });
     const stopDowntime = useForm({});
-    const supervisor = useForm({ work_order_id: context.workOrderId || '', batch_step_id: context.batchStepId || '', description: '' });
+    const supervisor = useForm({ work_order_id: context.workOrderId, batch_step_id: context.batchStepId, description: '' });
     const activeDowntime = support?.activeDowntime;
     const action = context.step?.status === 'IN_PROGRESS' && context.step?.execution_mode === 'fixed_hold'
         ? 'release_fixed_hold'
@@ -91,13 +85,14 @@ function HelpModal({ support = {}, context, onClose, onAuthorize, initialView = 
 
     return <Modal title={title} onClose={onClose}>
         {view === 'menu' && <div className="grid gap-3 sm:grid-cols-2">
-            <HelpAction icon={AlertTriangle} label={__('Report a problem')} onClick={() => setView('issue')} disabled={!context.workOrderId} />
+            <HelpAction icon={AlertTriangle} label={__('Report a problem')} onClick={() => setView('issue')} disabled={!context.workstationId} />
             <HelpAction icon={Clock3} label={activeDowntime ? __('Stop downtime') : __('Start downtime')} onClick={() => setView('downtime')} />
-            <HelpAction icon={ShieldCheck} label={__('Call supervisor')} onClick={() => setView('supervisor')} disabled={!context.workOrderId} />
+            <HelpAction icon={ShieldCheck} label={__('Call supervisor')} onClick={() => setView('supervisor')} disabled={!context.workstationId} />
             <HelpAction icon={FileText} label={__('Instruction')} onClick={instructions} disabled={!context.batchStepId} />
             {context.batchStepId && support?.supervisorMode !== 'remote_only' && <button type="button" className="panel-primary sm:col-span-2" onClick={() => onAuthorize({ ...context, action })}><ShieldCheck size={22} />{action === 'release_fixed_hold' ? __('Authorize early release') : __('Authorize replacement')}</button>}
         </div>}
         {view === 'issue' && <form onSubmit={(event) => { event.preventDefault(); issue.post('/panel/issue', { onSuccess: onClose }); }} className="space-y-4">
+            {!context.workOrderId && <p className="text-sm text-om-muted">{__('Workstation request')}: {context.workstationName}</p>}
             <FieldSelect label={__('Problem type')} value={issue.data.issue_type_id} onChange={(value) => issue.setData('issue_type_id', value)} options={support.issueTypes || []} />
             <Field label={__('Title')} value={issue.data.title} onChange={(value) => issue.setData('title', value)} />
             <Field label={__('Description')} value={issue.data.description} onChange={(value) => issue.setData('description', value)} multiline />
@@ -123,6 +118,7 @@ function HelpModal({ support = {}, context, onClose, onAuthorize, initialView = 
             <Submit form={downtime} label={__('Start downtime')} />
         </form>}
         {view === 'supervisor' && <form onSubmit={(event) => { event.preventDefault(); supervisor.post('/panel/help/supervisor', { onSuccess: onClose }); }} className="space-y-4">
+            {!context.workOrderId && <p className="text-sm text-om-muted">{__('Workstation request')}: {context.workstationName}</p>}
             <Field label={__('What help is needed?')} value={supervisor.data.description} onChange={(value) => supervisor.setData('description', value)} multiline />
             <FormErrors form={supervisor} />
             <Submit form={supervisor} label={__('Send request')} />

@@ -108,5 +108,35 @@ Backend i starszy /operator pozostaja bez zmian.
 Testy: 141 frontendowych OK, build OK; izolowany Chrome sprawdzil oba tryby
 na 1024x768, 1280x800 i 768x1024 (odrzucenie, Escape, podwojne klikniecie,
 wysylanie, blad i ponowienie). Potwierdzono brak wyjscia modala poza ekran
-i cele dotykowe co najmniej 48 px. Faktyczne anulowanie przez testera po tej
-poprawce pozostaje do odbioru; nie deklarujemy ponownego pelnego Gate C.
+i cele dotykowe co najmniej 48 px. Po wdrozeniu tester otworzyl anulowanie
+kapturkow (250 szt.). Zostaw zgloszenie zamknelo modal bez zmiany statusu.
+Ponowne otwarcie i potwierdzenie Anuluj zgloszenie usunelo je z otwartych:
+licznik 0, Zapas prawidlowy, stan kapturkow nadal 1000 szt. Odbior anulowania OK.
+
+### Pomoc przy pustej kolejce
+
+Po powrocie do stanowiska wszystkie trzy liczniki kolejki wynosily 0. Tester
+otworzyl Pomoc; Zglos problem i Wezwij supervisora byly nieaktywne. Instrukcja
+bez wybranej operacji pozostaje nieaktywna, ale pomoc stanowiskowa jest dostepna.
+
+- Zgloszenie z kolejki/materialow dotyczy stanowiska, bez automatycznego wyboru
+  pierwszego zlecenia z kolejki. Widok operacji zachowuje wybrany krok i zlecenie.
+- Serwer bierze stanowisko z uwierzytelnionego terminala/sesji, a autora z PIN-u.
+  Podany w formularzu obcy identyfikator stanowiska nie zmienia przypisania.
+- Zgloszenia korzystaja z IssueService, ze sprawdzeniem aktywnego typu. Dodano
+  nullable issues.workstation_id; bez usuwania danych lub automatycznego backfillu.
+- Zgloszenie bez zlecenia nie blokuje przypadkowych zlecen ani nie udziela zgody
+  produkcyjnej. Dotychczasowe blokowanie konkretnego zlecenia jest zachowane.
+- Supervisor widzi wezwanie stanowiskowe, moze je przyjac i rozwiazac. Nie widzi
+  przy nim autoryzacji wyjatku dla nieistniejacej operacji. Zwykle zgloszenia
+  na wspolnej liscie problemow pokazuja teraz stanowisko.
+- Na serwerze istniejacy aktywny typ pomocy ma ID 8, nie jest blokujacy.
+  Konfiguracji nie zmieniano.
+
+Testy ukierunkowane: 14 backendowych / 91 asercji OK; 145 frontendowych OK;
+build OK. Izolowany Chrome: aktywne akcje pomocy bez zadania, null zlecenia/kroku
+w formularzach, walidacja, przyjecie/rozwiazanie przez supervisora bez zgody na
+wyjatek. Formularze mieszcza sie w 1024x600, 1024x768, 1280x800 i 768x1024.
+Reczne wyslanie zgloszen w karcie testera pozostaje do wykonania po wdrozeniu.
+Pelna regresja backendu: 2668 testow / 9331 asercji OK (09:07), cztery istniejace
+ostrzezenia PHPUnit o przestarzalych zachowaniach. Nie wykonano ponownie Gate C.

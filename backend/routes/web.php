@@ -325,7 +325,7 @@ Route::middleware('auth')->group(function () {
             Route::post('/batch-step/{batchStep}/checklist/{checklistItem}/toggle', [OperatorBatchController::class, 'toggleChecklistItem'])->name('batch-step.checklist.toggle');
             Route::post('/batch-step-document/{batchStepDocument}/validate', [OperatorBatchController::class, 'validateDocument'])->name('batch-step-document.validate');
             Route::get('/batch-step-document/{batchStepDocument}/file', [OperatorBatchController::class, 'showDocumentFile'])->name('batch-step-document.file');
-            Route::post('/issue', [OperatorIssueController::class, 'store'])->name('issue.store');
+            Route::post('/issue', [\App\Http\Controllers\Web\Operator\PanelHelpController::class, 'report'])->name('issue.store');
             Route::post('/scrap', [OperatorScrapController::class, 'store'])->name('scrap.store');
             Route::post('/materials/replenishments', [OperatorWorkstationMaterialController::class, 'store'])->name('materials.replenishments.store');
             Route::post('/materials/replenishments/{materialReplenishmentRequest}/cancel', [OperatorWorkstationMaterialController::class, 'cancel'])->name('materials.replenishments.cancel');

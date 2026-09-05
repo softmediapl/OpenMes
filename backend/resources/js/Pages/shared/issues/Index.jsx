@@ -45,6 +45,7 @@ export default function IssuesIndex() {
         lineNames = {},
         reporterNames = {},
         workOrderNos = {},
+        workstationNames = {},
         csrf_token: csrf,
     } = usePage().props;
 
@@ -63,6 +64,7 @@ export default function IssuesIndex() {
         { key: 'title', label: __('Issue'), className: 'font-medium text-om-ink' },
         { key: 'type', label: __('Type'), className: 'text-om-muted', render: (r) => issueTypeNames[r.issue_type_id] ?? '—' },
         { key: 'wo', label: __('Work Order'), className: 'text-om-muted', render: (r) => workOrderNos[r.work_order_id] ?? '—' },
+        { key: 'workstation', label: __('Workstation'), className: 'text-om-muted', render: (r) => workstationNames[r.workstation_id] ?? '—' },
         { key: 'reporter', label: __('Reported by'), className: 'text-om-muted', render: (r) => reporterNames[r.reported_by_id] ?? '—' },
         { key: 'reported_at', label: __('Reported'), className: 'text-om-muted', render: (r) => (r.reported_at ? r.reported_at.slice(0, 16).replace('T', ' ') : '—') },
         {

@@ -43,6 +43,7 @@ class Issue extends Model
 
     protected $fillable = [
         'work_order_id',
+        'workstation_id',
         'batch_step_id',
         'material_id',
         'source',
@@ -84,6 +85,11 @@ class Issue extends Model
     public function workOrder(): BelongsTo
     {
         return $this->belongsTo(WorkOrder::class);
+    }
+
+    public function workstation(): BelongsTo
+    {
+        return $this->belongsTo(Workstation::class);
     }
 
     /**

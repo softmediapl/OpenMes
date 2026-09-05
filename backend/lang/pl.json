@@ -5917,5 +5917,7 @@
     "Sending…": "Wysyłanie…",
     "Confirm request cancellation": "Potwierdź anulowanie zgłoszenia",
     "Keep request": "Zostaw zgłoszenie",
-    "Cancelling this request does not change workstation stock.": "Anulowanie zgłoszenia nie zmienia stanu materiału na stanowisku."
+    "Cancelling this request does not change workstation stock.": "Anulowanie zgłoszenia nie zmienia stanu materiału na stanowisku.",
+    "Workstation request": "Zgłoszenie stanowiskowe",
+    "Select a workstation first.": "Najpierw wybierz stanowisko."
 }

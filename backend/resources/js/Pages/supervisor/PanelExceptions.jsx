@@ -12,10 +12,29 @@ export default function PanelExceptions({ exceptions = [] }) {
             <p className="mt-1 text-sm text-om-muted">{__('Authorize only the requested action. Every decision remains in the audit log.')}</p>
         </div>
         <div className="space-y-4">
-            {exceptions.map((item) => <ExceptionRow key={item.id} item={item} />)}
+            {exceptions.map((item) => item.batch_step
+                ? <ExceptionRow key={item.id} item={item} />
+                : <StationHelpRow key={item.id} item={item} />)}
             {exceptions.length === 0 && <div className="border border-dashed border-om-line bg-om-card py-16 text-center text-om-muted"><CheckCircle2 className="mx-auto mb-3 text-om-running" size={36} />{__('No supervisor requests are waiting.')}</div>}
         </div>
     </div>;
+}
+
+function StationHelpRow({ item }) {
+    const form = useForm({ resolution_notes: '' });
+    return <article className="border border-om-line bg-om-card p-5">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-sm text-om-muted">{__('Workstation request')}</p><h2 className="text-xl font-bold">{item.workstation?.name}</h2></div>
+            <span className="text-sm text-om-muted">{__(item.status)} · {item.operator?.name}</span>
+        </div>
+        <p className="mb-4 whitespace-pre-wrap">{item.description || __('No description')}</p>
+        <form onSubmit={(event) => { event.preventDefault(); form.post(`/supervisor/issues/${item.id}/resolve`, { preserveScroll: true }); }} className="flex flex-wrap items-end gap-3">
+            <label className="min-w-48 flex-1"><span className="block text-sm text-om-muted">{__('Resolution notes')}</span><textarea value={form.data.resolution_notes} onChange={(event) => form.setData('resolution_notes', event.target.value)} maxLength={2000} rows={2} className="form-input w-full" /></label>
+            {item.status === 'OPEN' && <button type="button" disabled={form.processing} onClick={() => form.post(`/supervisor/issues/${item.id}/acknowledge`, { preserveScroll: true })} className="panel-secondary">{__('Acknowledge')}</button>}
+            <button type="submit" disabled={form.processing} className="panel-primary">{__('Resolve')}</button>
+            {Object.values(form.errors).length > 0 && <p role="alert" className="w-full text-sm text-om-blocked">{Object.values(form.errors).join(' ')}</p>}
+        </form>
+    </article>;
 }
 
 function ExceptionRow({ item }) {

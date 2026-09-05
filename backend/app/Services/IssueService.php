@@ -26,7 +26,7 @@ class IssueService
             $issue->load('issueType');
 
             // If this is a blocking issue, block the work order
-            if ($issue->issueType->is_blocking) {
+            if ($issue->issueType->is_blocking && $issue->work_order_id !== null) {
                 $this->blockWorkOrder($issue->work_order_id);
             }
 
@@ -82,7 +82,7 @@ class IssueService
             ]);
 
             // If this was a blocking issue, check if we should unblock the work order
-            if ($issue->issueType->is_blocking) {
+            if ($issue->issueType->is_blocking && $issue->work_order_id !== null) {
                 $this->checkAndUnblockWorkOrder($issue->work_order_id);
             }
 

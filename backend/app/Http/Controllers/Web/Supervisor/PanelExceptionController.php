@@ -20,12 +20,14 @@ class PanelExceptionController extends Controller
         $issues = $typeId ? Issue::query()
             ->open()
             ->where('issue_type_id', $typeId)
-            ->whereNotNull('batch_step_id')
-            ->with(['reportedBy:id,name', 'workOrder:id,order_no', 'batchStep.workstation:id,name'])
+            ->where(fn ($query) => $query->whereNotNull('batch_step_id')->orWhereNotNull('workstation_id'))
+            ->with(['reportedBy:id,name', 'workOrder:id,order_no', 'workstation:id,name', 'batchStep.workstation:id,name'])
             ->latest('reported_at')
             ->get()
             ->map(fn (Issue $issue) => [
                 'id' => $issue->id,
+                'status' => $issue->status,
+                'workstation' => $issue->workstation?->only('id', 'name'),
                 'description' => $issue->description,
                 'reported_at' => $issue->reported_at,
                 'operator' => $issue->reportedBy?->only('id', 'name'),
