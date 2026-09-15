@@ -4,7 +4,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import UserForm from './UserForm';
 
 export default function UserCreate() {
-    const { roles = [], workstations = [], crews = [], wageGroups = [], skills = [] } = usePage().props;
+    const { roles = [], workstations = [], crews = [], wageGroups = [], skills = [], levels = [] } = usePage().props;
     const form = useForm({
         account_type: 'user',
         name: '', username: '', email: '',
@@ -24,7 +24,7 @@ export default function UserCreate() {
         <div className="max-w-7xl mx-auto">
             <Head title={__("New Account")} />
             <h1 className="text-3xl font-bold text-om-ink mb-6">{__("New Account")}</h1>
-            <UserForm form={form} roles={roles} workstations={workstations} crews={crews} wageGroups={wageGroups} skills={skills} onSubmit={submit} />
+            <UserForm form={form} roles={roles} workstations={workstations} crews={crews} wageGroups={wageGroups} skills={skills} levels={levels} onSubmit={submit} />
         </div>
     );
 }

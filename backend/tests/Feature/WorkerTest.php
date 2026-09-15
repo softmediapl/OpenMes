@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Crew;
+use App\Models\Skill;
 use App\Models\User;
 use App\Models\WageGroup;
 use App\Models\Worker;
@@ -90,6 +91,26 @@ class WorkerTest extends TestCase
             'name' => 'Adam Kowalski',
             'email' => 'adam@example.com',
         ]);
+    }
+
+    public function test_admin_can_create_worker_with_named_certification_level(): void
+    {
+        $skill = Skill::create(['code' => 'DECOR', 'name' => 'Decoration']);
+
+        $this->actingAs($this->admin)->post(route('admin.workers.store'), [
+            'code' => 'WRK-CERT',
+            'name' => 'Certified Worker',
+            'is_active' => true,
+            'skills' => [
+                ['id' => $skill->id, 'cert_level' => 'expert'],
+            ],
+        ])->assertRedirect(route('admin.workers.index'));
+
+        $pivot = Worker::where('code', 'WRK-CERT')->firstOrFail()
+            ->skills()->whereKey($skill->id)->firstOrFail()->pivot;
+
+        $this->assertSame('expert', $pivot->cert_level);
+        $this->assertSame(3, $pivot->level);
     }
 
     public function test_admin_can_create_worker_with_crew_and_wage_group(): void

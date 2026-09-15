@@ -5,7 +5,7 @@ import { customFieldInitial, submitForm } from '../../../lib/customFieldForm';
 import { __ } from '../../../lib/i18n';
 
 export default function WorkerEdit() {
-    const { worker, crews = [], wageGroups = [], personnelClasses = [], skills = [], customFields = [] } = usePage().props;
+    const { worker, crews = [], wageGroups = [], personnelClasses = [], skills = [], levels = [], customFields = [] } = usePage().props;
 
     const form = useForm({
         code: worker.code ?? '',
@@ -32,7 +32,7 @@ export default function WorkerEdit() {
         <div className="max-w-7xl mx-auto">
             <Head title={__('Edit :name', { name: worker.name })} />
             <h1 className="text-3xl font-bold text-om-ink mb-6">{__('Edit Worker')}</h1>
-            <WorkerForm form={form} crews={crews} wageGroups={wageGroups} personnelClasses={personnelClasses} customFields={customFields} skills={skills} isEdit onSubmit={submit} />
+            <WorkerForm form={form} crews={crews} wageGroups={wageGroups} personnelClasses={personnelClasses} customFields={customFields} skills={skills} levels={levels} isEdit onSubmit={submit} />
         </div>
     );
 }

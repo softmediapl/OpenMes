@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\PersonnelClass;
 use App\Models\Worker;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,7 @@ class WorkerController extends Controller
 
         $query = Worker::query()->with(['crew', 'wageGroup', 'workstation']);
 
-        if (!$request->boolean('include_inactive')) {
+        if (! $request->boolean('include_inactive')) {
             $query->where('is_active', true);
         }
         if ($crewId = $request->query('crew_id')) {
@@ -27,7 +28,7 @@ class WorkerController extends Controller
             $query->where('wage_group_id', $wgId);
         }
         if ($q = $request->query('q')) {
-            $needle = '%' . strtolower($q) . '%';
+            $needle = '%'.strtolower($q).'%';
             $query->where(function ($qb) use ($needle) {
                 $qb->whereRaw('LOWER(name) LIKE ?', [$needle])
                     ->orWhereRaw('LOWER(code) LIKE ?', [$needle])
@@ -55,6 +56,7 @@ class WorkerController extends Controller
     {
         $this->authorize('view', $worker);
         $worker->load(['crew', 'wageGroup', 'workstation', 'skills', 'user']);
+
         return response()->json(['data' => $worker]);
     }
 
@@ -74,6 +76,7 @@ class WorkerController extends Controller
             'skills' => ['nullable', 'array'],
             'skills.*.id' => ['required', 'integer', 'exists:skills,id'],
             'skills.*.level' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'skills.*.cert_level' => ['nullable', Rule::in(PersonnelClass::LEVELS)],
         ]);
 
         $worker = DB::transaction(function () use ($data) {
@@ -88,9 +91,9 @@ class WorkerController extends Controller
                 'is_active' => $data['is_active'] ?? true,
             ]);
 
-            if (!empty($data['skills'])) {
+            if (! empty($data['skills'])) {
                 $skillsSync = collect($data['skills'])
-                    ->mapWithKeys(fn($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+                    ->mapWithKeys(fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)])
                     ->toArray();
                 $worker->skills()->sync($skillsSync);
             }
@@ -138,6 +141,7 @@ class WorkerController extends Controller
         }
 
         $worker->delete();
+
         return response()->json(['message' => 'Worker deleted']);
     }
 
@@ -149,10 +153,11 @@ class WorkerController extends Controller
             'skills' => ['required', 'array'],
             'skills.*.id' => ['required', 'integer', 'exists:skills,id'],
             'skills.*.level' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'skills.*.cert_level' => ['nullable', Rule::in(PersonnelClass::LEVELS)],
         ]);
 
         $sync = collect($data['skills'])
-            ->mapWithKeys(fn($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+            ->mapWithKeys(fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)])
             ->toArray();
         $worker->skills()->sync($sync);
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Web\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Crew;
+use App\Models\PersonnelClass;
 use App\Models\Skill;
 use App\Models\User;
 use App\Models\WageGroup;
@@ -12,6 +13,7 @@ use App\Models\Workstation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
@@ -51,6 +53,7 @@ class UserManagementController extends Controller
             'crews' => Crew::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'wageGroups' => WageGroup::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'skills' => Skill::orderBy('name')->get(['id', 'name']),
+            'levels' => PersonnelClass::LEVELS,
             'panelPinLength' => app(\App\Services\Operator\PanelCredentialService::class)->length(),
             'panelPinGroupSize' => max(1, min(4, \App\Support\SystemSetting::integer('panel_pin_group_size', 3))),
         ];
@@ -76,6 +79,7 @@ class UserManagementController extends Controller
             'skills' => 'nullable|array',
             'skills.*.id' => 'required|exists:skills,id',
             'skills.*.level' => 'nullable|integer|min:1|max:5',
+            'skills.*.cert_level' => ['nullable', Rule::in(PersonnelClass::LEVELS)],
         ], [
             'name.regex' => 'Name may only contain letters, numbers, spaces, dots, hyphens, and apostrophes.',
         ]);
@@ -110,7 +114,7 @@ class UserManagementController extends Controller
 
             $worker->skills()->sync(
                 collect($request->input('skills', []))
-                    ->mapWithKeys(fn ($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+                    ->mapWithKeys(fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)])
             );
 
             $user->update(['worker_id' => $worker->id]);
@@ -144,7 +148,11 @@ class UserManagementController extends Controller
                     'phone' => $user->worker->phone,
                     'crew_id' => $user->worker->crew_id,
                     'wage_group_id' => $user->worker->wage_group_id,
-                    'skills' => $user->worker->skills->map(fn ($s) => ['id' => $s->id, 'level' => $s->pivot->level ?? 1]),
+                    'skills' => $user->worker->skills->map(fn ($s) => [
+                        'id' => $s->id,
+                        'cert_level' => $s->pivot->cert_level
+                            ?? PersonnelClass::certLevelFromLegacy($s->pivot->level),
+                    ]),
                 ] : null,
             ],
         ]));
@@ -170,6 +178,7 @@ class UserManagementController extends Controller
             'skills' => 'nullable|array',
             'skills.*.id' => 'required|exists:skills,id',
             'skills.*.level' => 'nullable|integer|min:1|max:5',
+            'skills.*.cert_level' => ['nullable', Rule::in(PersonnelClass::LEVELS)],
         ], [
             'name.regex' => 'Name may only contain letters, numbers, spaces, dots, hyphens, and apostrophes.',
         ]);
@@ -217,7 +226,7 @@ class UserManagementController extends Controller
 
                 $worker->skills()->sync(
                     collect($request->input('skills', []))
-                        ->mapWithKeys(fn ($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+                        ->mapWithKeys(fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)])
                 );
             }
         });

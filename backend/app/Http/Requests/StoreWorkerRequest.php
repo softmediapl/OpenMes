@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Http\Requests\Concerns\MergesCustomFieldRules;
+use App\Models\PersonnelClass;
 use App\Models\Worker;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -40,6 +41,7 @@ class StoreWorkerRequest extends FormRequest
             'skills' => ['nullable', 'array'],
             'skills.*.id' => ['required', 'exists:skills,id'],
             'skills.*.level' => ['nullable', 'integer', 'min:1', 'max:5'],
+            'skills.*.cert_level' => ['nullable', Rule::in(PersonnelClass::LEVELS)],
         ], $this->customFieldRules());
     }
 }

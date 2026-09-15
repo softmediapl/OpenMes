@@ -4,6 +4,7 @@ import { DatePicker, Dropdown } from '@openmes/ui';
 import { DataTable } from '@openmes/ui/table';
 import AppLayout from '../../../layouts/AppLayout';
 import { __ } from '../../../lib/i18n';
+import { certificationLevelLabel } from '../../../lib/certificationLevels';
 import CustomFieldsDisplay from '../../../components/CustomFieldsDisplay';
 
 export default function WorkerShow() {
@@ -51,7 +52,7 @@ export default function WorkerShow() {
             header: __('Cert level'),
             cell: ({ row }) => (
                 <span className="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-xs font-medium">
-                    {capitalize(row.original.cert_level)}
+                    {certificationLevelLabel(row.original.cert_level)}
                 </span>
             ),
         },
@@ -196,7 +197,7 @@ export default function WorkerShow() {
                                     <label className="form-label">{__('Cert level')} <span className="text-om-blocked">*</span></label>
                                     <Dropdown
                                         className="w-full"
-                                        options={levels.map((lvl) => ({ value: String(lvl), label: capitalize(lvl) }))}
+                                        options={levels.map((lvl) => ({ value: String(lvl), label: certificationLevelLabel(lvl) }))}
                                         value={form.cert_level == null ? '' : String(form.cert_level)}
                                         onChange={(v) => setForm({ ...form, cert_level: v })}
                                     />
@@ -245,11 +246,6 @@ export default function WorkerShow() {
 }
 
 WorkerShow.layout = (page) => <AppLayout>{page}</AppLayout>;
-
-function capitalize(str) {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
-}
 
 function StatusBadge({ status }) {
     if (status === 'valid') {

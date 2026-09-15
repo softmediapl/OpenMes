@@ -4,7 +4,6 @@ namespace Tests\Unit\Models;
 
 use App\Models\PersonnelClass;
 use App\Models\Skill;
-use App\Models\User;
 use App\Models\Worker;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -23,8 +22,8 @@ class PersonnelClassTest extends TestCase
     ): void {
         $worker->skills()->syncWithoutDetaching([
             $skill->id => [
-                'cert_level'      => $certLevel,
-                'certified_from'  => now()->subDay()->toDateString(),
+                'cert_level' => $certLevel,
+                'certified_from' => now()->subDay()->toDateString(),
                 'certified_until' => $until,
                 'certified_by_id' => $byUserId,
             ],
@@ -34,7 +33,7 @@ class PersonnelClassTest extends TestCase
     public function test_relations_and_required_skills_helper(): void
     {
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
-        $qc   = Skill::create(['code' => 'QC',   'name' => 'Quality Control']);
+        $qc = Skill::create(['code' => 'QC',   'name' => 'Quality Control']);
         Skill::create(['code' => 'OTH', 'name' => 'Other']);
 
         $pc = PersonnelClass::factory()->create([
@@ -65,9 +64,21 @@ class PersonnelClassTest extends TestCase
         $this->assertFalse($pc->levelMeets('bogus', 'trainee'));
     }
 
+    public function test_skill_pivot_values_use_certification_level_as_source_of_truth(): void
+    {
+        $this->assertSame(
+            ['cert_level' => 'expert', 'level' => 3],
+            PersonnelClass::skillPivotValues(['cert_level' => 'expert'])
+        );
+        $this->assertSame(
+            ['cert_level' => 'trainer', 'level' => 4],
+            PersonnelClass::skillPivotValues(['level' => 5])
+        );
+    }
+
     public function test_worker_meets_requirements_with_no_required_skills_is_true(): void
     {
-        $pc     = PersonnelClass::factory()->create(['required_skill_ids' => null]);
+        $pc = PersonnelClass::factory()->create(['required_skill_ids' => null]);
         $worker = Worker::factory()->create();
 
         $this->assertTrue($pc->workerMeetsRequirements($worker));
@@ -76,10 +87,10 @@ class PersonnelClassTest extends TestCase
     public function test_worker_meets_requirements_returns_true_when_all_skills_present_at_level(): void
     {
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
-        $qc   = Skill::create(['code' => 'QC',   'name' => 'QC']);
+        $qc = Skill::create(['code' => 'QC',   'name' => 'QC']);
 
         $pc = PersonnelClass::factory()->create([
-            'required_skill_ids'          => [$weld->id, $qc->id],
+            'required_skill_ids' => [$weld->id, $qc->id],
             'default_required_cert_level' => [$weld->id => 'operator', $qc->id => 'expert'],
         ]);
 
@@ -95,7 +106,7 @@ class PersonnelClassTest extends TestCase
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
 
         $pc = PersonnelClass::factory()->create([
-            'required_skill_ids'          => [$weld->id],
+            'required_skill_ids' => [$weld->id],
             'default_required_cert_level' => [$weld->id => 'expert'],
         ]);
 
@@ -108,7 +119,7 @@ class PersonnelClassTest extends TestCase
     public function test_worker_meets_requirements_fails_when_skill_missing(): void
     {
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
-        $qc   = Skill::create(['code' => 'QC',   'name' => 'QC']);
+        $qc = Skill::create(['code' => 'QC',   'name' => 'QC']);
 
         $pc = PersonnelClass::factory()->create([
             'required_skill_ids' => [$weld->id, $qc->id],
@@ -156,7 +167,7 @@ class PersonnelClassTest extends TestCase
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
 
         $pc = PersonnelClass::factory()->create([
-            'required_skill_ids'          => [$weld->id],
+            'required_skill_ids' => [$weld->id],
             'default_required_cert_level' => [$weld->id => 'expert'],
         ]);
 
@@ -169,14 +180,14 @@ class PersonnelClassTest extends TestCase
     public function test_expiring_skills_helper_returns_only_within_window(): void
     {
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
-        $qc   = Skill::create(['code' => 'QC',   'name' => 'QC']);
-        $cnc  = Skill::create(['code' => 'CNC',  'name' => 'CNC']);
+        $qc = Skill::create(['code' => 'QC',   'name' => 'QC']);
+        $cnc = Skill::create(['code' => 'CNC',  'name' => 'CNC']);
         $forever = Skill::create(['code' => 'FOR', 'name' => 'Forever']);
 
         $worker = Worker::factory()->create();
         $this->attachSkill($worker, $weld, 'operator', now()->addDays(5)->toDateString());   // expiring
-        $this->attachSkill($worker, $qc, 'operator',   now()->addDays(60)->toDateString());  // out of window
-        $this->attachSkill($worker, $cnc, 'operator',  now()->subDay()->toDateString());     // already expired
+        $this->attachSkill($worker, $qc, 'operator', now()->addDays(60)->toDateString());  // out of window
+        $this->attachSkill($worker, $cnc, 'operator', now()->subDay()->toDateString());     // already expired
         $this->attachSkill($worker, $forever, 'operator', null);                              // never expires
 
         $expiring = $worker->expiringSkills(30);
@@ -187,11 +198,11 @@ class PersonnelClassTest extends TestCase
     public function test_expired_skills_helper_returns_only_past_due(): void
     {
         $weld = Skill::create(['code' => 'WELD', 'name' => 'Welding']);
-        $qc   = Skill::create(['code' => 'QC',   'name' => 'QC']);
+        $qc = Skill::create(['code' => 'QC',   'name' => 'QC']);
 
         $worker = Worker::factory()->create();
         $this->attachSkill($worker, $weld, 'operator', now()->subDays(5)->toDateString());  // expired
-        $this->attachSkill($worker, $qc, 'operator',   now()->addDays(5)->toDateString());  // valid
+        $this->attachSkill($worker, $qc, 'operator', now()->addDays(5)->toDateString());  // valid
 
         $expired = $worker->expiredSkills();
         $this->assertCount(1, $expired);

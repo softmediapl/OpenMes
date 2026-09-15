@@ -64,20 +64,20 @@ class WorkerController extends Controller
 
         return Inertia::render('admin/workers/Show', [
             'worker' => [
-                'id'               => $worker->id,
-                'code'             => $worker->code,
-                'name'             => $worker->name,
-                'email'            => $worker->email,
-                'is_active'        => $worker->is_active,
-                'crew'             => $worker->crew ? ['name' => $worker->crew->name] : null,
-                'wageGroup'        => $worker->wageGroup ? ['name' => $worker->wageGroup->name] : null,
-                'personnelClass'   => $worker->personnelClass ? ['name' => $worker->personnelClass->name] : null,
-                'custom_fields'    => $worker->custom_fields,
+                'id' => $worker->id,
+                'code' => $worker->code,
+                'name' => $worker->name,
+                'email' => $worker->email,
+                'is_active' => $worker->is_active,
+                'crew' => $worker->crew ? ['name' => $worker->crew->name] : null,
+                'wageGroup' => $worker->wageGroup ? ['name' => $worker->wageGroup->name] : null,
+                'personnelClass' => $worker->personnelClass ? ['name' => $worker->personnelClass->name] : null,
+                'custom_fields' => $worker->custom_fields,
             ],
             'certifications' => $certifications,
-            'skills'         => $skills->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'code' => $s->code]),
-            'levels'         => PersonnelClass::LEVELS,
-            'customFields'   => $cf->clientConfig('worker'),
+            'skills' => $skills->map(fn ($s) => ['id' => $s->id, 'name' => $s->name, 'code' => $s->code]),
+            'levels' => PersonnelClass::LEVELS,
+            'customFields' => $cf->clientConfig('worker'),
         ]);
     }
 
@@ -90,8 +90,9 @@ class WorkerController extends Controller
             'crews' => Crew::active()->orderBy('name')->get(['id', 'name']),
             'wageGroups' => WageGroup::active()->orderBy('name')->get(['id', 'name']),
             'personnelClasses' => PersonnelClass::active()->orderBy('name')->get(['id', 'name']),
-            'skills'           => Skill::orderBy('name')->get(['id', 'name']),
-            'customFields'     => $cf->clientConfig('worker'),
+            'skills' => Skill::orderBy('name')->get(['id', 'name']),
+            'levels' => PersonnelClass::LEVELS,
+            'customFields' => $cf->clientConfig('worker'),
         ]);
     }
 
@@ -114,7 +115,9 @@ class WorkerController extends Controller
         $worker = Worker::create($validated);
 
         $worker->skills()->sync(
-            collect($request->input('skills', []))->mapWithKeys(fn ($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+            collect($request->input('skills', []))->mapWithKeys(
+                fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)]
+            )
         );
 
         return redirect()->route('admin.workers.index')
@@ -138,22 +141,24 @@ class WorkerController extends Controller
                 'crew_id' => $worker->crew_id,
                 'wage_group_id' => $worker->wage_group_id,
                 'personnel_class_id' => $worker->personnel_class_id,
-                'pay_type'           => $worker->pay_type,
-                'pay_rate'           => $worker->pay_rate,
-                'pay_currency'       => $worker->pay_currency,
-                'is_active'          => $worker->is_active,
-                'is_logistics'       => $worker->is_logistics,
-                'custom_fields'      => $worker->custom_fields,
-                'skills'             => $worker->skills->map(fn ($s) => [
-                    'id'    => $s->id,
-                    'level' => $s->pivot->level ?? 1,
+                'pay_type' => $worker->pay_type,
+                'pay_rate' => $worker->pay_rate,
+                'pay_currency' => $worker->pay_currency,
+                'is_active' => $worker->is_active,
+                'is_logistics' => $worker->is_logistics,
+                'custom_fields' => $worker->custom_fields,
+                'skills' => $worker->skills->map(fn ($s) => [
+                    'id' => $s->id,
+                    'cert_level' => $s->pivot->cert_level
+                        ?? PersonnelClass::certLevelFromLegacy($s->pivot->level),
                 ]),
             ],
             'crews' => Crew::active()->orderBy('name')->get(['id', 'name']),
             'wageGroups' => WageGroup::active()->orderBy('name')->get(['id', 'name']),
             'personnelClasses' => PersonnelClass::active()->orderBy('name')->get(['id', 'name']),
-            'skills'           => Skill::orderBy('name')->get(['id', 'name']),
-            'customFields'     => $cf->clientConfig('worker'),
+            'skills' => Skill::orderBy('name')->get(['id', 'name']),
+            'levels' => PersonnelClass::LEVELS,
+            'customFields' => $cf->clientConfig('worker'),
         ]);
     }
 
@@ -173,10 +178,12 @@ class WorkerController extends Controller
 
         $worker->update($validated);
 
-        // Preserve certification metadata: update the legacy proficiency level
-        // without detaching existing rows (which would wipe cert_level etc.).
+        // Preserve certification dates and issuer while updating the canonical
+        // certification level and its legacy numeric compatibility value.
         $worker->skills()->syncWithoutDetaching(
-            collect($request->input('skills', []))->mapWithKeys(fn ($s) => [$s['id'] => ['level' => $s['level'] ?? 1]])
+            collect($request->input('skills', []))->mapWithKeys(
+                fn ($s) => [$s['id'] => PersonnelClass::skillPivotValues($s)]
+            )
         );
 
         return redirect()->route('admin.workers.index')

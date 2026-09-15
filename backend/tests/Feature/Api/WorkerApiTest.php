@@ -15,8 +15,11 @@ class WorkerApiTest extends TestCase
     use RefreshDatabase;
 
     protected User $admin;
+
     protected User $operator;
+
     protected string $adminToken;
+
     protected string $operatorToken;
 
     protected function setUp(): void
@@ -31,8 +34,15 @@ class WorkerApiTest extends TestCase
         $this->operatorToken = $this->operator->createToken('test')->plainTextToken;
     }
 
-    private function authAdmin() { return $this->withHeader('Authorization', "Bearer {$this->adminToken}"); }
-    private function authOperator() { return $this->withHeader('Authorization', "Bearer {$this->operatorToken}"); }
+    private function authAdmin()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->adminToken}");
+    }
+
+    private function authOperator()
+    {
+        return $this->withHeader('Authorization', "Bearer {$this->operatorToken}");
+    }
 
     public function test_workers_list_paginated(): void
     {
@@ -98,7 +108,8 @@ class WorkerApiTest extends TestCase
 
         $worker = Worker::where('code', 'W-2')->first();
         $this->assertCount(2, $worker->skills);
-        $this->assertEquals(5, $worker->skills->where('id', $s1->id)->first()->pivot->level);
+        $this->assertEquals(4, $worker->skills->where('id', $s1->id)->first()->pivot->level);
+        $this->assertSame('trainer', $worker->skills->where('id', $s1->id)->first()->pivot->cert_level);
     }
 
     public function test_create_requires_unique_code(): void

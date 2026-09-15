@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { Button, Checkbox, Dropdown } from '@openmes/ui';
 import { __ } from '../../../lib/i18n';
+import { certificationLevelLabel } from '../../../lib/certificationLevels';
 import CustomFields from '../../../components/CustomFields';
 import { customFieldProps } from '../../../lib/customFieldForm';
 
@@ -8,24 +9,24 @@ import { customFieldProps } from '../../../lib/customFieldForm';
  * Bespoke create/edit form for shop-floor workers.
  *
  * `form` is an Inertia useForm() instance (non-optimistic write-through).
- * The skills matrix mirrors UserForm: a checkbox per skill plus a 1–5 level
- * select, writing form.data.skills = [{ id, level }].
+ * The skills matrix mirrors UserForm: a checkbox per skill plus a certification-level
+ * select, writing form.data.skills = [{ id, cert_level }].
  */
-export default function WorkerForm({ form, crews, wageGroups, personnelClasses, skills, customFields = [], isEdit, onSubmit }) {
+export default function WorkerForm({ form, crews, wageGroups, personnelClasses, skills, levels, customFields = [], isEdit, onSubmit }) {
     const { data, setData, errors, processing } = form;
 
-    const selectedSkills = new Map((data.skills ?? []).map((s) => [String(s.id), s.level ?? 1]));
+    const selectedSkills = new Map((data.skills ?? []).map((s) => [String(s.id), s.cert_level ?? 'operator']));
 
     const toggleSkill = (id, on) => {
         const next = new Map(selectedSkills);
-        if (on) next.set(String(id), 1);
+        if (on) next.set(String(id), 'operator');
         else next.delete(String(id));
-        setData('skills', [...next].map(([sid, level]) => ({ id: Number(sid), level })));
+        setData('skills', [...next].map(([sid, certLevel]) => ({ id: Number(sid), cert_level: certLevel })));
     };
-    const setSkillLevel = (id, level) => {
+    const setSkillLevel = (id, certLevel) => {
         const next = new Map(selectedSkills);
-        next.set(String(id), Number(level));
-        setData('skills', [...next].map(([sid, lvl]) => ({ id: Number(sid), level: lvl })));
+        next.set(String(id), certLevel);
+        setData('skills', [...next].map(([sid, level]) => ({ id: Number(sid), cert_level: level })));
     };
 
     return (
@@ -100,7 +101,7 @@ export default function WorkerForm({ form, crews, wageGroups, personnelClasses, 
             />
 
             <div>
-                <label className="block text-sm font-medium text-om-muted mb-2">{__('Skills & level (1-5)')}</label>
+                <label className="block text-sm font-medium text-om-muted mb-2">{__('Skills & certification level')}</label>
                 <div className="border border-om-line2 rounded divide-y">
                     {skills.length === 0 && <p className="px-3 py-2 text-sm text-om-faint">{__('No skills defined.')}</p>}
                     {skills.map((skill) => {
@@ -111,7 +112,7 @@ export default function WorkerForm({ form, crews, wageGroups, personnelClasses, 
                                 <Checkbox className="flex-1" checked={on} onChange={(next) => toggleSkill(skill.id, next)} label={skill.name} />
                                 {on && (
                                     <Dropdown
-                                        options={[1, 2, 3, 4, 5].map((l) => ({ value: String(l), label: String(l) }))}
+                                        options={levels.map((level) => ({ value: level, label: certificationLevelLabel(level) }))}
                                         value={String(selectedSkills.get(id))}
                                         onChange={(v) => setSkillLevel(skill.id, v)}
                                         className="min-w-[64px]"

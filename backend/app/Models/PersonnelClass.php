@@ -30,6 +30,14 @@ class PersonnelClass extends Model
 
     public const LEVELS = ['trainee', 'operator', 'expert', 'trainer'];
 
+    /** Legacy numeric proficiency value kept in sync for older API clients. */
+    public const LEGACY_LEVEL_BY_CERT_LEVEL = [
+        'trainee' => 1,
+        'operator' => 2,
+        'expert' => 3,
+        'trainer' => 4,
+    ];
+
     protected $fillable = [
         'code',
         'name',
@@ -122,6 +130,32 @@ class PersonnelClass extends Model
         $requiredRank = self::LEVEL_RANK[$required] ?? 0;
 
         return $actualRank >= $requiredRank;
+    }
+
+    public static function certLevelFromLegacy(?int $level): string
+    {
+        return match (true) {
+            $level === null, $level <= 1 => 'trainee',
+            $level === 2 => 'operator',
+            $level === 3 => 'expert',
+            default => 'trainer',
+        };
+    }
+
+    /** @param array{cert_level?: string|null, level?: int|string|null} $skill */
+    public static function skillPivotValues(array $skill): array
+    {
+        $certLevel = $skill['cert_level'] ?? null;
+        if (! in_array($certLevel, self::LEVELS, true)) {
+            $certLevel = self::certLevelFromLegacy(
+                isset($skill['level']) ? (int) $skill['level'] : null
+            );
+        }
+
+        return [
+            'cert_level' => $certLevel,
+            'level' => self::LEGACY_LEVEL_BY_CERT_LEVEL[$certLevel],
+        ];
     }
 
     // ── Scopes ─────────────────────────────────────────────────────────────

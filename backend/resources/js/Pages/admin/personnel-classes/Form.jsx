@@ -1,6 +1,7 @@
 import { Link } from '@inertiajs/react';
 import { Button, Checkbox, Dropdown } from '@openmes/ui';
 import { __ } from '../../../lib/i18n';
+import { certificationLevelLabel } from '../../../lib/certificationLevels';
 
 /**
  * Bespoke create/edit form for personnel classes. Beyond the scalar fields it
@@ -61,7 +62,7 @@ export default function PersonnelClassForm({ form, skills, levels, submitLabel, 
                                 <Checkbox checked={isOn} onChange={(next) => toggleSkill(skill.id, next)} label={skill.name} className="flex-1" />
                                 {isOn && (
                                     <Dropdown
-                                        options={levels.map((lvl) => ({ value: String(lvl), label: lvl }))}
+                                        options={levels.map((lvl) => ({ value: String(lvl), label: certificationLevelLabel(lvl) }))}
                                         value={(data.default_required_cert_level ?? {})[id] == null ? String(levels[0]) : String((data.default_required_cert_level ?? {})[id])}
                                         onChange={(v) => setLevel(skill.id, v)}
                                     />

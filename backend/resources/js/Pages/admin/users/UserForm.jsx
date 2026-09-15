@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { __ } from '../../../lib/i18n';
 import { Button, Checkbox, Dropdown, RadioGroup } from '@openmes/ui';
 import { useState } from 'react';
+import { certificationLevelLabel } from '../../../lib/certificationLevels';
 
 /**
  * Bespoke create/edit form for user accounts. Conditional on `account_type`:
@@ -12,7 +13,7 @@ import { useState } from 'react';
  * password is confirmed (password + password_confirmation). On edit, leaving
  * password blank keeps the current one.
  */
-export default function UserForm({ form, roles, workstations, crews, wageGroups, skills, isEdit, onSubmit }) {
+export default function UserForm({ form, roles, workstations, crews, wageGroups, skills, levels, isEdit, onSubmit }) {
     const { data, setData, errors, processing } = form;
     const isUser = data.account_type === 'user';
 
@@ -21,18 +22,18 @@ export default function UserForm({ form, roles, workstations, crews, wageGroups,
     // account that already has a worker profile.
     const [showWorker, setShowWorker] = useState(() => isEdit && !!data.worker_code);
 
-    const selectedSkills = new Map((data.skills ?? []).map((s) => [String(s.id), s.level ?? 1]));
+    const selectedSkills = new Map((data.skills ?? []).map((s) => [String(s.id), s.cert_level ?? 'operator']));
 
     const toggleSkill = (id, on) => {
         const next = new Map(selectedSkills);
-        if (on) next.set(String(id), 1);
+        if (on) next.set(String(id), 'operator');
         else next.delete(String(id));
-        setData('skills', [...next].map(([sid, level]) => ({ id: Number(sid), level })));
+        setData('skills', [...next].map(([sid, certLevel]) => ({ id: Number(sid), cert_level: certLevel })));
     };
-    const setSkillLevel = (id, level) => {
+    const setSkillLevel = (id, certLevel) => {
         const next = new Map(selectedSkills);
-        next.set(String(id), Number(level));
-        setData('skills', [...next].map(([sid, lvl]) => ({ id: Number(sid), level: lvl })));
+        next.set(String(id), certLevel);
+        setData('skills', [...next].map(([sid, level]) => ({ id: Number(sid), cert_level: level })));
     };
 
     return (
@@ -140,7 +141,7 @@ export default function UserForm({ form, roles, workstations, crews, wageGroups,
                     </div>
 
                     <div>
-                        <label className="block text-sm font-medium text-om-muted mb-2">{__('Skills & level (1–5)')}</label>
+                        <label className="block text-sm font-medium text-om-muted mb-2">{__('Skills & certification level')}</label>
                         <div className="border border-om-line2 rounded divide-y">
                             {skills.length === 0 && <p className="px-3 py-2 text-sm text-om-faint">{__('No skills defined.')}</p>}
                             {skills.map((skill) => {
@@ -156,7 +157,7 @@ export default function UserForm({ form, roles, workstations, crews, wageGroups,
                                         />
                                         {on && (
                                             <Dropdown
-                                                options={[1, 2, 3, 4, 5].map((l) => ({ value: String(l), label: String(l) }))}
+                                                options={levels.map((level) => ({ value: level, label: certificationLevelLabel(level) }))}
                                                 value={String(selectedSkills.get(id))}
                                                 onChange={(v) => setSkillLevel(skill.id, v)}
                                                 className="min-w-[64px]"

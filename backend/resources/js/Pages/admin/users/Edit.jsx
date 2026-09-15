@@ -8,7 +8,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import UserForm from './UserForm';
 
 export default function UserEdit() {
-    const { user, roles = [], workstations = [], crews = [], wageGroups = [], skills = [], panelPinLength = 9, panelPinGroupSize = 3, flash = {} } = usePage().props;
+    const { user, roles = [], workstations = [], crews = [], wageGroups = [], skills = [], levels = [], panelPinLength = 9, panelPinGroupSize = 3, flash = {} } = usePage().props;
     const w = user.worker;
 
     const form = useForm({
@@ -36,7 +36,7 @@ export default function UserEdit() {
         <div className="max-w-7xl mx-auto">
             <Head title={`Edit ${user.name}`} />
             <h1 className="text-3xl font-bold text-om-ink mb-6">{__("Edit Account")}</h1>
-            <UserForm form={form} roles={roles} workstations={workstations} crews={crews} wageGroups={wageGroups} skills={skills} isEdit onSubmit={submit} />
+            <UserForm form={form} roles={roles} workstations={workstations} crews={crews} wageGroups={wageGroups} skills={skills} levels={levels} isEdit onSubmit={submit} />
             {user.account_type === 'user' && (
                 <section className="mt-6 max-w-3xl rounded-om-sm border border-om-line bg-om-card p-6">
                     <h2 className="text-lg font-semibold">{__('Panel credential')}</h2>
