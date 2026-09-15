@@ -21,6 +21,7 @@ class TemplateStepChecklistController extends Controller
         ProcessTemplate $processTemplate,
     ) {
         $this->ensureBelongs($productType, $processTemplate);
+        $processTemplate->ensureMutable();
 
         $stepId = $request->validated('template_step_id');
         abort_unless($processTemplate->steps()->whereKey($stepId)->exists(), 404);
@@ -41,6 +42,7 @@ class TemplateStepChecklistController extends Controller
         TemplateStepChecklistItem $checklistItem,
     ) {
         $this->ensureBelongs($productType, $processTemplate);
+        $processTemplate->ensureMutable();
         abort_unless($checklistItem->process_template_id === $processTemplate->id, 404);
 
         $checklistItem->delete();

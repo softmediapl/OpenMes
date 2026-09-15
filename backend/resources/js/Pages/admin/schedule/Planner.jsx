@@ -7,7 +7,7 @@ import AppLayout from '../../../layouts/AppLayout';
 import LiveRefresh from '../../../components/LiveRefresh';
 import { apiCall, apiGet } from '../../../lib/http';
 import { __, formatDate } from '../../../lib/i18n';
-import { todayKey, dayList, shiftWindow } from './planner/helpers';
+import { todayKey, dayList, shiftWindow, plannedWindowForEstimate } from './planner/helpers';
 import { WeeklyView, DailyView } from './planner/views';
 import { HourlyView, MonthlyView } from './planner/views2';
 import { Toolbar, BacklogRail } from './planner/panels';
@@ -112,7 +112,8 @@ export default function Planner() {
     };
 
     const performDrop = useCallback(async (wo, target, placement) => {
-        const window = shiftWindow(target.date, target.shift, target.date, target.shift, shifts);
+        const shift = shiftWindow(target.date, target.shift, target.date, target.shift, shifts);
+        const window = plannedWindowForEstimate(shift, wo);
         if (!window) return;
         const body = placement !== 'primary'
             ? {
@@ -208,6 +209,27 @@ export default function Planner() {
         }
         return result;
     }, [requestAps, toast, refreshContent]);
+
+    const acceptForecast = useCallback(async (wo) => {
+        setSaving(true);
+        try {
+            const response = await apiCall(`/admin/schedule/${wo.id}/accept-forecast`, 'POST', {});
+            const json = await response.json();
+            if (!response.ok || !json.success) {
+                toast(json.message ?? __('Unable to accept the forecast.'), 'error');
+                return false;
+            }
+            toast(json.message);
+            setSelected(null);
+            refreshContent();
+            return true;
+        } catch {
+            toast(__('Connection error'), 'error');
+            return false;
+        } finally {
+            setSaving(false);
+        }
+    }, [toast, refreshContent]);
 
     const performUnassign = useCallback(async (wo) => {
         // Unscheduling removes only planner placement. The preferred line and
@@ -308,6 +330,7 @@ export default function Planner() {
         onCellClick: (target) => setAssignTarget(target),
         onProposeAps: proposeAps,
         onApplyAps: applyAps,
+        onAcceptForecast: acceptForecast,
     };
 
     // ── Live tracking — always on, auto-follows the first in-progress order ────

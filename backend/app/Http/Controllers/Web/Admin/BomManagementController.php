@@ -10,13 +10,18 @@ use App\Models\ProductType;
 use App\Models\UnitOfMeasure;
 use App\Services\Material\BomQuantityCalculator;
 use App\Services\Material\BomService;
+use App\Services\ProcessTemplate\CompositionService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class BomManagementController extends Controller
 {
-    public function __construct(private BomService $bomService) {}
+    public function __construct(
+        private BomService $bomService,
+        private CompositionService $composition,
+    ) {}
 
     /**
      * Display BOM items for a process template (shown as a tab on template show page).
@@ -29,7 +34,10 @@ class BomManagementController extends Controller
 
         $bomItems = $this->bomService->listForTemplate($processTemplate);
         $materials = Material::active()->with('materialType')->orderBy('name')->get();
-        $steps = $processTemplate->steps()->orderBy('step_number')->get();
+        $resolvedSteps = $this->composition->resolveSteps($processTemplate);
+        $effectiveStepNumbers = $resolvedSteps->mapWithKeys(
+            fn (array $row) => [$row['step']->id => $row['step_number']]
+        );
 
         return Inertia::render('admin/process-templates/Bom', [
             'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
@@ -48,7 +56,7 @@ class BomManagementController extends Controller
                 'quantity_precision' => UnitOfMeasure::precisionForCode($item->material->unit_of_measure),
                 'tracking_type' => $item->material->tracking_type,
                 'template_step_id' => $item->template_step_id,
-                'step_number' => $item->templateStep?->step_number,
+                'step_number' => $item->template_step_id ? $effectiveStepNumbers->get($item->template_step_id) : null,
                 'step_name' => $item->templateStep?->name,
                 'quantity_per_unit' => $item->quantity_per_unit,
                 'component_quantity' => $item->component_quantity,
@@ -68,10 +76,12 @@ class BomManagementController extends Controller
                 'quantity_precision' => UnitOfMeasure::precisionForCode($m->unit_of_measure),
                 'default_scrap_percentage' => $m->default_scrap_percentage,
             ]),
-            'steps' => $steps->map(fn ($s) => [
-                'id' => $s->id,
-                'step_number' => $s->step_number,
-                'name' => $s->name,
+            'steps' => $resolvedSteps->map(fn (array $row) => [
+                'id' => $row['step']->id,
+                'step_number' => $row['step_number'],
+                'name' => $row['step']->name,
+                'operation_code' => $row['step']->operation_code,
+                'composition_source' => $row['source'],
             ]),
         ]);
     }
@@ -94,6 +104,8 @@ class BomManagementController extends Controller
             'consumed_at' => 'nullable|in:start,during,end',
             'notes' => 'nullable|string',
         ]);
+
+        $this->assertEffectiveStep($processTemplate, $validated['template_step_id'] ?? null);
 
         $this->bomService->addItem($processTemplate, $validated);
 
@@ -119,6 +131,8 @@ class BomManagementController extends Controller
             'notes' => 'nullable|string',
         ]);
 
+        $this->assertEffectiveStep($processTemplate, $validated['template_step_id'] ?? null);
+
         $this->bomService->updateItem($bomItem, $validated);
 
         return redirect()->route('admin.product-types.process-templates.bom', [$productType, $processTemplate])
@@ -135,5 +149,22 @@ class BomManagementController extends Controller
 
         return redirect()->route('admin.product-types.process-templates.bom', [$productType, $processTemplate])
             ->with('success', 'Material removed from BOM.');
+    }
+
+    private function assertEffectiveStep(ProcessTemplate $processTemplate, ?int $templateStepId): void
+    {
+        if ($templateStepId === null) {
+            return;
+        }
+
+        $effectiveStepIds = $this->composition->resolveSteps($processTemplate)
+            ->pluck('step.id')
+            ->map(fn ($id) => (int) $id);
+
+        if (! $effectiveStepIds->contains($templateStepId)) {
+            throw ValidationException::withMessages([
+                'template_step_id' => __('The selected step is not part of this process route.'),
+            ]);
+        }
     }
 }

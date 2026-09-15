@@ -136,7 +136,8 @@ class ProcessTemplateApiTest extends TestCase
         ]);
         $response->assertStatus(201)
             ->assertJsonPath('data.name', 'Cut metal')
-            ->assertJsonPath('data.step_number', 1);
+            ->assertJsonPath('data.step_number', 1)
+            ->assertJsonPath('data.operation_code', 'OP_001');
     }
 
     public function test_fixed_hold_step_requires_and_persists_minimum_duration(): void
@@ -319,6 +320,31 @@ class ProcessTemplateApiTest extends TestCase
         $this->authAdmin()->deleteJson("/api/v1/process-templates/{$template->id}")
             ->assertStatus(200);
         $this->assertSoftDeleted('process_templates', ['id' => $template->id]);
+    }
+
+    public function test_api_cannot_mutate_a_template_used_as_a_composition_base(): void
+    {
+        $productType = ProductType::factory()->create();
+        $base = ProcessTemplate::factory()->create([
+            'product_type_id' => $productType->id,
+            'version' => 1,
+        ]);
+        ProcessTemplate::factory()->create([
+            'product_type_id' => $productType->id,
+            'base_template_id' => $base->id,
+            'version' => 2,
+        ]);
+
+        $this->authAdmin()->patchJson("/api/v1/process-templates/{$base->id}", [
+            'name' => 'Changed in place',
+        ])->assertUnprocessable();
+
+        $this->authAdmin()->postJson("/api/v1/process-templates/{$base->id}/steps", [
+            'name' => 'Unsafe new operation',
+        ])->assertUnprocessable();
+
+        $this->assertSame($base->name, $base->fresh()->name);
+        $this->assertSame(0, $base->steps()->count());
     }
 
     public function test_admin_can_toggle_active(): void

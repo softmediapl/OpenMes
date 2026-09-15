@@ -284,6 +284,8 @@ function AddStepForm({
 }) {
     const form = useForm({
         name: '',
+        operation_code: '',
+        insert_after_operation_code: '',
         instruction: '',
         requires_confirmation: false,
         quantity_reporting_required: false,
@@ -371,6 +373,33 @@ function AddStepForm({
                         />
                         {errors.name && <p className="text-om-blocked text-xs mt-1">{errors.name}</p>}
                     </div>
+
+                    <div>
+                        <label className="form-label">{__('Operation code')}</label>
+                        <input
+                            type="text"
+                            value={data.operation_code}
+                            onChange={(e) => setData('operation_code', e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                            className={`form-input w-full font-mono${errors.operation_code ? ' border-om-blocked' : ''}`}
+                            placeholder={__('Generated from the name when left blank')}
+                        />
+                        {errors.operation_code && <p className="text-om-blocked text-xs mt-1">{errors.operation_code}</p>}
+                    </div>
+
+                    {processTemplate.base_template && (
+                        <div>
+                            <label className="form-label">{__('Insert after operation')}</label>
+                            <Dropdown
+                                value={data.insert_after_operation_code}
+                                onChange={(value) => setData('insert_after_operation_code', value)}
+                                options={[
+                                    { value: '', label: __('Append to the route') },
+                                    ...processTemplate.steps.map((step) => ({ value: step.operation_code, label: `${step.step_number}. ${step.name}` })),
+                                ]}
+                                className="w-full"
+                            />
+                        </div>
+                    )}
 
                     <div>
                         <label className="form-label">Workstation (Optional)</label>
@@ -469,6 +498,8 @@ function EditStepForm({
 }) {
     const form = useForm({
         name: step.name ?? '',
+        operation_code: step.operation_code ?? '',
+        insert_after_operation_code: step.insert_after_operation_code ?? '',
         instruction: step.instruction ?? '',
         requires_confirmation: !!step.requires_confirmation,
         quantity_reporting_required: !!step.quantity_reporting_required,
@@ -503,6 +534,27 @@ function EditStepForm({
 
     return (
         <form onSubmit={submit}>
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label className="form-label">{__('Operation code')}</label>
+                    <input type="text" value={data.operation_code} readOnly className="form-input w-full font-mono bg-om-panel" />
+                </div>
+                {processTemplate.base_template && step.composition_source === 'local' && (
+                    <div>
+                        <label className="form-label">{__('Insert after operation')}</label>
+                        <Dropdown
+                            value={data.insert_after_operation_code}
+                            onChange={(value) => setData('insert_after_operation_code', value)}
+                            options={[
+                                { value: '', label: __('Append to the route') },
+                                ...processTemplate.steps.filter((candidate) => candidate.operation_code !== step.operation_code)
+                                    .map((candidate) => ({ value: candidate.operation_code, label: `${candidate.step_number}. ${candidate.name}` })),
+                            ]}
+                            className="w-full"
+                        />
+                    </div>
+                )}
+            </div>
             {processSegments.length > 0 && (
                 <div className="mb-4">
                     <label className="form-label">Linked Process Segment</label>
@@ -832,10 +884,12 @@ function StepEngineeringDocuments({ stepId }) {
 function StepCard({
     step, photo, photosBaseUrl, isFirst, isLast, editingId, onEditStart, onEditCancel,
     productType, processTemplate, processSegments, workstations, workstationTypes = [], transportUnitTypes = [], qualityCheckTemplates = [],
-    onMoveUp, onMoveDown, onDelete,
+    onMoveUp, onMoveDown, onDelete, onOverride, onOmit,
     dragHandleProps,
 }) {
     const isEditing = editingId === step.id;
+    const isInherited = step.composition_source === 'inherited';
+    const isReadOnly = processTemplate.is_locked_as_base;
 
     return (
         <div className="card" {...dragHandleProps}>
@@ -844,8 +898,8 @@ function StepCard({
                     <div className="flex gap-4 flex-1">
                         {/* Drag handle */}
                         <div
-                            className="drag-handle flex-shrink-0 flex items-center cursor-grab active:cursor-grabbing text-om-faintest hover:text-om-muted transition-colors px-1 self-start mt-3"
-                            title="Drag to reorder"
+                            className={`flex-shrink-0 flex items-center text-om-faintest px-1 self-start mt-3 ${isInherited ? '' : 'drag-handle cursor-grab active:cursor-grabbing hover:text-om-muted transition-colors'}`}
+                            title={isInherited ? __('Inherited from the base process') : __('Drag to reorder')}
                         >
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                                 <circle cx="9" cy="5" r="1.5" />
@@ -866,6 +920,18 @@ function StepCard({
                                 <div className="flex-1">
                                     <h3 className="text-lg font-bold text-om-ink inline-flex items-center gap-2 flex-wrap">
                                         {step.name}
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-om-chip text-om-muted">
+                                            {step.operation_code}
+                                        </span>
+                                        {step.composition_source === 'inherited' && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-selected text-om-accent">{__('Inherited')}</span>
+                                        )}
+                                        {step.composition_source === 'override' && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-downtime-bg text-om-downtime">{__('Overridden')}</span>
+                                        )}
+                                        {step.composition_source === 'local' && processTemplate.base_template && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-running-bg text-om-running">{__('Local')}</span>
+                                        )}
                                         {step.is_optional && (
                                             <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-om-downtime-bg text-om-downtime">
                                                 {__('Optional')}
@@ -956,17 +1022,24 @@ function StepCard({
                                 </div>
 
                                 {/* Actions */}
-                                <div className="flex gap-1 ml-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => onEditStart(step.id)}
-                                        className="text-om-accent hover:text-om-accent p-2"
-                                        title="Edit"
-                                    >
-                                        <Icon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </button>
+                                {!isReadOnly && <div className="flex gap-1 ml-4">
+                                    {isInherited ? (
+                                        <>
+                                            <button type="button" onClick={() => onOverride(step)} className="btn-touch btn-secondary text-xs">{__('Override')}</button>
+                                            <button type="button" onClick={() => onOmit(step)} className="btn-touch btn-secondary text-xs text-om-blocked">{__('Omit')}</button>
+                                        </>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => onEditStart(step.id)}
+                                            className="text-om-accent hover:text-om-accent p-2"
+                                            title={__('Edit')}
+                                        >
+                                            <Icon d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </button>
+                                    )}
 
-                                    {!isFirst && (
+                                    {!isInherited && !processTemplate.base_template && !isFirst && (
                                         <button
                                             type="button"
                                             onClick={() => onMoveUp(step)}
@@ -977,7 +1050,7 @@ function StepCard({
                                         </button>
                                     )}
 
-                                    {!isLast && (
+                                    {!isInherited && !processTemplate.base_template && !isLast && (
                                         <button
                                             type="button"
                                             onClick={() => onMoveDown(step)}
@@ -988,15 +1061,17 @@ function StepCard({
                                         </button>
                                     )}
 
-                                    <button
-                                        type="button"
-                                        onClick={() => onDelete(step)}
-                                        className="text-om-blocked hover:text-om-blocked p-2"
-                                        title="Delete"
-                                    >
-                                        <Icon d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </button>
-                                </div>
+                                    {!isInherited && (
+                                        <button
+                                            type="button"
+                                            onClick={() => onDelete(step)}
+                                            className="text-om-blocked hover:text-om-blocked p-2"
+                                            title={step.composition_source === 'override' ? __('Revert override') : __('Delete')}
+                                        >
+                                            <Icon d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </button>
+                                    )}
+                                </div>}
                             </div>
 
                             {step.instruction && (
@@ -1005,11 +1080,13 @@ function StepCard({
                                 </div>
                             )}
 
-                            <StepPhoto step={step} photo={photo} baseUrl={photosBaseUrl} />
-
-                            <StepInstructionsEditor step={step} productType={productType} processTemplate={processTemplate} />
-
-                            <StepEngineeringDocuments stepId={step.id} />
+                            {!isInherited && !isReadOnly && (
+                                <>
+                                    <StepPhoto step={step} photo={photo} baseUrl={photosBaseUrl} />
+                                    <StepInstructionsEditor step={step} productType={productType} processTemplate={processTemplate} />
+                                    <StepEngineeringDocuments stepId={step.id} />
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1071,6 +1148,29 @@ export default function ProcessTemplatesShow() {
         );
     };
 
+    const handleOverride = (step) => {
+        router.post(
+            `/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/inherited-steps/${step.id}/override`,
+            {},
+            { preserveScroll: true },
+        );
+    };
+
+    const handleOmit = (step) => {
+        router.post(
+            `/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/inherited-steps/${step.id}/omit`,
+            {},
+            { preserveScroll: true },
+        );
+    };
+
+    const handleRestore = (operationCode) => {
+        router.delete(
+            `/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/inherited-steps/${encodeURIComponent(operationCode)}/omit`,
+            { preserveScroll: true },
+        );
+    };
+
     const handleDelete = (step) => {
         if (!confirm('Delete this step?')) return;
         router.delete(
@@ -1082,7 +1182,7 @@ export default function ProcessTemplatesShow() {
     /* Drag-sort via SortableJS (loaded globally via vendor/sortable.min.js) */
     const listRef = useRef(null);
     useEffect(() => {
-        if (typeof window === 'undefined' || !window.Sortable) return;
+        if (typeof window === 'undefined' || !window.Sortable || processTemplate.base_template) return;
         if (!listRef.current) return;
 
         const reorderUrl = `/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/reorder-steps`;
@@ -1126,6 +1226,11 @@ export default function ProcessTemplatesShow() {
 
         return () => sortable.destroy();
     }, [steps.length, productType.id, processTemplate.id]);
+
+    const compositionCounts = steps.reduce((counts, step) => {
+        counts[step.composition_source] = (counts[step.composition_source] ?? 0) + 1;
+        return counts;
+    }, {});
 
     return (
         <>
@@ -1185,10 +1290,19 @@ export default function ProcessTemplatesShow() {
                                     {__('Pallet capacity')}: {processTemplate.packaging_policy.pallet_capacity_quantity} {__('pcs')}
                                 </p>
                             )}
+                            {processTemplate.base_template && (
+                                <p className="text-sm text-om-muted mt-2">
+                                    {__('Base process')}: <strong>{processTemplate.base_template.name} v{processTemplate.base_template.version}</strong>
+                                    {' · '}{compositionCounts.inherited ?? 0} {__('inherited')}
+                                    {' · '}{compositionCounts.override ?? 0} {__('overridden')}
+                                    {' · '}{compositionCounts.local ?? 0} {__('local')}
+                                    {' · '}{processTemplate.excluded_operation_codes?.length ?? 0} {__('omitted')}
+                                </p>
+                            )}
                         </div>
 
                         <div className="flex gap-2">
-                            <a
+                            {!processTemplate.is_locked_as_base && <a
                                 href={`/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/edit`}
                                 className="btn-touch btn-secondary"
                             >
@@ -1197,7 +1311,7 @@ export default function ProcessTemplatesShow() {
                                     className="w-5 h-5 inline-block mr-2"
                                 />
                                 Edit Template
-                            </a>
+                            </a>}
 
                             <a
                                 href={`/admin/product-types/${productType.id}/process-templates/${processTemplate.id}/bom`}
@@ -1210,20 +1324,20 @@ export default function ProcessTemplatesShow() {
                                 BOM
                             </a>
 
-                            <button
+                            {!processTemplate.is_locked_as_base && <button
                                 type="button"
                                 onClick={() => setShowAddForm(true)}
                                 className="btn-touch btn-primary"
                             >
                                 <Icon d="M12 4v16m8-8H4" className="w-5 h-5 inline-block mr-2" />
                                 Add Step
-                            </button>
+                            </button>}
                         </div>
                     </div>
                 </div>
 
                 {/* Add Step Form */}
-                {showAddForm && (
+                {showAddForm && !processTemplate.is_locked_as_base && (
                     <AddStepForm
                         productType={productType}
                         processTemplate={processTemplate}
@@ -1236,11 +1350,24 @@ export default function ProcessTemplatesShow() {
                     />
                 )}
 
-                {steps.length > 0 && (
+                {steps.length > 0 && !processTemplate.base_template && (
                     <ProcessDependenciesEditor
                         productType={productType}
                         processTemplate={processTemplate}
                     />
+                )}
+
+                {processTemplate.base_template && processTemplate.excluded_operation_codes?.length > 0 && (
+                    <div className="mb-5 border border-om-line2 bg-om-panel rounded-om-sm p-4">
+                        <h2 className="text-sm font-semibold text-om-ink mb-2">{__('Omitted inherited operations')}</h2>
+                        <div className="flex flex-wrap gap-2">
+                            {processTemplate.excluded_operation_codes.map((operationCode) => (
+                                <button key={operationCode} type="button" onClick={() => handleRestore(operationCode)} className="btn-touch btn-secondary text-xs font-mono">
+                                    {operationCode} · {__('Restore')}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 )}
 
                 {/* Steps List header */}
@@ -1272,6 +1399,8 @@ export default function ProcessTemplatesShow() {
                                     onMoveUp={handleMoveUp}
                                     onMoveDown={handleMoveDown}
                                     onDelete={handleDelete}
+                                    onOverride={handleOverride}
+                                    onOmit={handleOmit}
                                 />
                             </div>
                         ))}
@@ -1297,10 +1426,10 @@ export default function ProcessTemplatesShow() {
                 )}
 
                 {/* Reference photos (work instructions) */}
-                <PhotosSection productType={productType} processTemplate={processTemplate} />
+                {!processTemplate.is_locked_as_base && <PhotosSection productType={productType} processTemplate={processTemplate} />}
 
                 {/* Engineering documents (#179) for the process template as a whole */}
-                <EngineeringDocuments entityType="process_template" entityId={processTemplate.id} />
+                {!processTemplate.is_locked_as_base && <EngineeringDocuments entityType="process_template" entityId={processTemplate.id} />}
 
                 {/* Drag-sort save status toast */}
                 {saveStatus && (

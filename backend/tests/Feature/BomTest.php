@@ -175,6 +175,36 @@ class BomTest extends TestCase
         $response->assertSessionHasErrors('material_id');
     }
 
+    public function test_bom_step_must_belong_to_the_effective_process_route(): void
+    {
+        $productType = ProductType::factory()->create();
+        $template = ProcessTemplate::factory()->create(['product_type_id' => $productType->id]);
+        $otherTemplate = ProcessTemplate::factory()->create([
+            'product_type_id' => $productType->id,
+            'version' => 2,
+        ]);
+        $otherStep = TemplateStep::factory()->create([
+            'process_template_id' => $otherTemplate->id,
+            'step_number' => 1,
+        ]);
+        $material = Material::factory()->create(['material_type_id' => $this->rawMaterial->id]);
+
+        $response = $this->actingAs($this->admin)->post(
+            route('admin.product-types.process-templates.bom.store', [$productType, $template]),
+            [
+                'material_id' => $material->id,
+                'template_step_id' => $otherStep->id,
+                'quantity_per_unit' => 1,
+            ]
+        );
+
+        $response->assertSessionHasErrors('template_step_id');
+        $this->assertDatabaseMissing('bom_items', [
+            'process_template_id' => $template->id,
+            'material_id' => $material->id,
+        ]);
+    }
+
     public function test_admin_can_remove_bom_item(): void
     {
         $productType = ProductType::factory()->create();

@@ -61,6 +61,7 @@ class ProcessTemplateController extends Controller
     public function update(UpdateProcessTemplateRequest $request, ProcessTemplate $processTemplate): JsonResponse
     {
         $this->authorize('update', $processTemplate);
+        $processTemplate->ensureMutable();
         $processTemplate->update($request->validated());
 
         return response()->json([
@@ -72,6 +73,7 @@ class ProcessTemplateController extends Controller
     public function destroy(ProcessTemplate $processTemplate): JsonResponse
     {
         $this->authorize('delete', $processTemplate);
+        $processTemplate->ensureMutable();
 
         // Optional: prevent deletion if used by work orders
         // (work orders snapshot the template so this is safe, but warn anyway)
@@ -96,6 +98,7 @@ class ProcessTemplateController extends Controller
     public function addStep(StoreTemplateStepRequest $request, ProcessTemplate $processTemplate): JsonResponse
     {
         $this->authorize('update', $processTemplate);
+        $processTemplate->ensureMutable();
 
         $data = $request->validated();
         $data['quality_gate_required'] = (bool) ($data['quality_gate_required'] ?? false);
@@ -105,6 +108,7 @@ class ProcessTemplateController extends Controller
         if (! isset($data['step_number'])) {
             $data['step_number'] = ($processTemplate->steps()->max('step_number') ?? 0) + 1;
         }
+        $data['operation_code'] = $data['operation_code'] ?? sprintf('OP_%03d', $data['step_number']);
         $data['process_template_id'] = $processTemplate->id;
 
         $step = TemplateStep::create($data);
@@ -118,6 +122,7 @@ class ProcessTemplateController extends Controller
     public function updateStep(UpdateTemplateStepRequest $request, TemplateStep $templateStep): JsonResponse
     {
         $this->authorize('update', $templateStep->processTemplate);
+        $templateStep->processTemplate->ensureMutable();
         $data = $request->validated();
         if (array_key_exists('quality_gate_required', $data) && ! $data['quality_gate_required']) {
             $data['quality_check_template_id'] = null;
@@ -133,6 +138,7 @@ class ProcessTemplateController extends Controller
     public function destroyStep(TemplateStep $templateStep): JsonResponse
     {
         $this->authorize('update', $templateStep->processTemplate);
+        $templateStep->processTemplate->ensureMutable();
         $templateStep->delete();
 
         return response()->json(['message' => 'Step deleted']);
@@ -141,6 +147,7 @@ class ProcessTemplateController extends Controller
     public function reorderSteps(Request $request, ProcessTemplate $processTemplate): JsonResponse
     {
         $this->authorize('update', $processTemplate);
+        $processTemplate->ensureMutable();
 
         $validated = $request->validate([
             'step_ids' => ['required', 'array', 'min:1'],

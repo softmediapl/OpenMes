@@ -363,11 +363,12 @@ class BatchController extends Controller
             return back()->with('error', 'This step does not belong to the selected line.');
         }
 
-        // Anti-IDOR: the item must belong to this step's template and step number.
-        $templateId = $batchStep->batch?->workOrder?->process_snapshot['template_id'] ?? null;
-        $checklistItem->loadMissing('templateStep:id,step_number');
-        if ($checklistItem->process_template_id !== $templateId
-            || $checklistItem->templateStep?->step_number !== $batchStep->step_number) {
+        // Anti-IDOR: snapshots retain the concrete source definition even when
+        // this operation was inherited from a composed base process.
+        $definition = $batchStep->snapshotStepDefinition();
+        if (! $definition
+            || $checklistItem->process_template_id !== ($definition['source_template_id'] ?? null)
+            || $checklistItem->template_step_id !== ($definition['source_template_step_id'] ?? null)) {
             return back()->with('error', 'This checklist item does not belong to this step.');
         }
 

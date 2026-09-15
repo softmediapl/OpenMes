@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import AppLayout from '../../../layouts/AppLayout';
 import CustomFieldsDisplay from '../../../components/CustomFieldsDisplay';
+import ProductionRoute from '../../../components/ProductionRoute';
 import StopProductionModal from './StopProductionModal';
 import ChangeRequestModal from './ChangeRequestModal';
 import { WO_STATUS_STYLES } from './fields';
@@ -864,6 +865,8 @@ export default function AdminWorkOrderShow() {
                         </div>
 
                         <ForecastPanel scheduleForecast={scheduleForecast} />
+
+                        <ProductionRoute processSnapshot={workOrder.process_snapshot} batches={workOrder.batches} />
 
                         {/* Custom fields */}
                         <CustomFieldsDisplay definitions={customFields} values={workOrder.custom_fields ?? {}} />

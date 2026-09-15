@@ -7,12 +7,13 @@ import PackagingPolicyFields from './PackagingPolicyFields';
 import { compactQuantity } from '../../../lib/configuredQuantity';
 
 export default function ProcessTemplatesEdit() {
-    const { productType, processTemplate, revisions = [] } = usePage().props;
+    const { productType, processTemplate, revisions = [], baseTemplates = [] } = usePage().props;
     const quantity = (value) => compactQuantity(value, productType.quantity_precision, productType.unit_of_measure);
 
     const form = useForm({
         name: processTemplate.name ?? '',
         product_revision_id: processTemplate.product_revision_id != null ? String(processTemplate.product_revision_id) : '',
+        base_template_id: processTemplate.base_template_id != null ? String(processTemplate.base_template_id) : '',
         is_active: !!processTemplate.is_active,
         preferred_batch_quantity: quantity(processTemplate.preferred_batch_quantity),
         min_batch_quantity: quantity(processTemplate.min_batch_quantity),
@@ -68,6 +69,23 @@ export default function ProcessTemplatesEdit() {
                             />
                             <p className="text-sm text-om-muted mt-1">{__("Descriptive name for this manufacturing process")}</p>
                             {errors.name && <p className="text-om-blocked text-sm mt-1">{errors.name}</p>}
+                        </div>
+
+                        <div className="mb-6">
+                            <label htmlFor="base_template_id" className="form-label">{__('Base process')}</label>
+                            <select
+                                id="base_template_id"
+                                value={data.base_template_id}
+                                onChange={(e) => setData('base_template_id', e.target.value)}
+                                className={`form-input w-full${errors.base_template_id ? ' border-om-blocked' : ''}`}
+                            >
+                                <option value="">{__('No base process')}</option>
+                                {baseTemplates.map((template) => (
+                                    <option key={template.id} value={template.id}>{template.name} (v{template.version})</option>
+                                ))}
+                            </select>
+                            <p className="text-sm text-om-muted mt-1">{__('Changing the base affects only future snapshots; running work orders keep their resolved route.')}</p>
+                            {errors.base_template_id && <p className="text-om-blocked text-sm mt-1">{errors.base_template_id}</p>}
                         </div>
 
                         <div className="mb-6">

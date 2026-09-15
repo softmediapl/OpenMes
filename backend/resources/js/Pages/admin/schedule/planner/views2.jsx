@@ -32,6 +32,17 @@ function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
     const s = statusOf(wo.status);
     const estimate = durationEstimateMeta(wo);
     const forecast = forecastMeta(wo);
+    const forecastEnd = (() => {
+        if (!forecast.endAt || item.placeholder) return null;
+        const date = forecast.endAt.slice(0, 10);
+        if (date < item.date) return item.start;
+        if (date > item.date) return 1440;
+        const match = /T(\d{2}):(\d{2})/.exec(forecast.endAt);
+        return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    })();
+    const forecastRatio = forecastEnd == null
+        ? null
+        : Math.max(0.04, (forecastEnd - item.start) / Math.max(1, item.end - item.start));
 
     function begin(mode, e) {
         if (readOnly) return;
@@ -65,7 +76,11 @@ function HourlyBar({ item, ctx, slotMinutes, laneTop }) {
 
     return (
         <div style={{ position: 'absolute', top: laneTop, height: HLANE, left: left + '%', width: width + '%', minWidth: 10, zIndex: drag ? 30 : 2 }}>
-            <div className="om-wo relative" title={item.placeholder && !readOnly ? __('No exact time yet — drag to schedule') : undefined} style={{ height: '100%', background: s.soft, border: item.placeholder ? '1px dashed var(--om-accent)' : '1px solid var(--om-line2)', borderRadius: 7, overflow: 'hidden', boxShadow: item.conflict ? '0 0 0 1.5px var(--om-blocked)' : 'none' }}>
+            {forecastRatio != null && Math.abs(forecastRatio - 1) > 0.01 && !drag && (
+                <div title={`${__('Current forecast')}: ${forecast.endLabel} · ${__('Plan variance')}: ${forecast.varianceLabel}`}
+                    style={{ position: 'absolute', left: 0, bottom: -4, height: 3, width: `${forecastRatio * 100}%`, minWidth: 4, borderRadius: 3, background: forecastRatio > 1 ? 'var(--om-blocked)' : 'var(--om-running)', opacity: 0.72, zIndex: 0, pointerEvents: 'auto' }} />
+            )}
+            <div className="om-wo relative" title={item.placeholder && !readOnly ? __('No exact time yet — drag to schedule') : undefined} style={{ height: '100%', background: s.soft, border: item.placeholder ? '1px dashed var(--om-accent)' : '1px solid var(--om-line2)', borderRadius: 7, overflow: 'hidden', boxShadow: item.conflict ? '0 0 0 1.5px var(--om-blocked)' : 'none', zIndex: 1 }}>
                 {!readOnly && <span onPointerDown={(e) => begin('l', e)} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 7, cursor: 'ew-resize', zIndex: 3 }} />}
                 <div onPointerDown={(e) => begin('move', e)} onClick={(e) => { e.stopPropagation(); if (draggedRef.current) { draggedRef.current = false; return; } ctx.onSelectOrder(wo); }}
                     style={{ height: '100%', padding: '6px 10px', cursor: readOnly ? 'pointer' : 'grab', display: 'flex', flexDirection: 'column', gap: 1, overflow: 'hidden' }}>
@@ -109,6 +124,7 @@ export function HourlyView({ ctx }) {
                 </div>
                 <div style={{ flex: 1 }} />
                 <span className="flex items-center gap-1.5" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-faint)' }}><span style={{ width: 8, height: 8, borderRadius: 2, boxShadow: '0 0 0 1.5px var(--om-blocked)' }} />{__('overlap')}</span>
+                <span className="flex items-center gap-1.5" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-faint)' }}><span style={{ width: 16, height: 3, borderRadius: 2, background: 'var(--om-blocked)', opacity: 0.72 }} />{__('current forecast vs approved plan')}</span>
             </div>
 
             <div className="om-grid" style={{ overflow: 'auto', border: '1px solid var(--om-line)', borderRadius: 12, background: 'var(--om-card)' }}>

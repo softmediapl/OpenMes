@@ -35,6 +35,7 @@ class TemplateStepMediaController extends Controller
         ImageSanitizer $sanitizer,
     ) {
         $this->ensureBelongs($productType, $processTemplate);
+        $processTemplate->ensureMutable();
 
         $stepId = $request->validated('template_step_id');
         if ($stepId) {
@@ -85,6 +86,7 @@ class TemplateStepMediaController extends Controller
         TemplateStepMedia $media,
     ) {
         $this->ensureBelongs($productType, $processTemplate, $media);
+        $processTemplate->ensureMutable();
 
         $media->delete(); // model event removes the file from disk
 

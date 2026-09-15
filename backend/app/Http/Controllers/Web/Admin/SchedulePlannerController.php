@@ -11,6 +11,8 @@ use App\Models\Shift;
 use App\Models\WorkOrder;
 use App\Services\Schedule\FiniteCapacityScheduler;
 use App\Services\Schedule\FiniteSchedulePlanService;
+use App\Services\Schedule\ScheduleBaselineService;
+use App\Services\Schedule\WorkOrderForecastService;
 use App\Services\Schedule\StaleScheduleProposal;
 use App\Services\Schedule\UnableToBuildSchedule;
 use Carbon\Carbon;
@@ -76,6 +78,50 @@ class SchedulePlannerController extends Controller
             'success' => true,
             'message' => __('APS proposal applied.'),
             'proposal' => $proposal->toArray(),
+        ]);
+    }
+
+    public function acceptForecast(
+        Request $request,
+        WorkOrder $workOrder,
+        ScheduleBaselineService $baselines,
+        WorkOrderForecastService $forecasts,
+    ) {
+        $workOrder->load('currentForecast');
+        if ($workOrder->currentForecast === null) {
+            return response()->json([
+                'success' => false,
+                'message' => __('There is no current forecast to accept.'),
+            ], 422);
+        }
+
+        $snapshotBefore = $this->placementSnapshot($workOrder);
+        try {
+            $baseline = $baselines->acceptForecast(
+                $workOrder,
+                $workOrder->currentForecast,
+                (int) $request->user()->id,
+            );
+            $forecasts->refresh($workOrder->fresh());
+        } catch (\DomainException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+            ], 409);
+        }
+
+        $fresh = $workOrder->fresh();
+        $this->logChange($fresh, $snapshotBefore);
+        \App\Events\Schedule\WorkOrderScheduled::dispatch($fresh, [
+            'current_schedule_baseline_id' => $baseline->id,
+            'planned_start_at' => $fresh->planned_start_at,
+            'planned_end_at' => $fresh->planned_end_at,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => __('Forecast accepted as plan version :version.', ['version' => $baseline->version]),
+            'baseline_version' => $baseline->version,
         ]);
     }
 

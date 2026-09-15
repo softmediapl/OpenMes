@@ -21,6 +21,8 @@ class TemplateStep extends Model
         'process_template_id',
         'process_segment_id',
         'step_number',
+        'operation_code',
+        'insert_after_operation_code',
         'name',
         'instruction',
         'estimated_duration_minutes',

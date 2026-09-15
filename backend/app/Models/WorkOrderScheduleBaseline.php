@@ -18,6 +18,8 @@ class WorkOrderScheduleBaseline extends Model
 
     public const SOURCE_MANUAL = 'manual';
 
+    public const SOURCE_FORECAST = 'forecast';
+
     protected $fillable = [
         'work_order_id',
         'version',

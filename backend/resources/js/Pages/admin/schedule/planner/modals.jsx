@@ -33,6 +33,7 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
     const [proposal, setProposal] = useState(null);
     const [proposalError, setProposalError] = useState('');
     const [proposalLoading, setProposalLoading] = useState(false);
+    const [forecastAccepting, setForecastAccepting] = useState(false);
     // shift_number is a 1-based slot index (matching the weekly grid), not sort_order.
     const shiftsPerDay = config?.shiftsPerDay ?? data.shifts.length;
     const shiftOpts = [{ value: '', label: '—' }, ...Array.from({ length: shiftsPerDay }, (_, i) => ({ value: String(i + 1), label: data.shifts[i]?.name ?? ('S' + (i + 1)) }))];
@@ -130,11 +131,21 @@ export function OrderEditSheet({ wo, ctx, onClose, onSave, onUnassign }) {
                     </div>
 
                     {forecast.available && (
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-muted)', borderLeft: `3px solid ${forecast.risk === 'late' ? 'var(--om-blocked)' : forecast.risk === 'at_risk' ? 'var(--om-downtime)' : 'var(--om-running)'}`, padding: '7px 10px', background: 'var(--om-bg)' }}>
-                            <span>{__('Approved plan end')}: {wo.baseline_planned_end_at ? formatDateTime(wo.baseline_planned_end_at) : '—'}</span>
-                            <span>{__('Plan variance')}: {forecast.varianceLabel}</span>
-                            <span>{__('Deadline slack')}: {forecast.slackLabel}</span>
-                            <span>{__('Confidence')}: {__(forecast.confidence ?? '—')}</span>
+                        <div className="flex items-center justify-between gap-3 mb-4" style={{ borderLeft: `3px solid ${forecast.risk === 'late' ? 'var(--om-blocked)' : forecast.risk === 'at_risk' ? 'var(--om-downtime)' : 'var(--om-running)'}`, padding: '7px 10px', background: 'var(--om-bg)' }}>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1" style={{ fontFamily: MONO, fontSize: 10, color: 'var(--om-muted)' }}>
+                                <span>{__('Approved plan end')}: {wo.baseline_planned_end_at ? formatDateTime(wo.baseline_planned_end_at) : '—'}</span>
+                                <span>{__('Plan variance')}: {forecast.varianceLabel}</span>
+                                <span>{__('Deadline slack')}: {forecast.slackLabel}</span>
+                                <span>{__('Confidence')}: {__(forecast.confidence ?? '—')}</span>
+                            </div>
+                            <button type="button" disabled={forecastAccepting} onClick={async () => {
+                                if (!window.confirm(__('Accept the forecast as a new approved plan? The previous plan remains in history.'))) return;
+                                setForecastAccepting(true);
+                                await ctx.onAcceptForecast(wo);
+                                setForecastAccepting(false);
+                            }} className="flex-shrink-0" style={{ fontSize: 11.5, fontWeight: 600, color: '#fff', background: 'var(--om-accent)', borderRadius: 7, padding: '7px 10px', opacity: forecastAccepting ? 0.5 : 1 }}>
+                                {forecastAccepting ? __('Accepting...') : __('Accept as new plan')}
+                            </button>
                         </div>
                     )}
 

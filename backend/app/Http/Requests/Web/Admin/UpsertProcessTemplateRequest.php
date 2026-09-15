@@ -32,6 +32,14 @@ class UpsertProcessTemplateRequest extends FormRequest
                     ])
                     ->whereNull('deleted_at'),
             ],
+            'base_template_id' => [
+                'nullable',
+                Rule::exists('process_templates', 'id')
+                    ->where('product_type_id', $productType?->id)
+                    ->whereNull('base_template_id')
+                    ->whereNull('deleted_at'),
+                Rule::notIn(array_filter([$this->route('process_template')?->id])),
+            ],
             'is_active' => ['boolean'],
             'pallet_capacity_quantity' => ['nullable', 'integer', 'min:1'],
             ...$this->batchPolicyRules(),

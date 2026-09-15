@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { apsProposalMeta, durationEstimateMeta, forecastMeta, fmtDurationMinutes, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
+import { apsProposalMeta, durationEstimateMeta, forecastMeta, fmtDurationMinutes, plannedWindowForEstimate, shiftWindow, weeklyPlacements, weeklySlot } from './helpers';
 
 const shifts = [
     { start_time: '06:00:00', end_time: '14:00:00' },
@@ -16,6 +16,15 @@ describe('planner schedule helpers', () => {
         expect(shiftWindow('2026-08-28', 3, '2026-08-28', 3, shifts)).toEqual({
             planned_start_at: '2026-08-28T22:00:00',
             planned_end_at: '2026-08-29T06:00:00',
+        });
+    });
+
+    it('sizes a newly dropped order from its planned lead time', () => {
+        const window = shiftWindow('2026-08-28', 1, '2026-08-28', 1, shifts);
+
+        expect(plannedWindowForEstimate(window, { estimated_lead_time_minutes: 210 })).toEqual({
+            planned_start_at: '2026-08-28T06:00:00',
+            planned_end_at: '2026-08-28T09:30:00',
         });
     });
 

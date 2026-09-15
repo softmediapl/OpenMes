@@ -757,6 +757,7 @@ class WorkOrderService
             $batchStep = BatchStep::create([
                 'batch_id' => $batch->id,
                 'step_number' => $stepData['step_number'],
+                'operation_code' => $stepData['operation_code'] ?? null,
                 'name' => $stepData['name'],
                 'instruction' => $stepData['instruction'] ?? null,
                 'requires_confirmation' => $stepData['requires_confirmation'] ?? false,

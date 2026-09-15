@@ -487,16 +487,32 @@ class WorkOrderController extends Controller
         $processPhotos = collect();   // general (non-step) work-instruction gallery
         $stepPhotos = [];             // step_number => photo, shown inline per step
         $templateId = $workOrder->process_snapshot['template_id'] ?? null;
+        $snapshotStepDefinitions = collect($workOrder->process_snapshot['steps'] ?? []);
+        $sourceStepNumbers = $snapshotStepDefinitions
+            ->filter(fn (array $step) => ! empty($step['source_template_step_id']))
+            ->mapWithKeys(fn (array $step) => [(int) $step['source_template_step_id'] => (int) $step['step_number']]);
         if ($templateId) {
-            $photos = \App\Models\ProcessTemplatePhoto::where('process_template_id', $templateId)
-                ->with('templateStep:id,step_number')
+            $legacyStepNumbers = \App\Models\TemplateStep::query()
+                ->where('process_template_id', $templateId)
+                ->pluck('step_number', 'id')
+                ->map(fn ($number) => (int) $number);
+            $sourceStepNumbers = $sourceStepNumbers->union($legacyStepNumbers);
+        }
+        $sourceTemplateIds = $snapshotStepDefinitions
+            ->pluck('source_template_id')
+            ->filter()
+            ->push($templateId)
+            ->unique()
+            ->values();
+        if ($templateId) {
+            $photos = \App\Models\ProcessTemplatePhoto::whereIn('process_template_id', $sourceTemplateIds)
                 ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get();
 
             $shape = fn ($p) => [
                 'id' => $p->id,
-                'url' => route('process-templates.photos.show', [$templateId, $p->id]),
+                'url' => route('process-templates.photos.show', [$p->process_template_id, $p->id]),
                 'caption' => $p->caption,
                 'width' => $p->width,
                 'height' => $p->height,
@@ -504,10 +520,8 @@ class WorkOrderController extends Controller
 
             $processPhotos = $photos->whereNull('template_step_id')->map($shape)->values();
 
-            // A batch step links back to its template step only by step_number
-            // (the snapshot doesn't carry template_step_id), so key by that.
             foreach ($photos->whereNotNull('template_step_id') as $p) {
-                $num = $p->templateStep?->step_number;
+                $num = $sourceStepNumbers->get($p->template_step_id);
                 if ($num !== null) {
                     $stepPhotos[$num] = $shape($p);
                 }
@@ -521,11 +535,9 @@ class WorkOrderController extends Controller
         $stepMedia = [];      // step_number => [ {id, url, media_type, title, ...} ]
         $stepChecklists = []; // step_number => [ {id, label, is_required} ]
         if ($templateId) {
-            foreach (TemplateStepMedia::where('process_template_id', $templateId)
-                ->whereNotNull('template_step_id')
-                ->with('templateStep:id,step_number')
+            foreach (TemplateStepMedia::whereIn('template_step_id', $sourceStepNumbers->keys())
                 ->orderBy('sort_order')->orderBy('id')->get() as $m) {
-                $num = $m->templateStep?->step_number;
+                $num = $sourceStepNumbers->get($m->template_step_id);
                 if ($num === null) {
                     continue;
                 }
@@ -535,15 +547,13 @@ class WorkOrderController extends Controller
                     'title' => $m->title,
                     'mime_type' => $m->mime_type,
                     'original_name' => $m->original_name,
-                    'url' => route('process-templates.media.show', [$templateId, $m->id]),
+                    'url' => route('process-templates.media.show', [$m->process_template_id, $m->id]),
                 ];
             }
 
-            foreach (TemplateStepChecklistItem::where('process_template_id', $templateId)
-                ->whereNotNull('template_step_id')
-                ->with('templateStep:id,step_number')
+            foreach (TemplateStepChecklistItem::whereIn('template_step_id', $sourceStepNumbers->keys())
                 ->orderBy('sort_order')->orderBy('id')->get() as $it) {
-                $num = $it->templateStep?->step_number;
+                $num = $sourceStepNumbers->get($it->template_step_id);
                 if ($num === null) {
                     continue;
                 }

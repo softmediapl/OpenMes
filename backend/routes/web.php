@@ -442,6 +442,7 @@ Route::middleware('auth')->group(function () {
         Route::post('/schedule/changes/{change}/undo', [SchedulePlannerController::class, 'undoChange'])->name('schedule.changes.undo');
         Route::post('/schedule/{workOrder}/aps-proposal', [SchedulePlannerController::class, 'proposeFiniteSchedule'])->name('schedule.aps.proposal');
         Route::post('/schedule/{workOrder}/aps-apply', [SchedulePlannerController::class, 'applyFiniteSchedule'])->name('schedule.aps.apply');
+        Route::post('/schedule/{workOrder}/accept-forecast', [SchedulePlannerController::class, 'acceptForecast'])->name('schedule.forecast.accept');
         Route::put('/schedule/{workOrder}', [SchedulePlannerController::class, 'updateOrder'])->name('schedule.update');
         Route::put('/schedule/{workOrder}/resize', [SchedulePlannerController::class, 'resizeOrder'])->name('schedule.resize');
 
@@ -600,6 +601,9 @@ Route::middleware('auth')->group(function () {
 
             // Template steps management
             Route::post('/{process_template}/steps', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'addStep'])->name('add-step');
+            Route::post('/{process_template}/inherited-steps/{baseStep}/override', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'overrideInheritedStep'])->name('override-inherited-step');
+            Route::post('/{process_template}/inherited-steps/{baseStep}/omit', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'omitInheritedStep'])->name('omit-inherited-step');
+            Route::delete('/{process_template}/inherited-steps/{operationCode}/omit', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'restoreInheritedStep'])->name('restore-inherited-step');
             Route::put('/{process_template}/steps/{step}', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'updateStep'])->name('update-step');
             Route::delete('/{process_template}/steps/{step}', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'deleteStep'])->name('delete-step');
             Route::post('/{process_template}/steps/reorder', [\App\Http\Controllers\Web\Admin\ProcessTemplateManagementController::class, 'reorderSteps'])->name('reorder-steps');

@@ -34,6 +34,7 @@ class BatchStep extends Model
     protected $fillable = [
         'batch_id',
         'step_number',
+        'operation_code',
         'name',
         'instruction',
         'requires_confirmation',
@@ -287,14 +288,14 @@ class BatchStep extends Model
      */
     public function pendingRequiredChecklistLabels(): \Illuminate\Support\Collection
     {
-        $templateId = $this->batch?->workOrder?->process_snapshot['template_id'] ?? null;
-        if (! $templateId) {
+        $definition = $this->snapshotStepDefinition();
+        $templateStepId = $definition['source_template_step_id'] ?? null;
+        if (! $templateStepId) {
             return collect();
         }
 
-        $required = TemplateStepChecklistItem::where('process_template_id', $templateId)
+        $required = TemplateStepChecklistItem::where('template_step_id', $templateStepId)
             ->where('is_required', true)
-            ->whereHas('templateStep', fn ($q) => $q->where('step_number', $this->step_number))
             ->pluck('label', 'id');
         if ($required->isEmpty()) {
             return collect();
@@ -333,15 +334,7 @@ class BatchStep extends Model
             return true;
         }
 
-        $templateId = data_get($this->batch?->workOrder?->process_snapshot, 'template_id');
-        if (! $templateId) {
-            return false;
-        }
-
-        $templateStepId = TemplateStep::query()
-            ->where('process_template_id', $templateId)
-            ->where('step_number', $this->step_number)
-            ->value('id');
+        $templateStepId = $this->snapshotStepDefinition()['source_template_step_id'] ?? null;
 
         if (! $templateStepId) {
             return false;
@@ -349,6 +342,34 @@ class BatchStep extends Model
 
         return TemplateStepMedia::where('template_step_id', $templateStepId)->exists()
             || ProcessTemplatePhoto::where('template_step_id', $templateStepId)->exists();
+    }
+
+    /** @return array<string, mixed> */
+    public function snapshotStepDefinition(): array
+    {
+        $steps = data_get($this->batch?->workOrder?->process_snapshot, 'steps', []);
+        $definition = collect($steps)->first(
+            fn (array $step) => ($this->operation_code && ($step['operation_code'] ?? null) === $this->operation_code)
+                || (int) ($step['step_number'] ?? 0) === $this->step_number,
+            [],
+        );
+
+        if (! empty($definition['source_template_step_id'])) {
+            return $definition;
+        }
+
+        $templateId = data_get($this->batch?->workOrder?->process_snapshot, 'template_id');
+        $templateStepId = $templateId
+            ? TemplateStep::query()
+                ->where('process_template_id', $templateId)
+                ->where('step_number', $this->step_number)
+                ->value('id')
+            : null;
+
+        return array_merge($definition, [
+            'source_template_id' => $definition['source_template_id'] ?? $templateId,
+            'source_template_step_id' => $templateStepId,
+        ]);
     }
 
     /**

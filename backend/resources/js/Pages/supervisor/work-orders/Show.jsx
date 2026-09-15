@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Button, StatusPill } from '@openmes/ui';
 import AppLayout from '../../../layouts/AppLayout';
+import ProductionRoute from '../../../components/ProductionRoute';
 import { apiCall } from '../../../lib/http';
 import { __, formatDate, formatNumber } from '../../../lib/i18n';
 
@@ -411,6 +412,8 @@ export default function SupervisorWorkOrderShow() {
                                 )}
                             </div>
                         </div>
+
+                        <ProductionRoute processSnapshot={workOrder.process_snapshot} batches={workOrder.batches} />
 
                         {/* Batches */}
                         <div className="bg-om-card border border-om-line rounded-om p-5">

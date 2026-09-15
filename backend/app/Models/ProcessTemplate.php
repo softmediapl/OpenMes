@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 
 class ProcessTemplate extends Model
 {
@@ -18,6 +19,7 @@ class ProcessTemplate extends Model
     protected $fillable = [
         'product_type_id',
         'product_revision_id',
+        'base_template_id',
         'name',
         'version',
         'ideal_cycle_minutes',
@@ -38,6 +40,7 @@ class ProcessTemplate extends Model
             'is_active' => 'boolean',
             'version' => 'integer',
             'product_revision_id' => 'integer',
+            'base_template_id' => 'integer',
             'ideal_cycle_minutes' => 'decimal:4',
             'preferred_batch_quantity' => 'decimal:4',
             'min_batch_quantity' => 'decimal:4',
@@ -87,6 +90,21 @@ class ProcessTemplate extends Model
     public function productRevision(): BelongsTo
     {
         return $this->belongsTo(ProductRevision::class);
+    }
+
+    public function baseTemplate(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'base_template_id');
+    }
+
+    public function derivedTemplates(): HasMany
+    {
+        return $this->hasMany(self::class, 'base_template_id');
+    }
+
+    public function stepExclusions(): HasMany
+    {
+        return $this->hasMany(ProcessTemplateStepExclusion::class);
     }
 
     /**
@@ -153,6 +171,24 @@ class ProcessTemplate extends Model
         return $query->where('is_active', true);
     }
 
+    public function isLockedAsCompositionBase(): bool
+    {
+        return $this->derivedTemplates()->exists();
+    }
+
+    /**
+     * A variant pins a concrete base version. Mutating that base in place would
+     * silently alter every future snapshot, so revisions must be made by copy.
+     */
+    public function ensureMutable(): void
+    {
+        if ($this->isLockedAsCompositionBase()) {
+            throw ValidationException::withMessages([
+                'process_template' => __('This process version is used as a composition base. Copy it to create a new version.'),
+            ]);
+        }
+    }
+
     /** Children soft-deleted/restored together with this model (mirrors DB FK cascades). */
     public function softDeleteCascades(): array
     {
@@ -163,6 +199,7 @@ class ProcessTemplate extends Model
             [\App\Models\ProcessTemplatePhoto::class, 'process_template_id'],
             [\App\Models\TemplateStepMedia::class, 'process_template_id'],
             [\App\Models\TemplateStepChecklistItem::class, 'process_template_id'],
+            [\App\Models\ProcessTemplateStepExclusion::class, 'process_template_id'],
         ];
     }
 }

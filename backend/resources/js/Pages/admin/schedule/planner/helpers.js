@@ -100,6 +100,23 @@ export function shiftWindow(startDate, startShift, endDate, endShift, shifts = [
     };
 }
 
+export function plannedWindowForEstimate(window, workOrder) {
+    const minutes = Number(workOrder?.estimated_lead_time_minutes ?? workOrder?.estimated_duration_minutes ?? 0);
+    if (!window || !Number.isFinite(minutes) || minutes <= 0) return window;
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/.exec(window.planned_start_at ?? '');
+    if (!match) return window;
+
+    const start = new Date(
+        Number(match[1]), Number(match[2]) - 1, Number(match[3]),
+        Number(match[4]), Number(match[5]), Number(match[6]),
+    );
+    start.setMinutes(start.getMinutes() + Math.ceil(minutes));
+    const end = `${fmtKey(start)}T${String(start.getHours()).padStart(2, '0')}:${String(start.getMinutes()).padStart(2, '0')}:00`;
+
+    return { ...window, planned_end_at: end };
+}
+
 export function dayList(startStr, count, showWeekends) {
     const start = parseDate(startStr);
     if (!start) return [];
@@ -447,13 +464,13 @@ export function hourlyLanes(orders, lineId, dateStr) {
         })
         .map(({ orig, proj, key }) => {
             if (!proj.planned_start_at || !proj.planned_end_at) {
-                return { wo: orig, placementKey: key, start: 0, end: 60, spansOutside: false, placeholder: true };
+                return { wo: orig, placementKey: key, start: 0, end: 60, date: dateStr, spansOutside: false, placeholder: true };
             }
             const startsBefore = proj.planned_start_at.slice(0, 10) < dateStr;
             const endsAfter = proj.planned_end_at.slice(0, 10) > dateStr;
             const start = startsBefore ? 0 : minuteOfDay(proj.planned_start_at);
             const end = endsAfter ? 1440 : minuteOfDay(proj.planned_end_at);
-            return { wo: orig, placementKey: key, start, end, spansOutside: startsBefore || endsAfter, placeholder: false };
+            return { wo: orig, placementKey: key, start, end, date: dateStr, spansOutside: startsBefore || endsAfter, placeholder: false };
         })
         .sort((a, b) => a.start - b.start || a.end - b.end);
     const laneEnds = [];

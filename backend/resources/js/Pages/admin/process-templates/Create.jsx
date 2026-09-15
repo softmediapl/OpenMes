@@ -6,11 +6,12 @@ import BatchPolicyFields from './BatchPolicyFields';
 import PackagingPolicyFields from './PackagingPolicyFields';
 
 export default function ProcessTemplatesCreate() {
-    const { productType, revisions = [] } = usePage().props;
+    const { productType, revisions = [], baseTemplates = [] } = usePage().props;
 
     const form = useForm({
         name: '',
         product_revision_id: '',
+        base_template_id: '',
         is_active: true,
         preferred_batch_quantity: '',
         min_batch_quantity: '',
@@ -81,6 +82,23 @@ export default function ProcessTemplatesCreate() {
                             </select>
                             <p className="text-sm text-om-muted mt-1">{__("Assign the process+BOM variant to the product revision it applies to.")}</p>
                             {errors.product_revision_id && <p className="text-om-blocked text-sm mt-1">{errors.product_revision_id}</p>}
+                        </div>
+
+                        <div className="mb-6">
+                            <label htmlFor="base_template_id" className="form-label">{__('Base process')}</label>
+                            <select
+                                id="base_template_id"
+                                value={data.base_template_id}
+                                onChange={(e) => setData('base_template_id', e.target.value)}
+                                className={`form-input w-full${errors.base_template_id ? ' border-om-blocked' : ''}`}
+                            >
+                                <option value="">{__('No base process')}</option>
+                                {baseTemplates.map((template) => (
+                                    <option key={template.id} value={template.id}>{template.name} (v{template.version})</option>
+                                ))}
+                            </select>
+                            <p className="text-sm text-om-muted mt-1">{__('Inherit the route from a pinned template version, then override or omit only the differences.')}</p>
+                            {errors.base_template_id && <p className="text-om-blocked text-sm mt-1">{errors.base_template_id}</p>}
                         </div>
 
                         <BatchPolicyFields

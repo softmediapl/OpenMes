@@ -35,6 +35,7 @@ class ProcessTemplatePhotoController extends Controller
         ImageSanitizer $sanitizer,
     ) {
         $this->ensureBelongs($productType, $processTemplate);
+        $processTemplate->ensureMutable();
 
         // A photo may target one specific step. Verify the step belongs to this
         // template (anti-IDOR) before persisting the link.
@@ -93,6 +94,7 @@ class ProcessTemplatePhotoController extends Controller
         ProcessTemplatePhoto $photo,
     ) {
         $this->ensureBelongs($productType, $processTemplate, $photo);
+        $processTemplate->ensureMutable();
 
         $photo->delete(); // model event removes the file from disk
 

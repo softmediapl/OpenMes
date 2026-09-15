@@ -9,17 +9,23 @@ use App\Http\Requests\Web\Admin\UpdateTemplateStepDependenciesRequest;
 use App\Http\Requests\Web\Admin\UpdateTemplateStepRequest;
 use App\Http\Requests\Web\Admin\UpsertProcessTemplateRequest;
 use App\Models\ProcessTemplate;
+use App\Models\ProcessTemplateStepExclusion;
 use App\Models\ProductRevision;
 use App\Models\ProductType;
 use App\Models\TemplateStep;
 use App\Models\Workstation;
 use App\Services\ProcessTemplate\StepDependencyService;
+use App\Services\ProcessTemplate\CompositionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ProcessTemplateManagementController extends Controller
 {
+    public function __construct(private CompositionService $composition) {}
+
     /**
      * Display process templates for a product type
      */
@@ -61,6 +67,7 @@ class ProcessTemplateManagementController extends Controller
         return Inertia::render('admin/process-templates/Create', [
             'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'revisions' => $this->assignableRevisionOptions($productType),
+            'baseTemplates' => $this->baseTemplateOptions($productType),
         ]);
     }
 
@@ -104,7 +111,11 @@ class ProcessTemplateManagementController extends Controller
             'stepMedia',
             'checklistItems',
             'dependencies',
+            'baseTemplate:id,name,version,product_type_id,base_template_id',
+            'stepExclusions',
+            'derivedTemplates:id,base_template_id',
         ]);
+        $resolvedSteps = $this->composition->resolveSteps($processTemplate);
         $workstations = Workstation::active()->with('line')->orderBy('name')->get();
         $processSegments = \App\Models\ProcessSegment::query()
             ->active()
@@ -118,7 +129,14 @@ class ProcessTemplateManagementController extends Controller
                 'id' => $processTemplate->id,
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
+                'base_template' => $processTemplate->baseTemplate ? [
+                    'id' => $processTemplate->baseTemplate->id,
+                    'name' => $processTemplate->baseTemplate->name,
+                    'version' => $processTemplate->baseTemplate->version,
+                ] : null,
+                'excluded_operation_codes' => $processTemplate->stepExclusions->pluck('operation_code')->values(),
                 'is_active' => (bool) $processTemplate->is_active,
+                'is_locked_as_base' => $processTemplate->derivedTemplates->isNotEmpty(),
                 'batch_policy' => $processTemplate->batchPolicySnapshot(),
                 'packaging_policy' => $processTemplate->packagingPolicySnapshot(),
                 'dependency_mode' => $processTemplate->dependency_mode,
@@ -127,9 +145,16 @@ class ProcessTemplateManagementController extends Controller
                     'successor_step_id' => $dependency->successor_step_id,
                     'lag_minutes' => $dependency->lag_minutes,
                 ])->values(),
-                'steps' => $processTemplate->steps->map(fn ($s) => [
+                'steps' => $resolvedSteps->map(function (array $resolved) {
+                    $s = $resolved['step'];
+
+                    return [
                     'id' => $s->id,
-                    'step_number' => $s->step_number,
+                    'step_number' => $resolved['step_number'],
+                    'operation_code' => $s->operation_code,
+                    'insert_after_operation_code' => $s->insert_after_operation_code,
+                    'composition_source' => $resolved['source'],
+                    'source_template_id' => $resolved['source_template_id'],
                     'name' => $s->name,
                     'instruction' => $s->instruction,
                     'requires_confirmation' => (bool) $s->requires_confirmation,
@@ -169,7 +194,8 @@ class ProcessTemplateManagementController extends Controller
                         'id' => $s->qualityCheckTemplate->id,
                         'name' => $s->qualityCheckTemplate->name,
                     ] : null,
-                ]),
+                    ];
+                }),
                 'photos' => $processTemplate->photos->map(fn ($p) => [
                     'id' => $p->id,
                     'template_step_id' => $p->template_step_id,
@@ -236,11 +262,13 @@ class ProcessTemplateManagementController extends Controller
         return Inertia::render('admin/process-templates/Edit', [
             'productType' => $productType->only('id', 'name', 'unit_of_measure', 'quantity_precision'),
             'revisions' => $this->assignableRevisionOptions($productType),
+            'baseTemplates' => $this->baseTemplateOptions($productType, $processTemplate),
             'processTemplate' => [
                 'id' => $processTemplate->id,
                 'name' => $processTemplate->name,
                 'version' => $processTemplate->version,
                 'product_revision_id' => $processTemplate->product_revision_id,
+                'base_template_id' => $processTemplate->base_template_id,
                 'is_active' => (bool) $processTemplate->is_active,
                 'preferred_batch_quantity' => $processTemplate->preferred_batch_quantity,
                 'min_batch_quantity' => $processTemplate->min_batch_quantity,
@@ -248,6 +276,7 @@ class ProcessTemplateManagementController extends Controller
                 'batch_quantity_multiple' => $processTemplate->batch_quantity_multiple,
                 'allow_partial_final_batch' => (bool) $processTemplate->allow_partial_final_batch,
                 'pallet_capacity_quantity' => $processTemplate->pallet_capacity_quantity,
+                'is_locked_as_base' => $processTemplate->isLockedAsCompositionBase(),
             ],
         ]);
     }
@@ -261,6 +290,8 @@ class ProcessTemplateManagementController extends Controller
         if ($processTemplate->product_type_id !== $productType->id) {
             abort(404);
         }
+
+        $processTemplate->ensureMutable();
 
         $validated = $request->validated();
 
@@ -286,6 +317,7 @@ class ProcessTemplateManagementController extends Controller
                 'bomItems',
                 'checklistItems',
                 'dependencies',
+                'stepExclusions',
             ]);
 
             $latestVersion = $productType->processTemplates()->max('version') ?? 0;
@@ -322,14 +354,14 @@ class ProcessTemplateManagementController extends Controller
             foreach ($processTemplate->bomItems as $item) {
                 $newItem = $item->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
                 $newItem->process_template_id = $newTemplate->id;
-                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? null) : null;
+                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? $item->template_step_id) : null;
                 $newItem->save();
             }
 
             foreach ($processTemplate->checklistItems as $item) {
                 $newItem = $item->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
                 $newItem->process_template_id = $newTemplate->id;
-                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? null) : null;
+                $newItem->template_step_id = $item->template_step_id ? ($stepMap[$item->template_step_id] ?? $item->template_step_id) : null;
                 $newItem->save();
             }
 
@@ -343,6 +375,12 @@ class ProcessTemplateManagementController extends Controller
                 $newDependency->predecessor_step_id = $stepMap[$dependency->predecessor_step_id];
                 $newDependency->successor_step_id = $stepMap[$dependency->successor_step_id];
                 $newDependency->save();
+            }
+
+            foreach ($processTemplate->stepExclusions as $exclusion) {
+                $newExclusion = $exclusion->replicate(['created_at', 'updated_at']);
+                $newExclusion->process_template_id = $newTemplate->id;
+                $newExclusion->save();
             }
 
             return $newTemplate;
@@ -360,6 +398,10 @@ class ProcessTemplateManagementController extends Controller
         // Ensure template belongs to this product type
         if ($processTemplate->product_type_id !== $productType->id) {
             abort(404);
+        }
+
+        if ($processTemplate->derivedTemplates()->exists()) {
+            return back()->with('error', __('Cannot delete a process version used as a composition base.'));
         }
 
         // Check if template has steps
@@ -402,7 +444,13 @@ class ProcessTemplateManagementController extends Controller
             abort(404);
         }
 
+        $processTemplate->ensureMutable();
+
         $validated = $this->stepPayload($request);
+
+        if (blank($validated['operation_code'] ?? null)) {
+            $validated['operation_code'] = $this->nextOperationCode($processTemplate, $validated['name']);
+        }
 
         // Get the next step number
         $maxStepNumber = $processTemplate->steps()->max('step_number') ?? 0;
@@ -425,6 +473,8 @@ class ProcessTemplateManagementController extends Controller
             abort(404);
         }
 
+        $processTemplate->ensureMutable();
+
         $step->update($this->stepPayload($request));
 
         return redirect()->route('admin.product-types.process-templates.show', [$productType, $processTemplate])
@@ -440,6 +490,8 @@ class ProcessTemplateManagementController extends Controller
         if ($processTemplate->product_type_id !== $productType->id) {
             abort(404);
         }
+
+        $processTemplate->ensureMutable();
 
         $dependencies->replace(
             $processTemplate,
@@ -473,6 +525,92 @@ class ProcessTemplateManagementController extends Controller
         return $data;
     }
 
+    public function overrideInheritedStep(
+        ProductType $productType,
+        ProcessTemplate $processTemplate,
+        TemplateStep $baseStep,
+    ) {
+        $this->assertInheritedStep($productType, $processTemplate, $baseStep);
+
+        $local = DB::transaction(function () use ($processTemplate, $baseStep) {
+            $existing = $processTemplate->steps()->where('operation_code', $baseStep->operation_code)->first();
+            if ($existing) {
+                return $existing;
+            }
+
+            $baseStep->load(['photos', 'media', 'checklistItems']);
+            $local = $baseStep->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+            $local->process_template_id = $processTemplate->id;
+            $local->step_number = ($processTemplate->steps()->max('step_number') ?? 0) + 1;
+            $local->insert_after_operation_code = null;
+            $local->save();
+
+            foreach (['photos', 'media', 'checklistItems'] as $relation) {
+                foreach ($baseStep->{$relation} as $resource) {
+                    $copy = $resource->replicate(['created_at', 'updated_at', 'deleted_at', 'deleted_by_id']);
+                    $copy->process_template_id = $processTemplate->id;
+                    $copy->template_step_id = $local->id;
+                    if (in_array($relation, ['photos', 'media'], true)) {
+                        $extension = pathinfo($resource->storage_path, PATHINFO_EXTENSION);
+                        $directory = $relation === 'photos' ? 'process-template-photos' : 'template-step-media';
+                        $copy->storage_path = $directory.'/'.$processTemplate->id.'/'.Str::random(40).'.'.$extension;
+                        Storage::copy($resource->storage_path, $copy->storage_path);
+                    }
+                    $copy->save();
+                }
+            }
+
+            return $local;
+        });
+
+        return back()->with('success', __('Inherited step is ready to customize.'));
+    }
+
+    public function omitInheritedStep(ProductType $productType, ProcessTemplate $processTemplate, TemplateStep $baseStep)
+    {
+        $this->assertInheritedStep($productType, $processTemplate, $baseStep);
+
+        ProcessTemplateStepExclusion::firstOrCreate([
+            'process_template_id' => $processTemplate->id,
+            'operation_code' => $baseStep->operation_code,
+        ]);
+
+        return back()->with('success', __('Inherited step omitted from this variant.'));
+    }
+
+    public function restoreInheritedStep(ProductType $productType, ProcessTemplate $processTemplate, string $operationCode)
+    {
+        if ($processTemplate->product_type_id !== $productType->id || ! $processTemplate->baseTemplate?->steps()->where('operation_code', $operationCode)->exists()) {
+            abort(404);
+        }
+
+        $processTemplate->stepExclusions()->where('operation_code', $operationCode)->delete();
+
+        return back()->with('success', __('Inherited step restored.'));
+    }
+
+    private function assertInheritedStep(ProductType $productType, ProcessTemplate $processTemplate, TemplateStep $baseStep): void
+    {
+        if ($processTemplate->product_type_id !== $productType->id
+            || $processTemplate->base_template_id === null
+            || $baseStep->process_template_id !== $processTemplate->base_template_id) {
+            abort(404);
+        }
+    }
+
+    private function nextOperationCode(ProcessTemplate $template, string $name): string
+    {
+        $base = Str::upper(Str::slug($name, '_')) ?: 'OPERATION';
+        $candidate = Str::limit($base, 70, '');
+        $suffix = 1;
+
+        while ($template->steps()->where('operation_code', $candidate)->exists()) {
+            $candidate = Str::limit($base, 70, '').'_'.++$suffix;
+        }
+
+        return $candidate;
+    }
+
     private function activeRevisionOptions(ProductType $productType)
     {
         return ProductRevision::where('product_type_id', $productType->id)
@@ -502,6 +640,20 @@ class ProcessTemplateManagementController extends Controller
             ]);
     }
 
+    private function baseTemplateOptions(ProductType $productType, ?ProcessTemplate $current = null)
+    {
+        return $productType->processTemplates()
+            ->whereNull('base_template_id')
+            ->when($current, fn ($query) => $query->whereKeyNot($current->id))
+            ->orderByDesc('version')
+            ->get(['id', 'name', 'version'])
+            ->map(fn ($template) => [
+                'id' => $template->id,
+                'name' => $template->name,
+                'version' => $template->version,
+            ]);
+    }
+
     /**
      * Delete a step from the process template
      */
@@ -511,6 +663,8 @@ class ProcessTemplateManagementController extends Controller
         if ($processTemplate->product_type_id !== $productType->id || $step->process_template_id !== $processTemplate->id) {
             abort(404);
         }
+
+        $processTemplate->ensureMutable();
 
         DB::transaction(function () use ($processTemplate, $step) {
             $stepNumber = $step->step_number;
@@ -542,6 +696,8 @@ class ProcessTemplateManagementController extends Controller
         if ($processTemplate->product_type_id !== $productType->id) {
             abort(404);
         }
+
+        $processTemplate->ensureMutable();
 
         $validated = $request->validate([
             'order' => 'required|array|min:1',
@@ -584,6 +740,8 @@ class ProcessTemplateManagementController extends Controller
             abort(404);
         }
 
+        $processTemplate->ensureMutable();
+
         if ($step->step_number <= 1) {
             return redirect()->route('admin.product-types.process-templates.show', [$productType, $processTemplate])
                 ->with('error', 'Step is already first.');
@@ -615,6 +773,8 @@ class ProcessTemplateManagementController extends Controller
         if ($processTemplate->product_type_id !== $productType->id || $step->process_template_id !== $processTemplate->id) {
             abort(404);
         }
+
+        $processTemplate->ensureMutable();
 
         $maxStepNumber = $processTemplate->steps()->max('step_number');
         if ($step->step_number >= $maxStepNumber) {

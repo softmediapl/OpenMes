@@ -28,8 +28,21 @@ abstract class TemplateStepRequest extends FormRequest
 
     public function rules(): array
     {
+        $template = $this->route('process_template');
+        $step = $this->route('step');
+
         return [
             'name' => 'required|string|max:255',
+            'operation_code' => [
+                'nullable',
+                'string',
+                'max:80',
+                'regex:/^[A-Z0-9_\-]+$/',
+                Rule::unique('template_steps', 'operation_code')
+                    ->where('process_template_id', $template?->id)
+                    ->ignore($step?->id),
+            ],
+            'insert_after_operation_code' => ['nullable', 'string', 'max:80'],
             'instruction' => 'nullable|string',
             'requires_confirmation' => 'boolean',
             'quantity_reporting_required' => 'boolean',
