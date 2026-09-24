@@ -4,6 +4,7 @@ namespace Tests\Feature\Services;
 
 use App\Models\Batch;
 use App\Models\BatchStep;
+use App\Models\EmployeeActivity;
 use App\Models\Line;
 use App\Models\Skill;
 use App\Models\User;
@@ -25,6 +26,13 @@ class PanelQualificationServiceTest extends TestCase
         $skill = Skill::factory()->create();
         $worker = Worker::factory()->create(['workstation_id' => $station->id, 'is_active' => true]);
         $user = User::factory()->create(['worker_id' => $worker->id]);
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'line_id' => $line->id,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
         $order = WorkOrder::factory()->inProgress()->create([
             'line_id' => $line->id,
             'process_snapshot' => ['steps' => [[
@@ -55,9 +63,70 @@ class PanelQualificationServiceTest extends TestCase
         $target = Workstation::factory()->create(['line_id' => $line->id]);
         $worker = Worker::factory()->create(['workstation_id' => $primary->id, 'is_active' => true]);
         $user = User::factory()->create(['worker_id' => $worker->id]);
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'line_id' => $line->id,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
 
         $result = app(PanelQualificationService::class)->evaluate($user, $target);
 
         $this->assertFalse($result['qualified']);
+    }
+
+    public function test_worker_needs_a_current_schedule_and_must_not_be_absent_or_on_break(): void
+    {
+        $line = Line::factory()->create();
+        $station = Workstation::factory()->create(['line_id' => $line->id]);
+        $worker = Worker::factory()->create(['workstation_id' => $station->id, 'is_active' => true]);
+        $user = User::factory()->create(['worker_id' => $worker->id]);
+        $service = app(PanelQualificationService::class);
+
+        $result = $service->evaluate($user, $station);
+        $this->assertFalse($result['qualified']);
+        $this->assertContains('The worker is not scheduled for production at this time.', $result['reasons']);
+
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'line_id' => $line->id,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
+        $this->assertTrue($service->evaluate($user, $station)['qualified']);
+
+        \App\Models\WorkerAbsence::factory()->create([
+            'worker_id' => $worker->id,
+            'starts_on' => today(),
+            'ends_on' => today(),
+            'status' => 'approved',
+        ]);
+        $result = $service->evaluate($user, $station);
+        $this->assertFalse($result['qualified']);
+        $this->assertContains('The worker has an approved absence at this time.', $result['reasons']);
+    }
+
+    public function test_schedule_for_another_line_does_not_authorize_production(): void
+    {
+        $line = Line::factory()->create();
+        $otherLine = Line::factory()->create();
+        $station = Workstation::factory()->create(['line_id' => $line->id]);
+        $worker = Worker::factory()->create(['workstation_id' => $station->id, 'is_active' => true]);
+        $user = User::factory()->create(['worker_id' => $worker->id]);
+
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'line_id' => $otherLine->id,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
+
+        $result = app(PanelQualificationService::class)->evaluate($user, $station);
+
+        $this->assertFalse($result['qualified']);
+        $this->assertContains('The worker is not scheduled for production at this time.', $result['reasons']);
     }
 }

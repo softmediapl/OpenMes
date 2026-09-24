@@ -4,6 +4,7 @@ namespace App\Services\Workforce;
 
 use App\Models\Crew;
 use App\Models\CrewBreakWindow;
+use App\Models\EmployeeActivity;
 use App\Models\Worker;
 use App\Models\WorkerAbsence;
 use Carbon\CarbonInterface;
@@ -15,6 +16,38 @@ use Illuminate\Support\Collection;
  */
 class WorkerAvailabilityService
 {
+    /**
+     * Return the activity that authorizes production work at the given moment.
+     *
+     * Setup and quality-control blocks are productive time too. A line-specific
+     * activity must match the workstation line; a null line is plant-wide.
+     */
+    public function scheduledProductionActivity(
+        Worker $worker,
+        CarbonInterface $moment,
+        ?int $lineId = null,
+    ): ?EmployeeActivity {
+        return $worker->activities()
+            ->whereIn('type', ['work', 'setup', 'qc'])
+            ->where('starts_at', '<=', $moment)
+            ->where('ends_at', '>', $moment)
+            ->when($lineId, fn ($query) => $query->where(
+                fn ($lineQuery) => $lineQuery
+                    ->whereNull('line_id')
+                    ->orWhere('line_id', $lineId)
+            ))
+            ->orderByDesc('starts_at')
+            ->first();
+    }
+
+    public function isScheduledForProduction(
+        Worker $worker,
+        CarbonInterface $moment,
+        ?int $lineId = null,
+    ): bool {
+        return $this->scheduledProductionActivity($worker, $moment, $lineId) !== null;
+    }
+
     /** Is the worker free across the whole inclusive [$start, $end] date span? */
     public function isAvailable(Worker $worker, CarbonInterface $start, CarbonInterface $end): bool
     {

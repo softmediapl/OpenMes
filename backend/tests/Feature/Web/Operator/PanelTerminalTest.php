@@ -4,9 +4,10 @@ namespace Tests\Feature\Web\Operator;
 
 use App\Models\Batch;
 use App\Models\BatchStep;
-use App\Models\Line;
+use App\Models\EmployeeActivity;
 use App\Models\Issue;
 use App\Models\IssueType;
+use App\Models\Line;
 use App\Models\PanelSupervisorAuthorization;
 use App\Models\User;
 use App\Models\Worker;
@@ -57,6 +58,13 @@ class PanelTerminalTest extends TestCase
             'is_active' => true,
         ]);
         $this->operator->update(['worker_id' => $worker->id]);
+        EmployeeActivity::factory()->create([
+            'worker_id' => $worker->id,
+            'type' => 'work',
+            'line_id' => $line->id,
+            'starts_at' => now()->subHour(),
+            'ends_at' => now()->addHour(),
+        ]);
 
         $this->workOrder = WorkOrder::factory()->inProgress()->create(['line_id' => $line->id]);
         $batch = Batch::factory()->inProgress()->create(['work_order_id' => $this->workOrder->id]);

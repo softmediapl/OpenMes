@@ -5,9 +5,12 @@ namespace App\Services\Operator;
 use App\Models\BatchStep;
 use App\Models\User;
 use App\Models\Workstation;
+use App\Services\Workforce\WorkerAvailabilityService;
 
 class PanelQualificationService
 {
+    public function __construct(private readonly WorkerAvailabilityService $availability) {}
+
     /** @return array{qualified: bool, reasons: list<string>} */
     public function evaluate(User $user, Workstation $workstation, ?BatchStep $step = null): array
     {
@@ -18,7 +21,21 @@ class PanelQualificationService
             return ['qualified' => false, 'reasons' => [__('No active worker profile is linked to this account.')]];
         }
 
-        $today = now()->toDateString();
+        $now = now();
+        $today = $now->toDateString();
+
+        if ($this->availability->isAbsentOn($worker, $now)) {
+            $reasons[] = __('The worker has an approved absence at this time.');
+        }
+
+        if ($this->availability->isOnBreak($worker, $now)) {
+            $reasons[] = __('The worker is currently on a scheduled break.');
+        }
+
+        if (! $this->availability->isScheduledForProduction($worker, $now, $workstation->line_id)) {
+            $reasons[] = __('The worker is not scheduled for production at this time.');
+        }
+
         $authorized = (int) $worker->workstation_id === (int) $workstation->id
             || $worker->authorizedWorkstations()
                 ->whereKey($workstation->id)
