@@ -26,7 +26,7 @@ class TabRegistry
         'orders' => ['label' => 'Orders', 'prefixes' => ['/admin/work-orders', '/admin/work-order-change-requests', '/admin/customers', '/admin/priority-rules', '/admin/csv-import']],
         'production' => ['label' => 'Production', 'prefixes' => [
             '/admin/product-types', '/admin/lot-sequences', '/admin/lines', '/admin/line-statuses',
-            '/admin/view-templates', '/admin/shifts',
+            '/admin/view-templates', '/admin/shifts', '/admin/plant-board',
             // Note: Materials, Process Segments, Product Revisions and Companies
             // are gated by the Structure module; Issues, Anomaly Reasons and
             // Scrap Reasons by Maintenance & Quality. They render under the

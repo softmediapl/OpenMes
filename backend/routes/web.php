@@ -31,6 +31,7 @@ use App\Http\Controllers\Web\Admin\MaterialManagementController;
 use App\Http\Controllers\Web\Admin\ModulesController as AdminModulesController;
 use App\Http\Controllers\Web\Admin\OeeController as AdminOeeController;
 use App\Http\Controllers\Web\Admin\PalletController as AdminPalletController;
+use App\Http\Controllers\Web\Admin\PlantBoardController;
 use App\Http\Controllers\Web\Admin\PriorityRuleController;
 use App\Http\Controllers\Web\Admin\ProductionAnomalyController;
 use App\Http\Controllers\Web\Admin\ProductionCostReportController;
@@ -403,6 +404,9 @@ Route::middleware('auth')->group(function () {
     // Per-tab access (Settings → Access matrix) replaces the blanket role:Admin;
     // TabAccessMiddleware maps each /admin path to a tab and checks tab:<key>.
     Route::prefix('admin')->name('admin.')->middleware('tab.access')->group(function () {
+        Route::get('/plant-board', [PlantBoardController::class, 'index'])->name('plant-board.index');
+        Route::get('/plant-board/check', [PlantBoardController::class, 'check'])->name('plant-board.check');
+
         // Dashboard
         Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
 

@@ -5948,5 +5948,13 @@
     "The selected step is not part of this process route.": "Wybrany krok nie należy do tej trasy procesu.",
     "The worker has an approved absence at this time.": "Pracownik ma w tym czasie zatwierdzoną nieobecność.",
     "The worker is currently on a scheduled break.": "Pracownik ma obecnie zaplanowaną przerwę.",
-    "The worker is not scheduled for production at this time.": "Pracownik nie ma obecnie zaplanowanej pracy produkcyjnej."
+    "The worker is not scheduled for production at this time.": "Pracownik nie ma obecnie zaplanowanej pracy produkcyjnej.",
+    "Plant Board": "Tablica zakładu",
+    "Filter by production line": "Filtruj według linii produkcyjnej",
+    "Board is not updating": "Tablica nie jest aktualizowana",
+    "Open full screen": "Otwórz na pełnym ekranie",
+    "No active workstation matches this board.": "Brak aktywnych stanowisk pasujących do tej tablicy.",
+    "Cause not given": "Nie podano przyczyny",
+    "No order running": "Brak realizowanego zlecenia",
+    "more active": "więcej aktywnych"
 }

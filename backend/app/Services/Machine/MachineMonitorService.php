@@ -5,6 +5,7 @@ namespace App\Services\Machine;
 use App\Models\MachineEvent;
 use App\Models\Workstation;
 use App\Models\WorkstationState;
+use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,21 +23,7 @@ class MachineMonitorService
     {
         $dayStart = now()->startOfDay();
 
-        $current = WorkstationState::where('workstation_id', $workstation->id)
-            ->whereNull('ended_at')
-            ->latest('started_at')
-            ->first();
-
-        $slices = WorkstationState::where('workstation_id', $workstation->id)
-            ->where('started_at', '>=', $dayStart)
-            ->get();
-
-        $counters = MachineEvent::where('workstation_id', $workstation->id)
-            ->where('event_type', MachineEvent::TYPE_COUNTER)
-            ->where('event_timestamp', '>=', $dayStart)
-            ->get();
-
-        return $this->computeStatus($workstation, $current, $slices, $counters);
+        return $this->statusForWorkstations(collect([$workstation]), $dayStart)[0];
     }
 
     /**
@@ -49,6 +36,7 @@ class MachineMonitorService
         ?WorkstationState $current,
         Collection $slices,
         Collection $counters,
+        CarbonInterface $windowStart,
     ): array {
         // Sum durations per state today (closed slices + the open one up to now).
         $runningSec = 0;
@@ -56,7 +44,8 @@ class MachineMonitorService
         $totalSec = 0;
         foreach ($slices as $s) {
             $end = $s->ended_at ?? now();
-            $dur = max(0, (int) $s->started_at->diffInSeconds($end));
+            $start = $s->started_at->greaterThan($windowStart) ? $s->started_at : $windowStart;
+            $dur = max(0, (int) $start->diffInSeconds($end));
             $totalSec += $dur;
             if ($s->state === WorkstationState::RUNNING) {
                 $runningSec += $dur;
@@ -116,27 +105,48 @@ class MachineMonitorService
             ->orderBy('name')
             ->get();
 
-        $dayStart = now()->startOfDay();
+        return $this->statusForWorkstations($workstations, now()->startOfDay());
+    }
 
-        // Three batched queries for the whole fleet (instead of 3 per workstation),
-        // grouped by workstation_id for O(1) lookups in computeStatus().
+    /**
+     * Batched status read for an explicit workstation set and reporting window.
+     * Unlike fleetStatus(), this also supports manual stations without machine
+     * tags, which is what the plant board needs for mixed manual/automated lines.
+     *
+     * @param  Collection<int, Workstation>  $workstations
+     * @return array<int, array<string, mixed>>
+     */
+    public function statusForWorkstations(Collection $workstations, CarbonInterface $windowStart): array
+    {
+        $workstationIds = $workstations->pluck('id');
+        if ($workstationIds->isEmpty()) {
+            return [];
+        }
+
+        // Three batched queries for the whole selection, grouped by workstation
+        // for O(1) lookups. Include a slice that began before the window but
+        // overlaps it; otherwise a machine running across shift change vanishes
+        // from availability until its next transition.
         $openStates = WorkstationState::whereIn('workstation_id', $workstationIds)
             ->whereNull('ended_at')
             ->get()
             ->groupBy('workstation_id');
 
         $slices = WorkstationState::whereIn('workstation_id', $workstationIds)
-            ->where('started_at', '>=', $dayStart)
+            ->where('started_at', '<=', now())
+            ->where(function ($query) use ($windowStart) {
+                $query->whereNull('ended_at')->orWhere('ended_at', '>=', $windowStart);
+            })
             ->get()
             ->groupBy('workstation_id');
 
         $counters = MachineEvent::whereIn('workstation_id', $workstationIds)
             ->where('event_type', MachineEvent::TYPE_COUNTER)
-            ->where('event_timestamp', '>=', $dayStart)
+            ->where('event_timestamp', '>=', $windowStart)
             ->get()
             ->groupBy('workstation_id');
 
-        return $workstations->map(function (Workstation $w) use ($openStates, $slices, $counters) {
+        return $workstations->map(function (Workstation $w) use ($openStates, $slices, $counters, $windowStart) {
             // Mirror the single-row query's "latest open state" semantics.
             $current = ($openStates->get($w->id) ?? collect())
                 ->sortByDesc('started_at')
@@ -147,6 +157,7 @@ class MachineMonitorService
                 $current,
                 $slices->get($w->id) ?? collect(),
                 $counters->get($w->id) ?? collect(),
+                $windowStart,
             );
         })->all();
     }

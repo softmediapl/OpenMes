@@ -77,6 +77,7 @@ export const ADMIN_GROUPS = [
         label: 'Production',
         icon: 'beaker',
         match: [
+            '/admin/plant-board',
             '/admin/product-types', '/admin/product-revisions', '/admin/units-of-measure', '/admin/materials', '/admin/material-lots',
             '/admin/traceability', '/admin/lot-sequences', '/admin/process-segments', '/admin/lines',
             '/admin/warehouses', '/admin/warehouse-stock', '/admin/stock-documents', '/admin/workstation-materials',
@@ -84,6 +85,7 @@ export const ADMIN_GROUPS = [
             '/admin/issues', '/admin/companies', '/admin/anomaly-reasons', '/admin/scrap-reasons',
         ],
         children: [
+            { label: 'Plant Board', href: '/admin/plant-board', match: ['/admin/plant-board'] },
             { label: 'Product Types', href: '/admin/product-types', match: ['/admin/product-types'] },
             { label: 'Units of Measure', href: '/admin/units-of-measure', match: ['/admin/units-of-measure'] },
             // Fine-grained feature toggles: each renders under this (core) Production

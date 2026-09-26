@@ -5948,5 +5948,13 @@
     "Select a workstation first.": "Select a workstation first.",
     "The worker has an approved absence at this time.": "The worker has an approved absence at this time.",
     "The worker is currently on a scheduled break.": "The worker is currently on a scheduled break.",
-    "The worker is not scheduled for production at this time.": "The worker is not scheduled for production at this time."
+    "The worker is not scheduled for production at this time.": "The worker is not scheduled for production at this time.",
+    "Plant Board": "Plant Board",
+    "Filter by production line": "Filter by production line",
+    "Board is not updating": "Board is not updating",
+    "Open full screen": "Open full screen",
+    "No active workstation matches this board.": "No active workstation matches this board.",
+    "Cause not given": "Cause not given",
+    "No order running": "No order running",
+    "more active": "more active"
 }
