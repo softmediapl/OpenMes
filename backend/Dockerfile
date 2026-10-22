@@ -1,6 +1,7 @@
 FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
 
-FROM php:8.3-fpm-alpine
+# Security baseline for CVE-2026-109618 and CVE-2026-109619.
+FROM php:8.3.36-fpm-alpine@sha256:aaf1ad25fc6484613be770743d1038e98e3e7e07409d78b97410eccdf3628f75
 
 # Install system dependencies
 RUN apk add --no-cache \
