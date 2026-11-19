@@ -4,6 +4,7 @@ FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
 FROM php:8.3.36-fpm-alpine@sha256:aaf1ad25fc6484613be770743d1038e98e3e7e07409d78b97410eccdf3628f75
 
 # Install system dependencies
+RUN apk upgrade --no-cache
 RUN apk add --no-cache \
     postgresql-dev \
     libzip-dev \
@@ -87,3 +88,5 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 # Octane before production; to fall back, override CMD to:
 #   php artisan serve --host=0.0.0.0 --port=8000   (dev only, single-threaded)
 CMD ["php", "artisan", "octane:start", "--server=roadrunner", "--host=0.0.0.0", "--port=8000", "--workers=auto", "--max-requests=500"]
+
+STOPSIGNAL SIGTERM
