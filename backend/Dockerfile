@@ -1,7 +1,10 @@
 FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
 
-# Security baseline for CVE-2026-109618 and CVE-2026-109619.
-FROM php:8.3.36-fpm-alpine@sha256:aaf1ad25fc6484613be770743d1038e98e3e7e07409d78b97410eccdf3628f75
+# Keep the PHP 8.3 security release, without a language-version migration.
+FROM php:8.3.37-fpm-alpine3.24
+
+RUN php -r 'if (PHP_VERSION_ID < 80337 || PHP_MAJOR_VERSION !== 8 || PHP_MINOR_VERSION !== 3) exit(1);'
+RUN printf 'session.upload_progress.enabled=0\n' > /usr/local/etc/php/conf.d/zzz-session-security.ini
 
 # Install system dependencies
 RUN apk upgrade --no-cache
