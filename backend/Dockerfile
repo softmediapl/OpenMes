@@ -1,7 +1,7 @@
 FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
 
 # Keep the PHP 8.3 security release, without a language-version migration.
-FROM php:8.3.37-fpm-alpine3.24
+FROM php:8.3.37-fpm-alpine3.24@sha256:8e8db93687494e48607b70cc7f7e9414d1cda0a393dfac5dae2580dff66a9fa4
 
 RUN php -r 'if (PHP_VERSION_ID < 80337 || PHP_MAJOR_VERSION !== 8 || PHP_MINOR_VERSION !== 3) exit(1);'
 RUN printf 'session.upload_progress.enabled=0\n' > /usr/local/etc/php/conf.d/zzz-session-security.ini
