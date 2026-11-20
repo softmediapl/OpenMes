@@ -1,4 +1,11 @@
-FROM ghcr.io/roadrunner-server/roadrunner:2025.1.15 AS roadrunner
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS roadrunner
+WORKDIR /src
+ADD --checksum=sha256:62cb109ee6487ae0a3c48b45254bafc3269a65f935e051c6b207cfac00fe3b1b https://codeload.github.com/roadrunner-server/roadrunner/tar.gz/321b817fab1056e404533ca1ddd200e77d1525fd /tmp/source.tar.gz
+RUN tar -xzf /tmp/source.tar.gz --strip-components=1 -C /src && rm /tmp/source.tar.gz
+ENV GOMAXPROCS=2 CGO_ENABLED=0
+RUN go get github.com/klauspost/compress@v1.18.7 github.com/rabbitmq/amqp091-go@v1.13.0 golang.org/x/net@v0.62.0 google.golang.org/grpc@v1.83.2 && go mod verify
+RUN go test -p 2 ./internal/... ./cmd/rr/...
+RUN go build -p 2 -trimpath -ldflags="-s -w -X github.com/roadrunner-server/roadrunner/v2025/internal/meta.version=2025.1.15-security20261120 -X github.com/roadrunner-server/roadrunner/v2025/internal/meta.buildTime=2026-11-20T00:00:00Z" -o /usr/bin/rr ./cmd/rr && /usr/bin/rr -v
 
 # Keep the PHP 8.3 security release, without a language-version migration.
 FROM php:8.3.37-fpm-alpine3.24@sha256:8e8db93687494e48607b70cc7f7e9414d1cda0a393dfac5dae2580dff66a9fa4
